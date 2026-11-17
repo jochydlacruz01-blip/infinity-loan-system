@@ -152,4 +152,3 @@ abstract class InfinityDatabase : RoomDatabase() {
             }
     }
 }
-```

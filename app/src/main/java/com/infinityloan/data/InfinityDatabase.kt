@@ -1,4 +1,3 @@
-```kotlin
 package com.infinityloan.data
 
 import android.content.Context

@@ -400,7 +400,37 @@ private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(loans, key = { it.id }) { loan ->
             val client = clients.firstOrNull { it.id == loan.clientId }?.fullName ?: "Cliente no disponible"
-            DataCard(client, "Principal: ${money(loan.principalMinor)} ${loan.currency}\nSaldo: ${money(loan.balanceMinor)} ${loan.currency}\nMétodo: ${loan.method} · ${loan.periods} períodos · ${loan.status}")
+            val ratePercent = loan.periodicRate
+    .toBigDecimalOrNull()
+    ?.multiply(BigDecimal("100"))
+    ?.stripTrailingZeros()
+    ?.toPlainString() ?: "No disponible"
+
+DataCard(
+    title = client,
+    detail = """
+        CAPITAL INICIAL
+        ${money(loan.principalMinor)} ${loan.currency}
+
+        SALDO PENDIENTE
+        ${money(loan.balanceMinor)} ${loan.currency}
+
+        TASA POR PERÍODO
+        $ratePercent%
+
+        CANTIDAD DE PERÍODOS
+        ${loan.periods}
+
+        SISTEMA DE AMORTIZACIÓN
+        ${loan.method}
+
+        ESTADO
+        ${loan.status}
+
+        FECHA DE REGISTRO
+        ${formatDate(loan.createdAt)}
+    """.trimIndent()
+)
         }
     }
 }

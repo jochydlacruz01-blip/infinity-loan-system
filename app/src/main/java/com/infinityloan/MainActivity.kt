@@ -334,6 +334,7 @@ private fun HomeScreen(
         }
     }
 }
+@Composable
 private fun ClientsScreen(clients: List<ClientEntity>) {
     var query by remember { mutableStateOf("") }
 
@@ -494,9 +495,7 @@ private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
         }
     }
 }
-```
 
-@Composable
 @Composable
 private fun PaymentsScreen(
     payments: List<PaymentEntity>,
@@ -597,6 +596,7 @@ private fun PaymentsScreen(
         }
     }
 }
+@Composable
 private fun Kpi(title: String, value: String, color: Color, modifier: Modifier) {
     Surface(modifier, color = color, shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(16.dp)) {

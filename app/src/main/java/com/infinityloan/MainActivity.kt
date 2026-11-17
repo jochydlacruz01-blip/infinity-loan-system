@@ -412,10 +412,69 @@ Préstamo: ${payment.loanId.take(8)}
    
 @Composable
 private fun ClientsScreen(clients: List<ClientEntity>) {
-    if (clients.isEmpty()) EmptyState("Todavía no hay clientes", "Pulsa + para registrar el primer expediente.")
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(clients, key = { it.id }) { c ->
-            DataCard(c.fullName, "Documento: ${c.documentNumber}\nTeléfono: ${c.phone}\n${c.address}")
+    var query by remember { mutableStateOf("") }
+
+    val filteredClients = clients.filter { client ->
+        client.fullName.contains(query, ignoreCase = true) ||
+        client.documentNumber.contains(query, ignoreCase = true) ||
+        client.phone.contains(query, ignoreCase = true)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("Buscar cliente") },
+            placeholder = { Text("Nombre, cédula o teléfono") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        when {
+            clients.isEmpty() -> {
+                EmptyState(
+                    "Todavía no hay clientes",
+                    "Pulsa + para registrar el primer expediente."
+                )
+            }
+
+            filteredClients.isEmpty() -> {
+                EmptyState(
+                    "No se encontraron resultados",
+                    "Comprueba el nombre, documento o teléfono."
+                )
+            }
+
+            else -> {
+                Text(
+                    "CLIENTES ENCONTRADOS: ${filteredClients.size}",
+                    color = Gold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredClients, key = { it.id }) { client ->
+                        DataCard(
+                            title = client.fullName,
+                            detail = """
+                                Documento: ${client.documentNumber}
+                                Teléfono: ${client.phone}
+                                Dirección: ${client.address}
+                                Registrado: ${formatDate(client.createdAt)}
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
         }
     }
 }

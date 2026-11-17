@@ -108,7 +108,7 @@ private fun InfinityApp(db: InfinityDatabase) {
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(clients.size, loans.size, payments.size)
+                        Screen.HOME -> HomeScreen(clients, loans, payments)
                         Screen.CLIENTS -> ClientsScreen(clients)
                         Screen.LOANS -> LoansScreen(loans, clients)
                         Screen.PAYMENTS -> PaymentsScreen(payments, loans)
@@ -185,13 +185,136 @@ private fun InfinityApp(db: InfinityDatabase) {
 }
 
 @Composable
-private fun HomeScreen(clientCount: Int, loanCount: Int, paymentCount: Int) {
-    Text("Panel ejecutivo · Sucursal principal", color = Muted, fontSize = 12.sp)
-    Spacer(Modifier.height(16.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Kpi("Clientes", clientCount.toString(), Color(0xFF51417D), Modifier.weight(1f))
-        Kpi("Préstamos", loanCount.toString(), Color(0xFF174B83), Modifier.weight(1f))
+private fun HomeScreen(
+    clients: List<ClientEntity>,
+    loans: List<LoanEntity>,
+    payments: List<PaymentEntity>
+) {
+    val currencies = listOf("DOP", "USD", "EUR")
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Column {
+                Text(
+                    "INFINITY LOAN SYSTEM",
+                    color = Gold,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Panel ejecutivo · Sucursal principal",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Kpi(
+                    "Clientes",
+                    clients.size.toString(),
+                    Color(0xFF51417D),
+                    Modifier.weight(1f)
+                )
+                Kpi(
+                    "Préstamos",
+                    loans.size.toString(),
+                    Color(0xFF174B83),
+                    Modifier.weight(1f)
+                )
+            }
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Kpi(
+                    "Activos",
+                    loans.count { it.status == "ACTIVE" }.toString(),
+                    Color(0xFF17634E),
+                    Modifier.weight(1f)
+                )
+                Kpi(
+                    "Pagos",
+                    payments.size.toString(),
+                    Color(0xFF76551F),
+                    Modifier.weight(1f)
+                )
+            }
+        }
+
+        item {
+            Text(
+                "CARTERA FINANCIERA",
+                color = Gold,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        }
+
+        items(currencies) { currency ->
+            val currencyLoans = loans.filter { it.currency == currency }
+
+            val principal = currencyLoans.sumOf {
+                it.principalMinor
+            }
+
+            val balance = currencyLoans.sumOf {
+                it.balanceMinor
+            }
+
+            DataCard(
+                title = "Moneda $currency",
+                detail = """
+                    Capital colocado: ${money(principal)} $currency
+                    Saldo pendiente: ${money(balance)} $currency
+                    Préstamos: ${currencyLoans.size}
+                """.trimIndent()
+            )
+        }
+
+        item {
+            Text(
+                "ACTIVIDAD RECIENTE",
+                color = Gold,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        }
+
+        item {
+            DataCard(
+                "Resumen de operaciones",
+                """
+                    Clientes registrados: ${clients.size}
+                    Préstamos registrados: ${loans.size}
+                    Pagos registrados: ${payments.size}
+                    Préstamos activos: ${loans.count { it.status == "ACTIVE" }}
+                    Préstamos liquidados: ${loans.count { it.status == "PAID" }}
+                """.trimIndent()
+            )
+        }
+
+        item {
+            DataCard(
+                "Centro de información",
+                """
+                    Base de datos local: activa.
+                    Almacenamiento: Room.
+                    Monedas disponibles: DOP, USD y EUR.
+                    Estado del sistema: fase de construcción.
+                    
+                    Backend compartido, contabilidad completa,
+                    sincronización y autenticación multiusuario:
+                    pendientes de integración.
+                """.trimIndent()
+            )
+        }
     }
+}
     Spacer(Modifier.height(10.dp))
     Kpi("Pagos registrados", paymentCount.toString(), Color(0xFF17634E), Modifier.fillMaxWidth())
     Spacer(Modifier.height(18.dp))

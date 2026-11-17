@@ -165,13 +165,17 @@ private fun InfinityApp(db: InfinityDatabase) {
     if (showPaymentForm) PaymentForm(
         loans = loans.filter { it.status == "ACTIVE" },
         onDismiss = { showPaymentForm = false },
-        onSave = { loanId, amount, reference ->
+        onSave = { operationId, loanId, amount, reference ->
             scope.launch {
                 val result = try {
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
                     db.payments().postPayment(
-                        PaymentEntity(operationId = UUID.randomUUID().toString(), loanId = loanId, amountMinor = minor, reference = reference.trim())
-                    )
+                        PaymentEntity(
+    operationId = operationId,
+    loanId = loanId,
+    amountMinor = minor,
+    reference = reference.trim()
+)
                 } catch (_: Exception) { PaymentPostResult.INVALID_AMOUNT }
                 message = when (result) {
                     PaymentPostResult.POSTED -> "Pago registrado y saldo actualizado."
@@ -679,7 +683,7 @@ private fun LoanForm(
 @Composable
 private fun PaymentForm(
     loans: List<LoanEntity>, onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit
+    onSave: (String, String, String, String) -> Unit
 ) {
     var selected by remember(loans) { mutableStateOf(loans.firstOrNull()?.id.orEmpty()) }
     var amount by remember { mutableStateOf("") }; var reference by remember { mutableStateOf("") }

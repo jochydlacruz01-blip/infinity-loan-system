@@ -20,6 +20,9 @@ import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val Navy = Color(0xFF0B1730)
 private val Panel = Color(0xFF142746)
@@ -309,9 +312,10 @@ private fun HomeScreen(
                 DataCard(
                     title = "Pago · ${payment.reference.ifBlank { "Sin referencia" }}",
                     detail = """
-                        Cliente: ${relatedClient?.fullName ?: "No disponible"}
-                        Importe: ${money(payment.amountMinor)} ${relatedLoan?.currency ?: ""}
-                        Préstamo: ${payment.loanId.take(8)}
+                      Cliente: ${relatedClient?.fullName ?: "No disponible"}
+Importe: ${money(payment.amountMinor)} ${relatedLoan?.currency ?: ""}
+Fecha: ${formatDate(payment.createdAt)}
+Préstamo: ${payment.loanId.take(8)}
                     """.trimIndent()
                 )
             }
@@ -507,3 +511,9 @@ private fun PaymentForm(
 
 private fun money(minor: Long): String =
     BigDecimal.valueOf(minor, 2).setScale(2, RoundingMode.HALF_UP).toPlainString()
+    private fun formatDate(timestamp: Long): String {
+    return SimpleDateFormat(
+        "dd/MM/yyyy HH:mm",
+        Locale.getDefault()
+    ).format(Date(timestamp))
+}

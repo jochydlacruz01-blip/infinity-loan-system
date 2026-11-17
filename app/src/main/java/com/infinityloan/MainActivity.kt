@@ -335,4 +335,3 @@ private fun PaymentForm(
 
 private fun money(minor: Long): String =
     BigDecimal.valueOf(minor, 2).setScale(2, RoundingMode.HALF_UP).toPlainString()
-```

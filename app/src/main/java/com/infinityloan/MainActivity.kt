@@ -270,13 +270,23 @@ private fun HomeScreen(
             }
 
             DataCard(
-                title = "Moneda $currency",
-                detail = """
-                    Capital colocado: ${money(principal)} $currency
-                    Saldo pendiente: ${money(balance)} $currency
-                    Préstamos: ${currencyLoans.size}
-                """.trimIndent()
-            )
+    title = client,
+    detail = """
+        Capital inicial: ${money(loan.principalMinor)} ${loan.currency}
+        Saldo pendiente: ${money(loan.balanceMinor)} ${loan.currency}
+        Tasa por período: ${
+            BigDecimal(loan.periodicRate)
+                .multiply(BigDecimal("100"))
+                .stripTrailingZeros()
+                .toPlainString()
+        }%
+        Cantidad de períodos: ${loan.periods}
+        Sistema de amortización: ${loan.method}
+        Estado: ${loan.status}
+        Fecha de registro: ${formatDate(loan.createdAt)}
+    """.trimIndent()
+)
+        
         }
 
               item {

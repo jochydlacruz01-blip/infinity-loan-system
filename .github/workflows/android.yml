@@ -1,5 +1,4 @@
-
-name: Android build
+name: Android build and tests
 
 on:
   push:
@@ -29,6 +28,15 @@ jobs:
 
       - name: Run unit tests and build APK
         run: gradle testDebugUnitTest assembleDebug
+
+      - name: Run Android instrumented tests
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          script: gradle connectedDebugAndroidTest
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

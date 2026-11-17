@@ -276,13 +276,45 @@ private fun HomeScreen(
             )
         }
 
-        item {
+              item {
             Text(
                 "ACTIVIDAD RECIENTE",
                 color = Gold,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
             )
+        }
+
+        val recentPayments = payments
+            .sortedByDescending { it.createdAt }
+            .take(5)
+
+        if (recentPayments.isEmpty()) {
+            item {
+                EmptyState(
+                    "Sin actividad todavía",
+                    "Los últimos pagos aparecerán aquí cuando se registren."
+                )
+            }
+        } else {
+            items(recentPayments, key = { it.operationId }) { payment ->
+                val relatedLoan = loans.firstOrNull {
+                    it.id == payment.loanId
+                }
+
+                val relatedClient = clients.firstOrNull {
+                    it.id == relatedLoan?.clientId
+                }
+
+                DataCard(
+                    title = "Pago · ${payment.reference.ifBlank { "Sin referencia" }}",
+                    detail = """
+                        Cliente: ${relatedClient?.fullName ?: "No disponible"}
+                        Importe: ${money(payment.amountMinor)} ${relatedLoan?.currency ?: ""}
+                        Préstamo: ${payment.loanId.take(8)}
+                    """.trimIndent()
+                )
+            }
         }
 
         item {

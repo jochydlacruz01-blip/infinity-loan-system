@@ -248,7 +248,33 @@ private fun HomeScreen(
                 )
             }
         }
+item {
+    Text(
+        "RESUMEN EJECUTIVO",
+        color = Gold,
+        fontWeight = FontWeight.Bold,
+        fontSize = 15.sp
+    )
+}
 
+items(currencies) { currency ->
+
+    val activeLoans = loans.filter {
+        it.currency == currency && it.status == "ACTIVE"
+    }
+
+    val activeBalance = activeLoans.sumOf {
+        it.balanceMinor
+    }
+
+    DataCard(
+        title = "Cartera activa · $currency",
+        detail = """
+            Préstamos activos: ${activeLoans.size}
+            Capital pendiente: ${money(activeBalance)} $currency
+        """.trimIndent()
+    )
+}
         item {
             Text(
                 "CARTERA FINANCIERA",

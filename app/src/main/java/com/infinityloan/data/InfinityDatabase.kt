@@ -102,8 +102,8 @@ interface PaymentDao {
     @Query("SELECT * FROM payments WHERE operationId = :operationId LIMIT 1")
     suspend fun findByOperationId(operationId: String): PaymentEntity?
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(payment: PaymentEntity)
+   @Insert(onConflict = OnConflictStrategy.IGNORE)
+suspend fun insert(payment: PaymentEntity): Long
 
     @Query("SELECT * FROM loans WHERE id = :loanId LIMIT 1")
     suspend fun findLoan(loanId: String): LoanEntity?

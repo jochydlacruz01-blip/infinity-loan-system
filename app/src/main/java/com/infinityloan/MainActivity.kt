@@ -217,18 +217,8 @@ private fun HomeScreen(
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Kpi(
-                    "Clientes",
-                    clients.size.toString(),
-                    Color(0xFF51417D),
-                    Modifier.weight(1f)
-                )
-                Kpi(
-                    "Préstamos",
-                    loans.size.toString(),
-                    Color(0xFF174B83),
-                    Modifier.weight(1f)
-                )
+                Kpi("Clientes", clients.size.toString(), Color(0xFF51417D), Modifier.weight(1f))
+                Kpi("Préstamos", loans.size.toString(), Color(0xFF174B83), Modifier.weight(1f))
             }
         }
 
@@ -240,93 +230,50 @@ private fun HomeScreen(
                     Color(0xFF17634E),
                     Modifier.weight(1f)
                 )
-                Kpi(
-                    "Pagos",
-                    payments.size.toString(),
-                    Color(0xFF76551F),
-                    Modifier.weight(1f)
-                )
+                Kpi("Pagos", payments.size.toString(), Color(0xFF76551F), Modifier.weight(1f))
             }
         }
-item {
-    Text(
-        "RESUMEN EJECUTIVO",
-        color = Gold,
-        fontWeight = FontWeight.Bold,
-        fontSize = 15.sp
-    )
-}
 
-items(currencies) { currency ->
-
-    val activeLoans = loans.filter {
-        it.currency == currency && it.status == "ACTIVE"
-    }
-
-    val activeBalance = activeLoans.sumOf {
-        it.balanceMinor
-    }
-
-    DataCard(
-        title = "Cartera activa · $currency",
-        detail = """
-            Préstamos activos: ${activeLoans.size}
-            Capital pendiente: ${money(activeBalance)} $currency
-        """.trimIndent()
-    )
-}
         item {
-            Text(
-                "CARTERA FINANCIERA",
-                color = Gold,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+            Text("RESUMEN EJECUTIVO", color = Gold, fontWeight = FontWeight.Bold)
+        }
+
+        items(currencies) { currency ->
+            val activeLoans = loans.filter {
+                it.currency == currency && it.status == "ACTIVE"
+            }
+
+            DataCard(
+                title = "Cartera activa · $currency",
+                detail = """
+                    Préstamos activos: ${activeLoans.size}
+                    Capital pendiente: ${money(activeLoans.sumOf { it.balanceMinor })} $currency
+                """.trimIndent()
             )
+        }
+
+        item {
+            Text("CARTERA FINANCIERA", color = Gold, fontWeight = FontWeight.Bold)
         }
 
         items(currencies) { currency ->
             val currencyLoans = loans.filter { it.currency == currency }
 
-            val principal = currencyLoans.sumOf {
-                it.principalMinor
-            }
-
-            val balance = currencyLoans.sumOf {
-                it.balanceMinor
-            }
-
             DataCard(
-    title = client,
-    detail = """
-        Capital inicial: ${money(loan.principalMinor)} ${loan.currency}
-        Saldo pendiente: ${money(loan.balanceMinor)} ${loan.currency}
-        Tasa por período: ${
-            BigDecimal(loan.periodicRate)
-                .multiply(BigDecimal("100"))
-                .stripTrailingZeros()
-                .toPlainString()
-        }%
-        Cantidad de períodos: ${loan.periods}
-        Sistema de amortización: ${loan.method}
-        Estado: ${loan.status}
-        Fecha de registro: ${formatDate(loan.createdAt)}
-    """.trimIndent()
-)
-        
-        }
-
-              item {
-            Text(
-                "ACTIVIDAD RECIENTE",
-                color = Gold,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                title = "Cartera total · $currency",
+                detail = """
+                    Préstamos registrados: ${currencyLoans.size}
+                    Capital inicial: ${money(currencyLoans.sumOf { it.principalMinor })} $currency
+                    Saldo pendiente: ${money(currencyLoans.sumOf { it.balanceMinor })} $currency
+                """.trimIndent()
             )
         }
 
-        val recentPayments = payments
-            .sortedByDescending { it.createdAt }
-            .take(5)
+        item {
+            Text("ACTIVIDAD RECIENTE", color = Gold, fontWeight = FontWeight.Bold)
+        }
+
+        val recentPayments = payments.sortedByDescending { it.createdAt }.take(5)
 
         if (recentPayments.isEmpty()) {
             item {
@@ -337,57 +284,35 @@ items(currencies) { currency ->
             }
         } else {
             items(recentPayments, key = { it.operationId }) { payment ->
-                val relatedLoan = loans.firstOrNull {
-                    it.id == payment.loanId
-                }
-
-                val relatedClient = clients.firstOrNull {
-                    it.id == relatedLoan?.clientId
-                }
+                val loan = loans.firstOrNull { it.id == payment.loanId }
+                val client = clients.firstOrNull { it.id == loan?.clientId }
 
                 DataCard(
                     title = "Pago · ${payment.reference.ifBlank { "Sin referencia" }}",
                     detail = """
-                      Cliente: ${relatedClient?.fullName ?: "No disponible"}
-Importe: ${money(payment.amountMinor)} ${relatedLoan?.currency ?: ""}
-Fecha: ${formatDate(payment.createdAt)}
-Préstamo: ${payment.loanId.take(8)}
+                        Cliente: ${client?.fullName ?: "No disponible"}
+                        Importe: ${money(payment.amountMinor)} ${loan?.currency ?: ""}
+                        Fecha: ${formatDate(payment.createdAt)}
+                        Préstamo: ${payment.loanId.take(8)}
                     """.trimIndent()
                 )
             }
         }
 
-               item {
-            Text(
-                "RECAUDACIÓN POR MONEDA",
-                color = Gold,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
-            )
+        item {
+            Text("RECAUDACIÓN POR MONEDA", color = Gold, fontWeight = FontWeight.Bold)
         }
 
         items(currencies) { currency ->
-            val collected = payments
-                .filter { payment ->
-                    loans.any { loan ->
-                        loan.id == payment.loanId &&
-                        loan.currency == currency
-                    }
-                }
-                .sumOf { it.amountMinor }
+            val currencyPayments = payments.filter { payment ->
+                loans.any { it.id == payment.loanId && it.currency == currency }
+            }
 
             DataCard(
                 title = "Pagos recibidos · $currency",
                 detail = """
-                    Total registrado: ${money(collected)} $currency
-                    Operaciones: ${
-                        payments.count { payment ->
-                            loans.any { loan ->
-                                loan.id == payment.loanId &&
-                                loan.currency == currency
-                            }
-                        }
-                    }
+                    Total registrado: ${money(currencyPayments.sumOf { it.amountMinor })} $currency
+                    Operaciones: ${currencyPayments.size}
                 """.trimIndent()
             )
         }
@@ -399,8 +324,8 @@ Préstamo: ${payment.loanId.take(8)}
                     Base de datos local: activa.
                     Almacenamiento: Room.
                     Monedas disponibles: DOP, USD y EUR.
-                    Estado del sistema: fase de construcción.
-                    
+                    Estado: fase de construcción.
+
                     Backend compartido, contabilidad completa,
                     sincronización y autenticación multiusuario:
                     pendientes de integración.
@@ -409,8 +334,6 @@ Préstamo: ${payment.loanId.take(8)}
         }
     }
 }
-   
-@Composable
 private fun ClientsScreen(clients: List<ClientEntity>) {
     var query by remember { mutableStateOf("") }
 
@@ -479,7 +402,6 @@ private fun ClientsScreen(clients: List<ClientEntity>) {
     }
 }
 
-```kotlin
 @Composable
 private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
     var query by remember { mutableStateOf("") }

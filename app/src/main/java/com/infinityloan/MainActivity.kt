@@ -170,7 +170,13 @@ private fun InfinityApp(db: InfinityDatabase) {
                 val result = try {
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
                     db.payments().postPayment(
-                        PaymentEntity(
+    PaymentEntity(
+        operationId = operationId,
+        loanId = loanId,
+        amountMinor = minor,
+        reference = reference.trim()
+    )
+)
     operationId = operationId,
     loanId = loanId,
     amountMinor = minor,
@@ -656,6 +662,7 @@ private fun LoanForm(
 ) {
     var selected by remember(clients) { mutableStateOf(clients.firstOrNull()?.id.orEmpty()) }
     var amount by remember { mutableStateOf("") }; var rate by remember { mutableStateOf("") }
+    var operationId by remember { mutableStateOf(UUID.randomUUID().toString()) }
     var periods by remember { mutableStateOf("12") }; var currency by remember { mutableStateOf("DOP") }
     var method by remember { mutableStateOf("FRANCES") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Nuevo préstamo") },
@@ -699,7 +706,7 @@ private fun PaymentForm(
             OutlinedTextField(amount, { amount = it }, label = { Text("Importe") }, singleLine = true)
             OutlinedTextField(reference, { reference = it }, label = { Text("Referencia / recibo") }, singleLine = true)
         } },
-        confirmButton = { TextButton(enabled = loans.isNotEmpty() && amount.toBigDecimalOrNull() != null, onClick = { onSave(selected, amount, reference) }) { Text("Registrar") } },
+        confirmButton = { TextButton(enabled = loans.isNotEmpty() && amount.toBigDecimalOrNull() != null, onClick = { onSave(operationId, selected, amount, reference) }) { Text("Registrar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
 }
 

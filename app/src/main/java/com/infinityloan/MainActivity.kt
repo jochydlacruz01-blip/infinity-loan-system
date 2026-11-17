@@ -103,7 +103,7 @@ private fun InfinityApp(db: InfinityDatabase) {
                 floatingActionButton = {
                     when (screen) {
                         Screen.CLIENTS -> FloatingActionButton(onClick = { showClientForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
-                        Screen.LOANS -> FloatingActionButton(onClick = { show = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
+                      Screen.LOANS -> FloatingActionButton(onClick = { showLoanForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
                         Screen.PAYMENTS -> FloatingActionButton(onClick = { showPaymentForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
                         else -> Unit
                     }

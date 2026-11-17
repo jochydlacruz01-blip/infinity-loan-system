@@ -103,7 +103,7 @@ private fun InfinityApp(db: InfinityDatabase) {
                 floatingActionButton = {
                     when (screen) {
                         Screen.CLIENTS -> FloatingActionButton(onClick = { showClientForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
-                        Screen.LOANS -> FloatingActionButton(onClick = { showLoanForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
+                        Screen.LOANS -> FloatingActionButton(onClick = { show = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
                         Screen.PAYMENTS -> FloatingActionButton(onClick = { showPaymentForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
                         else -> Unit
                     }
@@ -177,11 +177,7 @@ private fun InfinityApp(db: InfinityDatabase) {
         reference = reference.trim()
     )
 )
-    operationId = operationId,
-    loanId = loanId,
-    amountMinor = minor,
-    reference = reference.trim()
-)
+   
                 } catch (_: Exception) { PaymentPostResult.INVALID_AMOUNT }
                 message = when (result) {
                     PaymentPostResult.POSTED -> "Pago registrado y saldo actualizado."
@@ -662,7 +658,7 @@ private fun LoanForm(
 ) {
     var selected by remember(clients) { mutableStateOf(clients.firstOrNull()?.id.orEmpty()) }
     var amount by remember { mutableStateOf("") }; var rate by remember { mutableStateOf("") }
-    var operationId by remember { mutableStateOf(UUID.randomUUID().toString()) }
+    
     var periods by remember { mutableStateOf("12") }; var currency by remember { mutableStateOf("DOP") }
     var method by remember { mutableStateOf("FRANCES") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Nuevo préstamo") },
@@ -694,6 +690,7 @@ private fun PaymentForm(
 ) {
     var selected by remember(loans) { mutableStateOf(loans.firstOrNull()?.id.orEmpty()) }
     var amount by remember { mutableStateOf("") }; var reference by remember { mutableStateOf("") }
+    var operationId by remember { mutableStateOf(UUID.randomUUID().toString()) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Registrar pago") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (loans.isEmpty()) Text("No hay préstamos activos.")

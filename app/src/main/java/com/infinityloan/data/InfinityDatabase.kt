@@ -118,7 +118,8 @@ suspend fun insert(payment: PaymentEntity): Long
         val loan = findLoan(payment.loanId) ?: return PaymentPostResult.LOAN_NOT_FOUND
         if (loan.status != "ACTIVE") return PaymentPostResult.LOAN_NOT_ACTIVE
         if (payment.amountMinor > loan.balanceMinor) return PaymentPostResult.EXCEEDS_BALANCE
-        insert(payment)
+        val insertedId = insert(payment)
+if (insertedId == -1L) return PaymentPostResult.DUPLICATE
         val remaining = loan.balanceMinor - payment.amountMinor
         updateLoanBalance(loan.id, remaining, if (remaining == 0L) "PAID" else "ACTIVE")
         return PaymentPostResult.POSTED

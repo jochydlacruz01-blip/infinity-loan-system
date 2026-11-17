@@ -479,99 +479,100 @@ private fun ClientsScreen(clients: List<ClientEntity>) {
     }
 }
 
+```kotlin
 @Composable
 private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
-    if (loans.isEmpty()) EmptyState("Todavía no hay préstamos", "Registra un cliente antes de crear un préstamo.")
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(loans, key = { it.id }) { loan ->
-            val client = clients.firstOrNull { it.id == loan.clientId }?.fullName ?: "Cliente no disponible"
-            val ratePercent = loan.periodicRate
-    .toBigDecimalOrNull()
-    ?.multiply(BigDecimal("100"))
-    ?.stripTrailingZeros()
-    ?.toPlainString() ?: "No disponible"
+    var query by remember { mutableStateOf("") }
 
-DataCard(
-    title = client,
-    detail = """
-        CAPITAL INICIAL
-        ${money(loan.principalMinor)} ${loan.currency}
+    val filteredLoans = loans.filter { loan ->
+        val clientName = clients.firstOrNull {
+            it.id == loan.clientId
+        }?.fullName ?: ""
 
-        SALDO PENDIENTE
-        ${money(loan.balanceMinor)} ${loan.currency}
-
-        TASA POR PERÍODO
-        $ratePercent%
-
-        CANTIDAD DE PERÍODOS
-        ${loan.periods}
-
-        SISTEMA DE AMORTIZACIÓN
-        ${loan.method}
-
-        ESTADO
-        ${loan.status}
-
-        FECHA DE REGISTRO
-        ${formatDate(loan.createdAt)}
-    """.trimIndent()
-)
-        }
+        clientName.contains(query, ignoreCase = true) ||
+        loan.id.contains(query, ignoreCase = true) ||
+        loan.currency.contains(query, ignoreCase = true) ||
+        loan.method.contains(query, ignoreCase = true) ||
+        loan.status.contains(query, ignoreCase = true)
     }
-}
 
-@Composable
-@Composable
-private fun PaymentsScreen(
-    payments: List<PaymentEntity>,
-    loans: List<LoanEntity>,
-    clients: List<ClientEntity>
-) {
-    if (payments.isEmpty()) {
-        EmptyState(
-            "Sin pagos registrados",
-            "Pulsa + para registrar un pago de un préstamo activo."
+    Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("Buscar préstamo") },
+            placeholder = { Text("Cliente, ID, moneda o estado") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
-    }
 
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(
-            payments.sortedByDescending { it.createdAt },
-            key = { it.operationId }
-        ) { payment ->
+        Spacer(Modifier.height(12.dp))
 
-            val loan = loans.firstOrNull {
-                it.id == payment.loanId
+        when {
+            loans.isEmpty() -> {
+                EmptyState(
+                    "Todavía no hay préstamos",
+                    "Registra un cliente antes de crear un préstamo."
+                )
             }
 
-            val client = clients.firstOrNull {
-                it.id == loan?.clientId
+            filteredLoans.isEmpty() -> {
+                EmptyState(
+                    "No se encontraron préstamos",
+                    "Prueba con otro nombre, moneda o estado."
+                )
             }
 
-            DataCard(
-                title = "RECIBO · ${payment.reference.ifBlank { "Sin referencia" }}",
-                detail = """
-                    CLIENTE
-                    ${client?.fullName ?: "No disponible"}
+            else -> {
+                Text(
+                    "PRÉSTAMOS ENCONTRADOS: ${filteredLoans.size}",
+                    color = Gold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
 
-                    IMPORTE PAGADO
-                    ${money(payment.amountMinor)} ${loan?.currency ?: ""}
+                Spacer(Modifier.height(8.dp))
 
-                    FECHA Y HORA
-                    ${formatDate(payment.createdAt)}
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredLoans, key = { it.id }) { loan ->
+                        val client = clients.firstOrNull {
+                            it.id == loan.clientId
+                        }?.fullName ?: "Cliente no disponible"
 
-                    PRÉSTAMO
-                    ${payment.loanId.take(8)}
+                        val ratePercent = loan.periodicRate
+                            .toBigDecimalOrNull()
+                            ?.multiply(BigDecimal("100"))
+                            ?.stripTrailingZeros()
+                            ?.toPlainString() ?: "No disponible"
 
-                    ESTADO
-                    REGISTRADO LOCALMENTE
-                """.trimIndent()
-            )
+                        DataCard(
+                            title = client,
+                            detail = """
+                                CAPITAL INICIAL
+                                ${money(loan.principalMinor)} ${loan.currency}
+
+                                SALDO PENDIENTE
+                                ${money(loan.balanceMinor)} ${loan.currency}
+
+                                TASA POR PERÍODO
+                                $ratePercent%
+
+                                PERÍODOS: ${loan.periods}
+                                AMORTIZACIÓN: ${loan.method}
+                                ESTADO: ${loan.status}
+                                REGISTRO: ${formatDate(loan.createdAt)}
+                                ID: ${loan.id}
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
         }
     }
 }
+```
 
 @Composable
 private fun Kpi(title: String, value: String, color: Color, modifier: Modifier) {

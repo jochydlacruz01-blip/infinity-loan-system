@@ -575,6 +575,106 @@ private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
 ```
 
 @Composable
+@Composable
+private fun PaymentsScreen(
+    payments: List<PaymentEntity>,
+    loans: List<LoanEntity>,
+    clients: List<ClientEntity>
+) {
+    var query by remember { mutableStateOf("") }
+
+    val filteredPayments = payments
+        .sortedByDescending { it.createdAt }
+        .filter { payment ->
+            val loan = loans.firstOrNull {
+                it.id == payment.loanId
+            }
+
+            val client = clients.firstOrNull {
+                it.id == loan?.clientId
+            }
+
+            payment.reference.contains(query, ignoreCase = true) ||
+            payment.loanId.contains(query, ignoreCase = true) ||
+            (client?.fullName ?: "").contains(query, ignoreCase = true) ||
+            (loan?.currency ?: "").contains(query, ignoreCase = true)
+        }
+
+    Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text("Buscar pago") },
+            placeholder = { Text("Cliente, recibo, préstamo o moneda") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        when {
+            payments.isEmpty() -> {
+                EmptyState(
+                    "Sin pagos registrados",
+                    "Los pagos aparecerán aquí cuando se registren."
+                )
+            }
+
+            filteredPayments.isEmpty() -> {
+                EmptyState(
+                    "No se encontraron pagos",
+                    "Intenta con otro nombre o referencia."
+                )
+            }
+
+            else -> {
+                Text(
+                    "PAGOS ENCONTRADOS: ${filteredPayments.size}",
+                    color = Gold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredPayments, key = { it.operationId }) { payment ->
+                        val loan = loans.firstOrNull {
+                            it.id == payment.loanId
+                        }
+
+                        val client = clients.firstOrNull {
+                            it.id == loan?.clientId
+                        }
+
+                        DataCard(
+                            title = "RECIBO · ${payment.reference.ifBlank { "Sin referencia" }}",
+                            detail = """
+                                CLIENTE
+                                ${client?.fullName ?: "No disponible"}
+
+                                IMPORTE
+                                ${money(payment.amountMinor)} ${loan?.currency ?: ""}
+
+                                FECHA
+                                ${formatDate(payment.createdAt)}
+
+                                PRÉSTAMO
+                                ${payment.loanId.take(8)}
+
+                                ESTADO
+                                REGISTRADO LOCALMENTE
+                            """.trimIndent()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 private fun Kpi(title: String, value: String, color: Color, modifier: Modifier) {
     Surface(modifier, color = color, shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(16.dp)) {

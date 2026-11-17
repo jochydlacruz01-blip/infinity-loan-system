@@ -187,7 +187,9 @@ private fun InfinityApp(db: InfinityDatabase) {
                     PaymentPostResult.DUPLICATE -> "Operación duplicada."
                     else -> "Importe inválido. No se registró el pago."
                 }
-                showPaymentForm = false
+                if (result == PaymentPostResult.POSTED || result == PaymentPostResult.DUPLICATE) {
+    showPaymentForm = false
+}
             }
         }
     )

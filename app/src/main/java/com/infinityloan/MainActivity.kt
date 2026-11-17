@@ -315,12 +315,7 @@ private fun HomeScreen(
         }
     }
 }
-    Spacer(Modifier.height(10.dp))
-    Kpi("Pagos registrados", paymentCount.toString(), Color(0xFF17634E), Modifier.fillMaxWidth())
-    Spacer(Modifier.height(18.dp))
-    InfoScreen("Sistema operativo local", "Los registros se conservan en la base Room del dispositivo. El servidor compartido, la autenticación multiusuario, contabilidad y sincronización todavía no están conectados.")
-}
-
+   
 @Composable
 private fun ClientsScreen(clients: List<ClientEntity>) {
     if (clients.isEmpty()) EmptyState("Todavía no hay clientes", "Pulsa + para registrar el primer expediente.")

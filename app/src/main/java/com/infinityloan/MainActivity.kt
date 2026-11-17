@@ -317,15 +317,37 @@ private fun HomeScreen(
             }
         }
 
-        item {
+               item {
+            Text(
+                "RECAUDACIÓN POR MONEDA",
+                color = Gold,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        }
+
+        items(currencies) { currency ->
+            val collected = payments
+                .filter { payment ->
+                    loans.any { loan ->
+                        loan.id == payment.loanId &&
+                        loan.currency == currency
+                    }
+                }
+                .sumOf { it.amountMinor }
+
             DataCard(
-                "Resumen de operaciones",
-                """
-                    Clientes registrados: ${clients.size}
-                    Préstamos registrados: ${loans.size}
-                    Pagos registrados: ${payments.size}
-                    Préstamos activos: ${loans.count { it.status == "ACTIVE" }}
-                    Préstamos liquidados: ${loans.count { it.status == "PAID" }}
+                title = "Pagos recibidos · $currency",
+                detail = """
+                    Total registrado: ${money(collected)} $currency
+                    Operaciones: ${
+                        payments.count { payment ->
+                            loans.any { loan ->
+                                loan.id == payment.loanId &&
+                                loan.currency == currency
+                            }
+                        }
+                    }
                 """.trimIndent()
             )
         }

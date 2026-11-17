@@ -114,7 +114,7 @@ private fun InfinityApp(db: InfinityDatabase) {
                         Screen.HOME -> HomeScreen(clients, loans, payments)
                         Screen.CLIENTS -> ClientsScreen(clients)
                         Screen.LOANS -> LoansScreen(loans, clients)
-                        Screen.PAYMENTS -> PaymentsScreen(payments, loans)
+                        Screen.PAYMENTS -> PaymentsScreen(payments, loans, clients)
                         Screen.REPORTS -> InfoScreen("Informes", "Los informes se habilitarán cuando existan operaciones registradas. Los datos actuales se guardan localmente en este dispositivo.")
                         Screen.SETTINGS -> InfoScreen("Configuración", "Base local activa. La conexión al servidor, usuarios, permisos y copias de seguridad se integrarán en fases posteriores.")
                     }
@@ -436,12 +436,54 @@ DataCard(
 }
 
 @Composable
-private fun PaymentsScreen(payments: List<PaymentEntity>, loans: List<LoanEntity>) {
-    if (payments.isEmpty()) EmptyState("Sin pagos registrados", "Pulsa + para registrar un pago de un préstamo activo.")
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(payments, key = { it.operationId }) { p ->
-            val loan = loans.firstOrNull { it.id == p.loanId }
-            DataCard("Pago · ${p.reference.ifBlank { "Sin referencia" }}", "${money(p.amountMinor)} ${loan?.currency ?: ""}\nPréstamo: ${p.loanId.take(8)}")
+@Composable
+private fun PaymentsScreen(
+    payments: List<PaymentEntity>,
+    loans: List<LoanEntity>,
+    clients: List<ClientEntity>
+) {
+    if (payments.isEmpty()) {
+        EmptyState(
+            "Sin pagos registrados",
+            "Pulsa + para registrar un pago de un préstamo activo."
+        )
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(
+            payments.sortedByDescending { it.createdAt },
+            key = { it.operationId }
+        ) { payment ->
+
+            val loan = loans.firstOrNull {
+                it.id == payment.loanId
+            }
+
+            val client = clients.firstOrNull {
+                it.id == loan?.clientId
+            }
+
+            DataCard(
+                title = "RECIBO · ${payment.reference.ifBlank { "Sin referencia" }}",
+                detail = """
+                    CLIENTE
+                    ${client?.fullName ?: "No disponible"}
+
+                    IMPORTE PAGADO
+                    ${money(payment.amountMinor)} ${loan?.currency ?: ""}
+
+                    FECHA Y HORA
+                    ${formatDate(payment.createdAt)}
+
+                    PRÉSTAMO
+                    ${payment.loanId.take(8)}
+
+                    ESTADO
+                    REGISTRADO LOCALMENTE
+                """.trimIndent()
+            )
         }
     }
 }

@@ -362,7 +362,7 @@ abstract class InfinityDatabase : RoomDatabase() {
         )
 
                      
-        return CreditPaymentResult.POSTED
+        return@withTransaction CreditPaymentResult.POSTED
     }
     abstract fun clients(): ClientDao
     abstract fun loans(): LoanDao

@@ -33,51 +33,6 @@ class CustomerCreditDaoTest {
         database.close()
     }
 
-    @Test
-    fun customerCreditIsSeparatedByCurrency() = runBlocking {
-
-        val client = ClientEntity(
-            fullName = "Cliente de crédito",
-            documentNumber = "CREDIT-TEST-001",
-            phone = "0000000000",
-            address = "Prueba"
-        )
-
-        database.clients().insert(client)
-
-        database.customerCredits().insert(
-            CustomerCreditMovementEntity(
-                operationId = "CREDIT-DOP-001",
-                clientId = client.id,
-                loanId = "LOAN-001",
-                currency = "DOP",
-                amountMinor = 100000L,
-                reference = "Excedente DOP"
-            )
-        )
-
-        database.customerCredits().insert(
-            CustomerCreditMovementEntity(
-                operationId = "CREDIT-USD-001",
-                clientId = client.id,
-                loanId = "LOAN-002",
-                currency = "USD",
-                amountMinor = 50000L,
-                reference = "Excedente USD"
-            )
-        )
-
-        assertEquals(
-            100000L,
-            database.customerCredits().getBalance(client.id, "DOP")
-        )
-
-        assertEquals(
-            50000L,
-            database.customerCredits().getBalance(client.id, "USD")
-        )
-    }
-
       @Test
     fun customerCreditIsSeparatedByCurrency() = runBlocking {
 

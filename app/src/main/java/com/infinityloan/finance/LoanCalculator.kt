@@ -115,9 +115,7 @@ object LoanCalculator {
 
             balance = balance.subtract(principalPart).setScale(scale, RoundingMode.HALF_UP)
 
-           Installment(index + 1, principalPart, roundedInterest, total)
+          Installment(index + 1, principalPart, roundedInterest, total)
         }
     }
-  }
-   
-    
+}

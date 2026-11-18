@@ -228,6 +228,15 @@ interface ClientDao {
 
     @Query("SELECT * FROM clients WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): ClientEntity?
+    
+        @Query("UPDATE clients SET fullName = :fullName, documentNumber = :documentNumber, phone = :phone, address = :address WHERE id = :id")
+    suspend fun updateClient(
+        id: String,
+        fullName: String,
+        documentNumber: String,
+        phone: String,
+        address: String
+    )
 }
 
 @Dao

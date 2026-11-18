@@ -1,0 +1,126 @@
+package com.infinityloan.data
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class CustomerCreditDaoTest {
+
+    private lateinit var database: InfinityDatabase
+
+    @Before
+    fun setup() {
+        val context: Context =
+            InstrumentationRegistry.getInstrumentation().targetContext
+
+        database = Room.inMemoryDatabaseBuilder(
+            context,
+            InfinityDatabase::class.java
+        ).allowMainThreadQueries().build()
+    }
+
+    @After
+    fun cleanup() {
+        database.close()
+    }
+
+    @Test
+    fun customerCreditIsSeparatedByCurrency() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente de crédito",
+            documentNumber = "CREDIT-TEST-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-DOP-001",
+                clientId = client.id,
+                loanId = "LOAN-001",
+                currency = "DOP",
+                amountMinor = 100000L,
+                reference = "Excedente DOP"
+            )
+        )
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-USD-001",
+                clientId = client.id,
+                loanId = "LOAN-002",
+                currency = "USD",
+                amountMinor = 50000L,
+                reference = "Excedente USD"
+            )
+        )
+
+        assertEquals(
+            100000L,
+            database.customerCredits().getBalance(client.id, "DOP")
+        )
+
+        assertEquals(
+            50000L,
+            database.customerCredits().getBalance(client.id, "USD")
+        )
+    }
+
+    @Test
+    fun customerCreditHistoryKeepsAllMovements() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente de historial",
+            documentNumber = "CREDIT-TEST-002",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "HISTORY-001",
+                clientId = client.id,
+                loanId = "LOAN-003",
+                currency = "DOP",
+                amountMinor = 100000L,
+                reference = "Saldo generado"
+            )
+        )
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "HISTORY-002",
+                clientId = client.id,
+                loanId = "LOAN-003",
+                currency = "DOP",
+                amountMinor = -25000L,
+                reference = "Saldo aplicado"
+            )
+        )
+
+        val movements = database.customerCredits()
+            .observeMovements(client.id, "DOP")
+            .first()
+
+        assertEquals(2, movements.size)
+
+        assertEquals(
+            75000L,
+            database.customerCredits().getBalance(client.id, "DOP")
+        )
+    }
+}

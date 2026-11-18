@@ -121,6 +121,81 @@ interface CustomerCreditDao {
     suspend fun insert(
         movement: CustomerCreditMovementEntity
     )
+        @Query("""
+        SELECT * FROM customer_credit_movements
+        WHERE operationId = :operationId
+        LIMIT 1
+    """)
+    suspend fun findMovement(
+        operationId: String
+    ): CustomerCreditMovementEntity?
+
+    @Query("""
+        SELECT * FROM loans
+        WHERE id = :loanId
+        LIMIT 1
+    """)
+    suspend fun findCreditLoan(
+        loanId: String
+    ): LoanEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfAbsent(
+        movement: CustomerCreditMovementEntity
+    ): Long
+
+    @Transaction
+    suspend fun applyCredit(
+        operationId: String,
+        clientId: String,
+        loanId: String,
+        currency: String,
+        amountMinor: Long,
+        reference: String
+    ): CustomerCreditResult {
+
+        if (amountMinor <= 0L) {
+            return CustomerCreditResult.INVALID_AMOUNT
+        }
+
+        if (findMovement(operationId) != null) {
+            return CustomerCreditResult.DUPLICATE
+        }
+
+        val loan = findCreditLoan(loanId)
+            ?: return CustomerCreditResult.LOAN_NOT_FOUND
+
+        if (loan.clientId != clientId) {
+            return CustomerCreditResult.CLIENT_MISMATCH
+        }
+
+        if (loan.currency != currency) {
+            return CustomerCreditResult.CURRENCY_MISMATCH
+        }
+
+        val available = getBalance(clientId, currency)
+
+        if (available < amountMinor) {
+            return CustomerCreditResult.INSUFFICIENT_CREDIT
+        }
+
+        val movement = CustomerCreditMovementEntity(
+            operationId = operationId,
+            clientId = clientId,
+            loanId = loanId,
+            currency = currency,
+            amountMinor = -amountMinor,
+            reference = reference
+        )
+
+        val inserted = insertIfAbsent(movement)
+
+        if (inserted == -1L) {
+            return CustomerCreditResult.DUPLICATE
+        }
+
+        return CustomerCreditResult.APPLIED
+    }
 }
 @Dao
 interface ClientDao {

@@ -172,7 +172,9 @@ interface CustomerCreditDao {
         if (loan.currency != currency) {
             return CustomerCreditResult.CURRENCY_MISMATCH
         }
-
+        if (loan.status != "ACTIVE") {
+            return CustomerCreditResult.LOAN_NOT_ACTIVE
+        }
         val available = getBalance(clientId, currency)
 
         if (available < amountMinor) {
@@ -196,6 +198,16 @@ interface CustomerCreditDao {
 
         return CustomerCreditResult.APPLIED
     }
+}
+enum class CustomerCreditResult {
+    APPLIED,
+    DUPLICATE,
+    INVALID_AMOUNT,
+    LOAN_NOT_FOUND,
+    LOAN_NOT_ACTIVE,
+    CLIENT_MISMATCH,
+    CURRENCY_MISMATCH,
+    INSUFFICIENT_CREDIT
 }
 @Dao
 interface ClientDao {

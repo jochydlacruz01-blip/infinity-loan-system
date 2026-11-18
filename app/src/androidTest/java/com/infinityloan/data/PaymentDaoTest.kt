@@ -140,7 +140,7 @@ class PaymentDaoTest {
 
         assertEquals(10000L, updatedLoan?.balanceMinor)
     }
-}
+
     @Test
     fun paymentsForMissingOrInactiveLoansAreRejected() = runBlocking {
 
@@ -202,3 +202,4 @@ class PaymentDaoTest {
             database.payments().findByOperationId("TEST-CLOSED-001")
         )
     }
+}

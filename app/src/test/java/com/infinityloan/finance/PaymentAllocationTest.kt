@@ -106,4 +106,37 @@ class PaymentAllocationTest {
     fun rejectsNegativePrincipal() {
         PaymentAllocation.allocate(1000L, 0L, 0L, 0L, -100L)
     }
+        @Test
+    fun maximumPaymentWithNoOutstandingBalancesRemainsUnapplied() {
+        val result = PaymentAllocation.allocate(
+            paymentMinor = Long.MAX_VALUE,
+            lateFeeDueMinor = 0L,
+            chargesDueMinor = 0L,
+            interestDueMinor = 0L,
+            principalDueMinor = 0L
+        )
+
+        assertEquals(Long.MAX_VALUE, result.unappliedMinor)
+        assertEquals(0L, result.lateFeeMinor)
+        assertEquals(0L, result.chargesMinor)
+        assertEquals(0L, result.interestMinor)
+        assertEquals(0L, result.principalMinor)
+    }
+
+    @Test
+    fun maximumPaymentIsAllocatedWithoutOverflow() {
+        val result = PaymentAllocation.allocate(
+            paymentMinor = Long.MAX_VALUE,
+            lateFeeDueMinor = Long.MAX_VALUE - 1L,
+            chargesDueMinor = Long.MAX_VALUE,
+            interestDueMinor = Long.MAX_VALUE,
+            principalDueMinor = Long.MAX_VALUE
+        )
+
+        assertEquals(Long.MAX_VALUE - 1L, result.lateFeeMinor)
+        assertEquals(1L, result.chargesMinor)
+        assertEquals(0L, result.interestMinor)
+        assertEquals(0L, result.principalMinor)
+        assertEquals(0L, result.unappliedMinor)
+    }
 }

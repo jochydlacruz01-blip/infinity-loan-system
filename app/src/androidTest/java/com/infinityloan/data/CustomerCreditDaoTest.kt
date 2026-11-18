@@ -78,76 +78,76 @@ class CustomerCreditDaoTest {
         )
     }
 
-    @Test
-fun customerCreditIsSeparatedByCurrency() = runBlocking {
+      @Test
+    fun customerCreditIsSeparatedByCurrency() = runBlocking {
 
-    val client = ClientEntity(
-        fullName = "Cliente de crédito",
-        documentNumber = "CREDIT-TEST-001",
-        phone = "0000000000",
-        address = "Prueba"
-    )
-
-    database.clients().insert(client)
-
-    database.loans().insert(
-        LoanEntity(
-            id = "LOAN-001",
-            clientId = client.id,
-            principalMinor = 200000L,
-            balanceMinor = 200000L,
-            currency = "DOP",
-            periodicRate = "0.05",
-            periods = 10,
-            method = "FRENCH"
+        val client = ClientEntity(
+            fullName = "Cliente de crédito",
+            documentNumber = "CREDIT-TEST-001",
+            phone = "0000000000",
+            address = "Prueba"
         )
-    )
 
-    database.loans().insert(
-        LoanEntity(
-            id = "LOAN-002",
-            clientId = client.id,
-            principalMinor = 100000L,
-            balanceMinor = 100000L,
-            currency = "USD",
-            periodicRate = "0.05",
-            periods = 10,
-            method = "FRENCH"
+        database.clients().insert(client)
+
+        database.loans().insert(
+            LoanEntity(
+                id = "LOAN-001",
+                clientId = client.id,
+                principalMinor = 200000L,
+                balanceMinor = 200000L,
+                currency = "DOP",
+                periodicRate = "0.05",
+                periods = 10,
+                method = "FRENCH"
+            )
         )
-    )
 
-    database.customerCredits().insert(
-        CustomerCreditMovementEntity(
-            operationId = "CREDIT-DOP-001",
-            clientId = client.id,
-            loanId = "LOAN-001",
-            currency = "DOP",
-            amountMinor = 100000L,
-            reference = "Excedente DOP"
+        database.loans().insert(
+            LoanEntity(
+                id = "LOAN-002",
+                clientId = client.id,
+                principalMinor = 100000L,
+                balanceMinor = 100000L,
+                currency = "USD",
+                periodicRate = "0.05",
+                periods = 10,
+                method = "FRENCH"
+            )
         )
-    )
 
-    database.customerCredits().insert(
-        CustomerCreditMovementEntity(
-            operationId = "CREDIT-USD-001",
-            clientId = client.id,
-            loanId = "LOAN-002",
-            currency = "USD",
-            amountMinor = 50000L,
-            reference = "Excedente USD"
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-DOP-001",
+                clientId = client.id,
+                loanId = "LOAN-001",
+                currency = "DOP",
+                amountMinor = 100000L,
+                reference = "Excedente DOP"
+            )
         )
-    )
 
-    assertEquals(
-        100000L,
-        database.customerCredits().getBalance(client.id, "DOP")
-    )
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-USD-001",
+                clientId = client.id,
+                loanId = "LOAN-002",
+                currency = "USD",
+                amountMinor = 50000L,
+                reference = "Excedente USD"
+            )
+        )
 
-    assertEquals(
-        50000L,
-        database.customerCredits().getBalance(client.id, "USD")
-    )
-}
+        assertEquals(
+            100000L,
+            database.customerCredits().getBalance(client.id, "DOP")
+        )
+
+        assertEquals(
+            50000L,
+            database.customerCredits().getBalance(client.id, "USD")
+        )
+    }
         @Test
     fun applyCreditDeductsAvailableBalance() = runBlocking {
 

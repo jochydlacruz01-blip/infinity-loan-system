@@ -199,6 +199,16 @@ interface CustomerCreditDao {
         return CustomerCreditResult.APPLIED
     }
 }
+
+enum class CreditPaymentResult {
+    POSTED,
+    DUPLICATE,
+    INVALID_AMOUNT,
+    LOAN_NOT_FOUND,
+    LOAN_NOT_ACTIVE,
+    EXCEEDS_BALANCE,
+    INSUFFICIENT_CREDIT
+}
 enum class CustomerCreditResult {
     APPLIED,
     DUPLICATE,
@@ -284,6 +294,70 @@ enum class PaymentPostResult {
 )
 
 abstract class InfinityDatabase : RoomDatabase() {
+        @Transaction
+    suspend fun postPaymentWithCustomerCredit(
+        payment: PaymentEntity
+    ): CreditPaymentResult {
+
+        if (payment.amountMinor <= 0L) {
+            return CreditPaymentResult.INVALID_AMOUNT
+        }
+
+        if (payments().findByOperationId(payment.operationId) != null) {
+            return CreditPaymentResult.DUPLICATE
+        }
+
+        val loan = loans().findById(payment.loanId)
+            ?: return CreditPaymentResult.LOAN_NOT_FOUND
+
+        if (loan.status != "ACTIVE") {
+            return CreditPaymentResult.LOAN_NOT_ACTIVE
+        }
+
+        if (payment.amountMinor > loan.balanceMinor) {
+            return CreditPaymentResult.EXCEEDS_BALANCE
+        }
+
+        val available = customerCredits().getBalance(
+            loan.clientId,
+            loan.currency
+        )
+
+        if (available < payment.amountMinor) {
+            return CreditPaymentResult.INSUFFICIENT_CREDIT
+        }
+
+        val movement = CustomerCreditMovementEntity(
+            operationId = "PAYMENT-CREDIT-${payment.operationId}",
+            clientId = loan.clientId,
+            loanId = loan.id,
+            currency = loan.currency,
+            amountMinor = -payment.amountMinor,
+            reference = payment.reference
+        )
+
+        val paymentInserted = payments().insert(payment)
+
+        if (paymentInserted == -1L) {
+            return CreditPaymentResult.DUPLICATE
+        }
+
+        val creditInserted = customerCredits().insertIfAbsent(movement)
+
+        check(creditInserted != -1L) {
+            "No se pudo registrar el movimiento de crédito."
+        }
+
+        val remaining = loan.balanceMinor - payment.amountMinor
+
+        loans().updateBalance(
+            loan.id,
+            remaining,
+            if (remaining == 0L) "PAID" else "ACTIVE"
+        )
+
+        return CreditPaymentResult.POSTED
+    }
     abstract fun clients(): ClientDao
     abstract fun loans(): LoanDao
     abstract fun payments(): PaymentDao

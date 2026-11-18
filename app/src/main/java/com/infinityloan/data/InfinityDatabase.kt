@@ -184,10 +184,16 @@ enum class PaymentPostResult {
 }
 
 @Database(
-    entities = [ClientEntity::class, LoanEntity::class, PaymentEntity::class],
-    version = 1,
+    entities = [
+        ClientEntity::class,
+        LoanEntity::class,
+        PaymentEntity::class,
+        CustomerCreditMovementEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
+
 abstract class InfinityDatabase : RoomDatabase() {
     abstract fun clients(): ClientDao
     abstract fun loans(): LoanDao

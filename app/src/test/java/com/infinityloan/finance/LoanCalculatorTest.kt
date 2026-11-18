@@ -81,5 +81,33 @@ class LoanCalculatorTest {
     fun rejectsInvalidMonetaryScale() {
         LoanCalculator.french(principal, rate, 12, 7)
     }
+        @Test
+    fun allAmortizationMethodsRejectInvalidInputs() {
+        val methods = listOf(
+            LoanCalculator::french,
+            LoanCalculator::italian,
+            LoanCalculator::american
+        )
+
+        methods.forEach { method ->
+            try {
+                method(BigDecimal.ZERO, rate, 12)
+                throw AssertionError("Debe rechazar capital cero")
+            } catch (_: IllegalArgumentException) {
+            }
+
+            try {
+                method(principal, BigDecimal("-0.01"), 12)
+                throw AssertionError("Debe rechazar tasa negativa")
+            } catch (_: IllegalArgumentException) {
+            }
+
+            try {
+                method(principal, rate, 0)
+                throw AssertionError("Debe rechazar períodos cero")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
 }
 

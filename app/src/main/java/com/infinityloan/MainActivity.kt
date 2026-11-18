@@ -113,7 +113,13 @@ private fun InfinityApp(db: InfinityDatabase) {
                 Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
                     when (screen) {
                         Screen.HOME -> HomeScreen(clients, loans, payments)
-                        Screen.CLIENTS -> ClientsScreen(clients)
+                        Screen.CLIENTS -> ClientsScreen(
+    clients = clients,
+    onEdit = { client ->
+        selectedClient = client
+        showClientForm = true
+    }
+)
                         Screen.LOANS -> LoansScreen(loans, clients)
                         Screen.PAYMENTS -> PaymentsScreen(payments, loans, clients)
                         Screen.REPORTS -> InfoScreen("Informes", "Los informes se habilitarán cuando existan operaciones registradas. Los datos actuales se guardan localmente en este dispositivo.")

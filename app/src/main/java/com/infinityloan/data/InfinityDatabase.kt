@@ -322,7 +322,9 @@ abstract class InfinityDatabase : RoomDatabase() {
             loan.currency
         )
 
-
+        if (available < payment.amountMinor) {
+            return@withTransaction CreditPaymentResult.INSUFFICIENT_CREDIT
+        }
         val movement = CustomerCreditMovementEntity(
             operationId = "PAYMENT-CREDIT-${payment.operationId}",
             clientId = loan.clientId,
@@ -355,9 +357,7 @@ abstract class InfinityDatabase : RoomDatabase() {
         CreditPaymentResult.POSTED
     }
 
-        if (available < payment.amountMinor) {
-            return CreditPaymentResult.INSUFFICIENT_CREDIT
-        }
+        
 
         val movement = CustomerCreditMovementEntity(
             operationId = "PAYMENT-CREDIT-${payment.operationId}",

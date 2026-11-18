@@ -658,7 +658,9 @@ private fun ClientForm(
 var doc by remember(initialClient) { mutableStateOf(initialClient?.documentNumber.orEmpty()) }
 var phone by remember(initialClient) { mutableStateOf(initialClient?.phone.orEmpty()) }
 var address by remember(initialClient) { mutableStateOf(initialClient?.address.orEmpty()) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Nuevo cliente") },
+    AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(if (initialClient == null) "Nuevo cliente" else "Editar cliente") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(name, { name = it }, label = { Text("Nombre completo") }, singleLine = true)
             OutlinedTextField(doc, { doc = it }, label = { Text("Cédula / documento") }, singleLine = true)

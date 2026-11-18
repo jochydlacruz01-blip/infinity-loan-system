@@ -200,6 +200,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun clients(): ClientDao
     abstract fun loans(): LoanDao
     abstract fun payments(): PaymentDao
+    abstract fun customerCredits(): CustomerCreditDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null

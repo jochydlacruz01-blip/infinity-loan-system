@@ -346,10 +346,7 @@ abstract class InfinityDatabase : RoomDatabase() {
             if (remaining == 0L) "PAID" else "ACTIVE"
         )
 
-        CreditPaymentResult.POSTED
-    }
-
-        
+               
 
         val movement = CustomerCreditMovementEntity(
             operationId = "PAYMENT-CREDIT-${payment.operationId}",
@@ -360,26 +357,7 @@ abstract class InfinityDatabase : RoomDatabase() {
             reference = payment.reference
         )
 
-        val paymentInserted = payments().insert(payment)
-
-        if (paymentInserted == -1L) {
-            return CreditPaymentResult.DUPLICATE
-        }
-
-        val creditInserted = customerCredits().insertIfAbsent(movement)
-
-        check(creditInserted != -1L) {
-            "No se pudo registrar el movimiento de crédito."
-        }
-
-        val remaining = loan.balanceMinor - payment.amountMinor
-
-        loans().updateBalance(
-            loan.id,
-            remaining,
-            if (remaining == 0L) "PAID" else "ACTIVE"
-        )
-
+        
         return CreditPaymentResult.POSTED
     }
     abstract fun clients(): ClientDao

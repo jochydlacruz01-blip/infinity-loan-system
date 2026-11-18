@@ -1,5 +1,5 @@
 package com.infinityloan.finance
-fun allMethodsRejectMoreThan600Periods() {
+
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
@@ -85,7 +85,11 @@ object LoanCalculator {
         "Escala monetaria no válida"
     }
 }
-           private fun buildSchedule(
+
+
+
+       
+    private fun buildSchedule(
         principal: BigDecimal,
         periods: Int,
         scale: Int,
@@ -114,16 +118,4 @@ object LoanCalculator {
             Installment(index + 1, principalPart, roundedInterest, total)
         }
     }
-    
-    
-        )
-
-        methods.forEach { method ->
-            val rows = method(principal, rate, 600)
-            assertEquals(600, rows.size)
-        }
-    }
-  }
-
- 
     

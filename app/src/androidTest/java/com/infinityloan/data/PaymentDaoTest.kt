@@ -5,6 +5,9 @@ import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitAll
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -202,4 +205,67 @@ class PaymentDaoTest {
             database.payments().findByOperationId("TEST-CLOSED-001")
         )
     }
+    @Test
+    fun simultaneousPaymentsCannotExceedLoanBalance() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente de concurrencia",
+            documentNumber = "TEST-CONCURRENT-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 12,
+            method = "FRENCH"
+        )
+
+        database.loans().insert(loan)
+
+        val payment1 = PaymentEntity(
+            operationId = "TEST-CONCURRENT-001",
+            loanId = loan.id,
+            amountMinor = 7000L,
+            reference = "Pago simultáneo 1"
+        )
+
+        val payment2 = PaymentEntity(
+            operationId = "TEST-CONCURRENT-002",
+            loanId = loan.id,
+            amountMinor = 7000L,
+            reference = "Pago simultáneo 2"
+        )
+
+        val results = listOf(
+            async(Dispatchers.IO) {
+                database.payments().postPayment(payment1)
+            },
+            async(Dispatchers.IO) {
+                database.payments().postPayment(payment2)
+            }
+        ).awaitAll()
+
+        val updatedLoan = database.payments().findLoan(loan.id)
+
+        assertEquals(
+            1,
+            results.count { it == PaymentPostResult.POSTED }
+        )
+
+        assertEquals(
+            1,
+            results.count { it == PaymentPostResult.EXCEEDS_BALANCE }
+        )
+
+        assertEquals(3000L, updatedLoan?.balanceMinor)
+    }
 }
+}
+

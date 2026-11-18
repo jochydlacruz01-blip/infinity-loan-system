@@ -200,15 +200,7 @@ interface CustomerCreditDao {
     }
 }
 
-enum class CreditPaymentResult {
-    POSTED,
-    DUPLICATE,
-    INVALID_AMOUNT,
-    LOAN_NOT_FOUND,
-    LOAN_NOT_ACTIVE,
-    EXCEEDS_BALANCE,
-    INSUFFICIENT_CREDIT
-}
+
 enum class CustomerCreditResult {
     APPLIED,
     DUPLICATE,

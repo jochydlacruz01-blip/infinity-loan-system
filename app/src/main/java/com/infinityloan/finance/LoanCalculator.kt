@@ -48,7 +48,7 @@ object LoanCalculator {
         periods: Int,
         scale: Int = 2
     ): List<Installment> {
-        Inputs(principal, periodicRate, periods, scale)
+        requireInputs(principal, periodicRate, periods, scale)
         val principalPart = principal.divide(BigDecimal(periods), MC)
         return buildSchedule(principal, periods, scale) { balance, index ->
             val interest = balance.multiply(periodicRate, MC).setScale(scale, RoundingMode.HALF_UP)
@@ -63,7 +63,7 @@ object LoanCalculator {
         periods: Int,
         scale: Int = 2
     ): List<Installment> {
-        Inputs(principal, periodicRate, periods, scale)
+        requireInputs(principal, periodicRate, periods, scale)
         return buildSchedule(principal, periods, scale) { balance, index ->
             val interest = principal.multiply(periodicRate, MC).setScale(scale, RoundingMode.HALF_UP)
             val part = if (index == periods - 1) balance else BigDecimal.ZERO.setScale(scale)
@@ -71,15 +71,20 @@ object LoanCalculator {
         }
     }
 
-    private fun Inputs(p: BigDecimal, rate: BigDecimal, n: Int, scale: Int) {
-        (p > BigDecimal.ZERO) { "El principal debe ser mayor que cero" }
-        (rate >= BigDecimal.ZERO) { "La tasa no puede ser negativa" }
-        require(n in 1..600) {
-    "El número de períodos debe estar entre 1 y 600"
-}
-        require(scale in 0..6) { "Escala monetaria no válida" }
+    private fun requireInputs(p: BigDecimal, rate: BigDecimal, n: Int, scale: Int) {
+    require(p > BigDecimal.ZERO) {
+        "El principal debe ser mayor que cero"
     }
-
+    require(rate >= BigDecimal.ZERO) {
+        "La tasa no puede ser negativa"
+    }
+    require(n in 1..600) {
+        "El número de períodos debe estar entre 1 y 600"
+    }
+    require(scale in 0..6) {
+        "Escala monetaria no válida"
+    }
+}
     private fun buildSchedule(
         principal: BigDecimal,
         periods: Int,

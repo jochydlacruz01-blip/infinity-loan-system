@@ -1,5 +1,5 @@
 package com.infinityloan.data
-
+ 
 import android.content.Context
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry

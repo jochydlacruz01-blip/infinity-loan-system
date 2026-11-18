@@ -445,7 +445,72 @@ class PaymentDaoTest {
         assertEquals(7000L, updatedLoan?.balanceMinor)
         assertEquals(2000L, creditBalance)
     }
+        @Test
+    fun customerCreditCannotPayLoanInDifferentCurrency() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente monedas diferentes",
+            documentNumber = "CREDIT-CURRENCY-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "USD",
+            periodicRate = "0.05",
+            periods = 12,
+            method = "FRENCH"
+        )
+
+        database.loans().insert(loan)
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-DOP-001",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 5000L,
+                reference = "Crédito en pesos"
+            )
+        )
+
+        val payment = PaymentEntity(
+            operationId = "PAYMENT-CURRENCY-001",
+            loanId = loan.id,
+            amountMinor = 3000L,
+            reference = "Intento de pago en USD"
+        )
+
+        val result =
+            database.postPaymentWithCustomerCredit(payment)
+
+        val updatedLoan =
+            database.loans().findById(loan.id)
+
+        val creditBalance =
+            database.customerCredits().getBalance(client.id, "DOP")
+
+        assertEquals(
+            CreditPaymentResult.INSUFFICIENT_CREDIT,
+            result
+        )
+
+        assertEquals(10000L, updatedLoan?.balanceMinor)
+        assertEquals(5000L, creditBalance)
+
+        assertEquals(
+            null,
+            database.payments().findByOperationId(payment.operationId)
+        )
+    }
 }
+
 
 
 

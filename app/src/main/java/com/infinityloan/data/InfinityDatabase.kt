@@ -399,6 +399,73 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
         """.trimIndent())
     }
 }
+private val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(
+        database: SupportSQLiteDatabase
+    ) {
+        database.execSQL("""
+            CREATE TABLE customer_credit_movements_new (
+                operationId TEXT NOT NULL PRIMARY KEY,
+                clientId TEXT NOT NULL,
+                loanId TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                amountMinor INTEGER NOT NULL,
+                reference TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(clientId)
+                    REFERENCES clients(id)
+                    ON UPDATE NO ACTION
+                    ON DELETE RESTRICT,
+                FOREIGN KEY(loanId)
+                    REFERENCES loans(id)
+                    ON UPDATE NO ACTION
+                    ON DELETE RESTRICT
+            )
+        """.trimIndent())
+
+        database.execSQL("""
+            INSERT INTO customer_credit_movements_new (
+                operationId,
+                clientId,
+                loanId,
+                currency,
+                amountMinor,
+                reference,
+                createdAt
+            )
+            SELECT
+                operationId,
+                clientId,
+                loanId,
+                currency,
+                amountMinor,
+                reference,
+                createdAt
+            FROM customer_credit_movements
+        """.trimIndent())
+
+        database.execSQL("""
+            DROP TABLE customer_credit_movements
+        """.trimIndent())
+
+        database.execSQL("""
+            ALTER TABLE customer_credit_movements_new
+            RENAME TO customer_credit_movements
+        """.trimIndent())
+
+        database.execSQL("""
+            CREATE INDEX
+            index_customer_credit_movements_clientId_currency
+            ON customer_credit_movements(clientId, currency)
+        """.trimIndent())
+
+        database.execSQL("""
+            CREATE INDEX
+            index_customer_credit_movements_loanId
+            ON customer_credit_movements(loanId)
+        """.trimIndent())
+    }
+}
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(

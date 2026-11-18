@@ -346,18 +346,7 @@ abstract class InfinityDatabase : RoomDatabase() {
             if (remaining == 0L) "PAID" else "ACTIVE"
         )
 
-               
-
-        val movement = CustomerCreditMovementEntity(
-            operationId = "PAYMENT-CREDIT-${payment.operationId}",
-            clientId = loan.clientId,
-            loanId = loan.id,
-            currency = loan.currency,
-            amountMinor = -payment.amountMinor,
-            reference = payment.reference
-        )
-
-        
+                     
         return CreditPaymentResult.POSTED
     }
     abstract fun clients(): ClientDao

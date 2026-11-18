@@ -108,4 +108,56 @@ object LoanCalculator {
             Installment(index + 1, principalPart, roundedInterest, total)
         }
     }
+        @Test
+    fun maximumPeriodCountIsAcceptedByAllMethods() {
+        val schedules = listOf(
+            LoanCalculator.french(principal, rate, 600),
+            LoanCalculator.italian(principal, rate, 600),
+            LoanCalculator.american(principal, rate, 600)
+        )
+
+        assertTrue(schedules.all { it.size == 600 })
+    }
+
+    @Test
+    fun allMethodsRejectMoreThan600Periods() {
+        val methods: List<(BigDecimal, BigDecimal, Int) -> List<LoanCalculator.Installment>> = listOf(
+            { p, r, n -> LoanCalculator.french(p, r, n) },
+            { p, r, n -> LoanCalculator.italian(p, r, n) },
+            { p, r, n -> LoanCalculator.american(p, r, n) }
+        )
+
+        methods.forEach { method ->
+            var rejected = false
+
+            try {
+                method(principal, rate, 601)
+            } catch (_: IllegalArgumentException) {
+                rejected = true
+            }
+
+            assertTrue("Debe rechazar más de 600 períodos", rejected)
+        }
+    }
+
+    @Test
+    fun allMethodsRejectNegativePeriods() {
+        val methods: List<(BigDecimal, BigDecimal, Int) -> List<LoanCalculator.Installment>> = listOf(
+            { p, r, n -> LoanCalculator.french(p, r, n) },
+            { p, r, n -> LoanCalculator.italian(p, r, n) },
+            { p, r, n -> LoanCalculator.american(p, r, n) }
+        )
+
+        methods.forEach { method ->
+            var rejected = false
+
+            try {
+                method(principal, rate, -1)
+            } catch (_: IllegalArgumentException) {
+                rejected = true
+            }
+
+            assertTrue("Debe rechazar períodos negativos", rejected)
+        }
+    }
 }

@@ -67,5 +67,19 @@ class LoanCalculatorTest {
             })
         }
     }
+        @Test(expected = IllegalArgumentException::class)
+    fun rejectsZeroPrincipal() {
+        LoanCalculator.french(BigDecimal.ZERO, rate, 12)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNegativePrincipal() {
+        LoanCalculator.french(BigDecimal("-1000.00"), rate, 12)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsInvalidMonetaryScale() {
+        LoanCalculator.french(principal, rate, 12, 7)
+    }
 }
 

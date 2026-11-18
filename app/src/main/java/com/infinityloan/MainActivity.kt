@@ -344,7 +344,10 @@ private fun HomeScreen(
     }
 }
 @Composable
-private fun ClientsScreen(clients: List<ClientEntity>) {
+private fun ClientsScreen(
+    clients: List<ClientEntity>,
+    onEdit: (ClientEntity) -> Unit
+) {
     var query by remember { mutableStateOf("") }
 
     val filteredClients = clients.filter { client ->

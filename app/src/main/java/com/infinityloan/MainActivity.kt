@@ -654,8 +654,10 @@ private fun ClientForm(
     onDismiss: () -> Unit,
     onSave: (String, String, String, String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }; var doc by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }; var address by remember { mutableStateOf("") }
+    var name by remember(initialClient) { mutableStateOf(initialClient?.fullName.orEmpty()) }
+var doc by remember(initialClient) { mutableStateOf(initialClient?.documentNumber.orEmpty()) }
+var phone by remember(initialClient) { mutableStateOf(initialClient?.phone.orEmpty()) }
+var address by remember(initialClient) { mutableStateOf(initialClient?.address.orEmpty()) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Nuevo cliente") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(name, { name = it }, label = { Text("Nombre completo") }, singleLine = true)

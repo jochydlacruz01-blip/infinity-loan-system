@@ -201,7 +201,34 @@ abstract class InfinityDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
+        
+private val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(
+        database: SupportSQLiteDatabase
+    ) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS customer_credit_movements (
+                operationId TEXT NOT NULL PRIMARY KEY,
+                clientId TEXT NOT NULL,
+                loanId TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                amountMinor INTEGER NOT NULL,
+                reference TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(clientId)
+                    REFERENCES clients(id)
+                    ON UPDATE NO ACTION
+                    ON DELETE RESTRICT
+            )
+        """.trimIndent())
 
+        database.execSQL("""
+            CREATE INDEX IF NOT EXISTS
+            index_customer_credit_movements_clientId_currency
+            ON customer_credit_movements(clientId, currency)
+        """.trimIndent())
+    }
+}
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(

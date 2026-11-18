@@ -66,7 +66,29 @@ data class PaymentEntity(
     val reference: String,
     val createdAt: Long = System.currentTimeMillis()
 )
-
+@Entity(
+    tableName = "customer_credit_movements",
+    foreignKeys = [
+        ForeignKey(
+            entity = ClientEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["clientId"],
+            onDelete = ForeignKey.RESTRICT
+        )
+    ],
+    indices = [
+        Index(value = ["clientId", "currency"])
+    ]
+)
+data class CustomerCreditMovementEntity(
+    @PrimaryKey val operationId: String,
+    val clientId: String,
+    val loanId: String,
+    val currency: String,
+    val amountMinor: Long,
+    val reference: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
 @Dao
 interface ClientDao {
     @Query("SELECT * FROM clients ORDER BY fullName")

@@ -509,6 +509,71 @@ class PaymentDaoTest {
             database.payments().findByOperationId(payment.operationId)
         )
     }
+        @Test
+    fun customerCreditCannotPayClosedLoan() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente préstamo cerrado",
+            documentNumber = "CREDIT-CLOSED-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 8000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 12,
+            method = "FRENCH",
+            status = "CLOSED"
+        )
+
+        database.loans().insert(loan)
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-CLOSED-001",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 5000L,
+                reference = "Crédito disponible"
+            )
+        )
+
+        val payment = PaymentEntity(
+            operationId = "PAYMENT-CLOSED-001",
+            loanId = loan.id,
+            amountMinor = 3000L,
+            reference = "Intento de pago"
+        )
+
+        val result =
+            database.postPaymentWithCustomerCredit(payment)
+
+        val updatedLoan =
+            database.loans().findById(loan.id)
+
+        val creditBalance =
+            database.customerCredits().getBalance(client.id, "DOP")
+
+        assertEquals(
+            CreditPaymentResult.LOAN_NOT_ACTIVE,
+            result
+        )
+
+        assertEquals(8000L, updatedLoan?.balanceMinor)
+        assertEquals(5000L, creditBalance)
+
+        assertEquals(
+            null,
+            database.payments().findByOperationId(payment.operationId)
+        )
+    }
 }
 
 

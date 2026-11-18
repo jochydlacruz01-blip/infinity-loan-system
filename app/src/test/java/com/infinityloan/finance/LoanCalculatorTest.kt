@@ -60,8 +60,7 @@ class LoanCalculatorTest {
             }
 
             assertEquals(0, repaidPrincipal.compareTo(principal))
-            assertEquals(0, rows.last().principal.compareTo(rows.last().principal))
-            assertTrue(rows.all {
+                     assertTrue(rows.all {
                 it.principal >= BigDecimal.ZERO &&
                 it.interest >= BigDecimal.ZERO &&
                 it.total.compareTo(it.principal.add(it.interest)) == 0

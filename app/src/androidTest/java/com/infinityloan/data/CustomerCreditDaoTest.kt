@@ -123,4 +123,59 @@ class CustomerCreditDaoTest {
             database.customerCredits().getBalance(client.id, "DOP")
         )
     }
+        @Test
+    fun applyCreditDeductsAvailableBalance() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente aplicación",
+            documentNumber = "CREDIT-APPLY-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            id = "LOAN-APPLY-001",
+            clientId = client.id,
+            principalMinor = 100000L,
+            balanceMinor = 100000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 10,
+            method = "FRENCH"
+        )
+
+        database.loans().insert(loan)
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-APPLY-001",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 100000L,
+                reference = "Saldo a favor"
+            )
+        )
+
+        val result = database.customerCredits().applyCredit(
+            operationId = "CREDIT-USE-001",
+            clientId = client.id,
+            loanId = loan.id,
+            currency = "DOP",
+            amountMinor = 25000L,
+            reference = "Aplicación de saldo"
+        )
+
+        assertEquals(
+            CustomerCreditResult.APPLIED,
+            result
+        )
+
+        assertEquals(
+            75000L,
+            database.customerCredits().getBalance(client.id, "DOP")
+        )
+    }
 }

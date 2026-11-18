@@ -89,7 +89,37 @@ data class CustomerCreditMovementEntity(
     val reference: String,
     val createdAt: Long = System.currentTimeMillis()
 )
+
 @Dao
+interface CustomerCreditDao {
+
+    @Query("""
+        SELECT COALESCE(SUM(amountMinor), 0)
+        FROM customer_credit_movements
+        WHERE clientId = :clientId
+        AND currency = :currency
+    """)
+    suspend fun getBalance(
+        clientId: String,
+        currency: String
+    ): Long
+
+    @Query("""
+        SELECT * FROM customer_credit_movements
+        WHERE clientId = :clientId
+        AND currency = :currency
+        ORDER BY createdAt DESC
+    """)
+    fun observeMovements(
+        clientId: String,
+        currency: String
+    ): Flow<List<CustomerCreditMovementEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(
+        movement: CustomerCreditMovementEntity
+    )
+}
 interface ClientDao {
     @Query("SELECT * FROM clients ORDER BY fullName")
     fun observeAll(): Flow<List<ClientEntity>>

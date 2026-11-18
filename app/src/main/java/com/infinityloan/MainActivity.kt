@@ -52,6 +52,7 @@ private fun InfinityApp(db: InfinityDatabase) {
     val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showClientForm by remember { mutableStateOf(false) }
+    var selectedClient by remember { mutableStateOf<ClientEntity?>(null) }
     var showLoanForm by remember { mutableStateOf(false) }
     var showPaymentForm by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }

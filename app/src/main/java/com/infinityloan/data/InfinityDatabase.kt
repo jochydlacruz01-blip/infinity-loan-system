@@ -3,6 +3,8 @@ package com.infinityloan.data
 import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -235,7 +237,9 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                     context.applicationContext,
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
-                ).build().also { INSTANCE = it }
+)
+.addMigrations(MIGRATION_1_2)
+.build().also { INSTANCE = it }
             }
     }
 }

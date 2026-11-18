@@ -649,7 +649,11 @@ private fun InfoScreen(title: String, detail: String) {
 }
 
 @Composable
-private fun ClientForm(onDismiss: () -> Unit, onSave: (String, String, String, String) -> Unit) {
+private fun ClientForm(
+    initialClient: ClientEntity? = null,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String) -> Unit
+) {
     var name by remember { mutableStateOf("") }; var doc by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }; var address by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Nuevo cliente") },

@@ -473,7 +473,7 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMi.addMigrations(MIGRATION_1_2, MIGRATION_2_3)grations(MIGRATION_1_2)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3)
 .build().also { INSTANCE = it }
             }
     }

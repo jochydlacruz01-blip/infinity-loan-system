@@ -76,10 +76,17 @@ data class PaymentEntity(
             parentColumns = ["id"],
             childColumns = ["clientId"],
             onDelete = ForeignKey.RESTRICT
+        ),
+        ForeignKey(
+            entity = LoanEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["loanId"],
+            onDelete = ForeignKey.RESTRICT
         )
     ],
     indices = [
-        Index(value = ["clientId", "currency"])
+        Index(value = ["clientId", "currency"]),
+        Index(value = ["loanId"])
     ]
 )
 data class CustomerCreditMovementEntity(

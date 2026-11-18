@@ -120,6 +120,7 @@ interface CustomerCreditDao {
         movement: CustomerCreditMovementEntity
     )
 }
+@Dao
 interface ClientDao {
     @Query("SELECT * FROM clients ORDER BY fullName")
     fun observeAll(): Flow<List<ClientEntity>>

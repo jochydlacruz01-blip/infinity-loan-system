@@ -114,12 +114,8 @@ object LoanCalculator {
             Installment(index + 1, principalPart, roundedInterest, total)
         }
     }
-               @Test
-    fun maximumPeriodCountIsAcceptedByAllMethods() {
-        val methods: List<(BigDecimal, BigDecimal, Int) -> List<LoanCalculator.Installment>> = listOf(
-            { p, r, n -> LoanCalculator.french(p, r, n) },
-            { p, r, n -> LoanCalculator.italian(p, r, n) },
-            { p, r, n -> LoanCalculator.american(p, r, n) }
+    
+    
         )
 
         methods.forEach { method ->

@@ -141,3 +141,64 @@ class PaymentDaoTest {
         assertEquals(10000L, updatedLoan?.balanceMinor)
     }
 }
+    @Test
+    fun paymentsForMissingOrInactiveLoansAreRejected() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente de estado",
+            documentNumber = "TEST-STATUS-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        val closedLoan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 8000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 12,
+            method = "FRENCH",
+            status = "CLOSED"
+        )
+
+        database.loans().insert(closedLoan)
+
+        val missingLoanPayment = PaymentEntity(
+            operationId = "TEST-MISSING-001",
+            loanId = "LOAN-NOT-FOUND",
+            amountMinor = 1000L,
+            reference = "Préstamo inexistente"
+        )
+
+        val closedLoanPayment = PaymentEntity(
+            operationId = "TEST-CLOSED-001",
+            loanId = closedLoan.id,
+            amountMinor = 1000L,
+            reference = "Préstamo cerrado"
+        )
+
+        assertEquals(
+            PaymentPostResult.LOAN_NOT_FOUND,
+            database.payments().postPayment(missingLoanPayment)
+        )
+
+        assertEquals(
+            PaymentPostResult.LOAN_NOT_ACTIVE,
+            database.payments().postPayment(closedLoanPayment)
+        )
+
+        val updatedLoan = database.payments().findLoan(closedLoan.id)
+
+        assertEquals(8000L, updatedLoan?.balanceMinor)
+        assertEquals(
+            null,
+            database.payments().findByOperationId("TEST-MISSING-001")
+        )
+        assertEquals(
+            null,
+            database.payments().findByOperationId("TEST-CLOSED-001")
+        )
+    }

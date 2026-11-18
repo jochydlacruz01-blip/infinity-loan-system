@@ -83,11 +83,11 @@ class LoanCalculatorTest {
     }
         @Test
     fun allAmortizationMethodsRejectInvalidInputs() {
-        val methods = listOf(
-            LoanCalculator::french,
-            LoanCalculator::italian,
-            LoanCalculator::american
-        )
+        val methods: List<(BigDecimal, BigDecimal, Int) -> List<LoanCalculator.Installment>> = listOf(
+    { p, r, n -> LoanCalculator.french(p, r, n) },
+    { p, r, n -> LoanCalculator.italian(p, r, n) },
+    { p, r, n -> LoanCalculator.american(p, r, n) }
+)
 
         methods.forEach { method ->
             try {

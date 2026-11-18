@@ -46,4 +46,27 @@ class LoanCalculatorTest {
     fun rejectsZeroPeriods() {
         LoanCalculator.french(principal, rate, 0)
     }
+    @Test
+    fun allAmortizationMethodsReconcilePrincipalExactly() {
+        val schedules = listOf(
+            LoanCalculator.french(principal, rate, 12),
+            LoanCalculator.italian(principal, rate, 12),
+            LoanCalculator.american(principal, rate, 12)
+        )
+
+        schedules.forEach { rows ->
+            val repaidPrincipal = rows.fold(BigDecimal.ZERO) { sum, row ->
+                sum.add(row.principal)
+            }
+
+            assertEquals(0, repaidPrincipal.compareTo(principal))
+            assertEquals(0, rows.last().principal.compareTo(rows.last().principal))
+            assertTrue(rows.all {
+                it.principal >= BigDecimal.ZERO &&
+                it.interest >= BigDecimal.ZERO &&
+                it.total.compareTo(it.principal.add(it.interest)) == 0
+            })
+        }
+    }
 }
+

@@ -267,5 +267,5 @@ class PaymentDaoTest {
         assertEquals(3000L, updatedLoan?.balanceMinor)
     }
 }
-}
+
 

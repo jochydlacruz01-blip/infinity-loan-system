@@ -104,6 +104,64 @@ class CustomerCreditDaoTest {
         )
     }
         @Test
+    fun customerCreditHistoryKeepsAllMovements() = runBlocking {
+
+        val client = ClientEntity(
+            fullName = "Cliente de historial",
+            documentNumber = "CREDIT-TEST-002",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+
+        database.clients().insert(client)
+
+        database.loans().insert(
+            LoanEntity(
+                id = "LOAN-003",
+                clientId = client.id,
+                principalMinor = 200000L,
+                balanceMinor = 200000L,
+                currency = "DOP",
+                periodicRate = "0.05",
+                periods = 10,
+                method = "FRENCH"
+            )
+        )
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "HISTORY-001",
+                clientId = client.id,
+                loanId = "LOAN-003",
+                currency = "DOP",
+                amountMinor = 100000L,
+                reference = "Saldo generado"
+            )
+        )
+
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "HISTORY-002",
+                clientId = client.id,
+                loanId = "LOAN-003",
+                currency = "DOP",
+                amountMinor = -25000L,
+                reference = "Saldo aplicado"
+            )
+        )
+
+        val movements = database.customerCredits()
+            .observeMovements(client.id, "DOP")
+            .first()
+
+        assertEquals(2, movements.size)
+
+        assertEquals(
+            75000L,
+            database.customerCredits().getBalance(client.id, "DOP")
+        )
+    }
+        @Test
     fun applyCreditDeductsAvailableBalance() = runBlocking {
 
         val client = ClientEntity(

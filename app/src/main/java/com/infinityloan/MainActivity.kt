@@ -372,7 +372,7 @@ private fun AuthenticatedInfinityApp(
                         Screen.LOANS -> LoansScreen(loans, clients)
                         Screen.PAYMENTS -> PaymentsScreen(payments, loans, clients)
                         Screen.CASH -> CashManagementScreen(db, session, can, onMessage = { message = it })
-                        Screen.REPORTS -> ReportsSummaryScreen(clients, loans, payments, installments)
+                        Screen.REPORTS -> ReportsSummaryScreen(db, clients, loans, payments, installments)
                         Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")
                         Screen.STAFF -> StaffManagementScreen(
                             db = db,
@@ -672,6 +672,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
 
 @Composable
 private fun ReportsSummaryScreen(
+    db: InfinityDatabase,
     clients: List<ClientEntity>,
     loans: List<LoanEntity>,
     payments: List<PaymentEntity>,
@@ -679,6 +680,28 @@ private fun ReportsSummaryScreen(
 ) {
     val currencies = listOf("DOP", "USD", "EUR")
     val today = LocalDate.now().toString()
+    var cashSummary by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(db) {
+        db.cashSessions().observeSessions().collect { rows ->
+            cashSummary = withContext(Dispatchers.IO) {
+                currencies.map { currency ->
+                    val matching = rows.filter { it.currency == currency }
+                    val closed = matching.filter { it.closedAt != null }
+                    fun expectedFor(row: CashSessionEntity): Long =
+                        db.cashSessions().findMovements(row.sessionId).fold(row.openingMinor) { balance, movement ->
+                            if (movement.type == "CASH_IN") Math.addExact(balance, movement.amountMinor)
+                            else Math.subtractExact(balance, movement.amountMinor)
+                        }
+                    val expected = matching.fold(0L) { total, row -> Math.addExact(total, expectedFor(row)) }
+                    val counted = closed.fold(0L) { total, row -> Math.addExact(total, row.countedClosingMinor ?: 0L) }
+                    val variance = closed.fold(0L) { total, row -> Math.addExact(total, Math.subtractExact(row.countedClosingMinor ?: 0L, expectedFor(row))) }
+                    currency + " · sesiones: " + matching.size + " (abiertas " + matching.count { it.closedAt == null } + ", cerradas " + closed.size + ")" +
+                        "\nEfectivo esperado: " + money(expected) + "\nConteo físico acumulado (cerradas): " + money(counted) +
+                        "\nDiferencia acumulada (cerradas): " + money(variance)
+                }
+            }
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -690,6 +713,8 @@ private fun ReportsSummaryScreen(
         item {
             DataCard("Resumen general", "Clientes registrados: ${clients.size}\nPréstamos: ${loans.size}\nActivos: ${loans.count { it.status == "ACTIVE" }}\nPagos registrados: ${payments.size}")
         }
+        item { Text("CONCILIACIÓN CONSOLIDADA DE CAJA", color = Gold, fontWeight = FontWeight.Bold) }
+        items(cashSummary) { summary -> DataCard("Caja por moneda", summary) }
         items(currencies) { currency ->
             val currencyLoans = loans.filter { it.currency == currency }
             val currencyPayments = payments.filter { p -> currencyLoans.any { it.id == p.loanId } }

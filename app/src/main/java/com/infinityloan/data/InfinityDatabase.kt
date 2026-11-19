@@ -48,7 +48,32 @@ data class LoanEntity(
     val periods: Int,
     val method: String,
     val status: String = "ACTIVE",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val frequency: String = "MONTHLY",
+    val firstDueDate: String = "1970-01-01"
+)
+
+
+@Entity(
+    tableName = "loan_installments",
+    primaryKeys = ["loanId", "number"],
+    foreignKeys = [ForeignKey(
+        entity = LoanEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["loanId"],
+        onDelete = ForeignKey.RESTRICT
+    )],
+    indices = [Index("loanId"), Index("dueDate"), Index("status")]
+)
+data class LoanInstallmentEntity(
+    val loanId: String,
+    val number: Int,
+    val dueDate: String,
+    val principalMinor: Long,
+    val interestMinor: Long,
+    val totalMinor: Long,
+    val remainingPrincipalMinor: Long,
+    val status: String = "PENDING"
 )
 
 @Entity(
@@ -254,6 +279,22 @@ interface LoanDao {
     suspend fun updateBalance(loanId: String, newBalance: Long, newStatus: String)
 }
 
+
+@Dao
+interface LoanInstallmentDao {
+    @Query("SELECT * FROM loan_installments WHERE loanId = :loanId ORDER BY number")
+    fun observeForLoan(loanId: String): Flow<List<LoanInstallmentEntity>>
+
+    @Query("SELECT * FROM loan_installments WHERE loanId = :loanId ORDER BY number")
+    suspend fun findForLoan(loanId: String): List<LoanInstallmentEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(installments: List<LoanInstallmentEntity>)
+
+    @Query("UPDATE loan_installments SET status = :status WHERE loanId = :loanId AND number = :number")
+    suspend fun updateStatus(loanId: String, number: Int, status: String)
+}
+
 @Dao
 interface PaymentDao {
     @Query("SELECT * FROM payments ORDER BY createdAt DESC")
@@ -303,9 +344,10 @@ enum class CreditPaymentResult {
         ClientEntity::class,
         LoanEntity::class,
         PaymentEntity::class,
-        CustomerCreditMovementEntity::class
+        CustomerCreditMovementEntity::class,
+        LoanInstallmentEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 
@@ -377,6 +419,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun loans(): LoanDao
     abstract fun payments(): PaymentDao
     abstract fun customerCredits(): CustomerCreditDao
+    abstract fun installments(): LoanInstallmentDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -475,6 +518,43 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
         """.trimIndent())
     }
 }
+
+private val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE loans ADD COLUMN frequency TEXT NOT NULL DEFAULT 'MONTHLY'"
+        )
+        database.execSQL(
+            "ALTER TABLE loans ADD COLUMN firstDueDate TEXT NOT NULL DEFAULT '1970-01-01'"
+        )
+        database.execSQL("""
+            UPDATE loans
+            SET firstDueDate = COALESCE(
+                strftime('%Y-%m-%d', createdAt / 1000, 'unixepoch', '+30 days'),
+                '1970-01-01'
+            )
+        """.trimIndent())
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS loan_installments (
+                loanId TEXT NOT NULL,
+                number INTEGER NOT NULL,
+                dueDate TEXT NOT NULL,
+                principalMinor INTEGER NOT NULL,
+                interestMinor INTEGER NOT NULL,
+                totalMinor INTEGER NOT NULL,
+                remainingPrincipalMinor INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                PRIMARY KEY(loanId, number),
+                FOREIGN KEY(loanId) REFERENCES loans(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_loan_installments_loanId ON loan_installments(loanId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_loan_installments_dueDate ON loan_installments(dueDate)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_loan_installments_status ON loan_installments(status)")
+    }
+}
+
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -482,7 +562,7 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 .build().also { INSTANCE = it }
             }
     }

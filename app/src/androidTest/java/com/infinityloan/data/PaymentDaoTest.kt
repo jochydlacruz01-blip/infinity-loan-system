@@ -828,4 +828,62 @@ class PaymentDaoTest {
         assertEquals(0L, installment.paidPrincipalMinor)
         assertEquals("PENDING", installment.status)
     }
+
+    @Test
+    fun creditDebitConflictRollsBackPaymentAndLoanChanges() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente atomicidad crédito",
+            documentNumber = "CREDIT-ROLLBACK-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 12,
+            method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+
+        val payment = PaymentEntity(
+            operationId = "PAYMENT-CREDIT-ROLLBACK-001",
+            loanId = loan.id,
+            amountMinor = 3000L,
+            reference = "Pago sujeto a rollback"
+        )
+        val conflictingDebitId = "PAYMENT-CREDIT-${payment.operationId}"
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = conflictingDebitId,
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 5000L,
+                reference = "Movimiento preexistente con ID conflictivo"
+            )
+        )
+
+        try {
+            database.postPaymentWithCustomerCredit(payment)
+            throw AssertionError("El conflicto del débito debe abortar la transacción")
+        } catch (_: IllegalStateException) {
+            // El fallo esperado debe revertir el pago y la actualización del préstamo.
+        }
+
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.payments().findByOperationId(payment.operationId))
+        assertEquals(
+            5000L,
+            database.customerCredits().getBalance(client.id, "DOP")
+        )
+        assertEquals(
+            null,
+            database.customerCredits().findMovement("PAYMENT-EXCESS-${payment.operationId}")
+        )
+    }
+
 }

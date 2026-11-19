@@ -45,7 +45,7 @@ object CashPaymentReconciliation {
         movements: List<ReconciliationCashMovement>
     ): List<CashReconciliationIssue> {
         val issues = mutableListOf<CashReconciliationIssue>()
-        val paymentById = payments.associateBy { it.operationId }
+        val paymentById = payments.groupBy { it.operationId }
         payments.groupBy { it.operationId }.filter { it.value.size > 1 }
             .toSortedMap().forEach { (operationId, duplicates) ->
                 issues += CashReconciliationIssue(
@@ -67,6 +67,7 @@ object CashPaymentReconciliation {
             .groupBy { it.linkedPaymentOperationId!! }
 
         payments.sortedBy { it.operationId }.forEach { payment ->
+            if (paymentById[payment.operationId]?.size ?: 0 > 1) return@forEach
             if (payment.operationId.isBlank() || payment.amountMinor <= 0L || payment.currency.isBlank()) {
                 issues += CashReconciliationIssue(
                     CashReconciliationIssueType.INVALID_PAYMENT, payment.operationId,
@@ -108,7 +109,7 @@ object CashPaymentReconciliation {
             }
         }
         movements.filter { it.linkedPaymentOperationId != null &&
-            it.linkedPaymentOperationId !in paymentById.keys
+            (paymentById[it.linkedPaymentOperationId]?.size ?: 0) == 0
         }.sortedBy { it.operationId }.forEach { movement ->
             issues += CashReconciliationIssue(
                 CashReconciliationIssueType.ORPHAN_CASH_MOVEMENT,

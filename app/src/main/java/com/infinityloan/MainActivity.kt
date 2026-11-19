@@ -269,7 +269,17 @@ private fun AuthenticatedInfinityApp(
     var showPaymentForm by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val can: (Permission) -> Boolean = { AccessPolicy.allows(session.profile, it) }
-    val availableScreens = Screen.values().filter { can(it.permission) }
+    val availableScreens = Screen.values().filter { item ->
+        if (item == Screen.CASH) {
+            listOf(
+                Permission.CASH_SESSION_OPEN,
+                Permission.CASH_MOVEMENT_MANAGE,
+                Permission.CASH_SESSION_CLOSE
+            ).any(can)
+        } else {
+            can(item.permission)
+        }
+    }
     if (screen !in availableScreens) screen = availableScreens.firstOrNull() ?: Screen.HOME
 
     MaterialTheme(colorScheme = darkColorScheme(

@@ -74,7 +74,43 @@ data class LoanInstallmentEntity(
     val interestMinor: Long,
     val totalMinor: Long,
     val remainingPrincipalMinor: Long,
-    val status: String = "PENDING"
+    val status: String = "PENDING",
+    @ColumnInfo(defaultValue = "0") val paidLateFeeMinor: Long = 0L,
+    @ColumnInfo(defaultValue = "0") val paidChargesMinor: Long = 0L,
+    @ColumnInfo(defaultValue = "0") val paidInterestMinor: Long = 0L,
+    @ColumnInfo(defaultValue = "0") val paidPrincipalMinor: Long = 0L
+)
+
+@Entity(
+    tableName = "payment_allocations",
+    primaryKeys = ["operationId", "loanId", "installmentNumber"],
+    foreignKeys = [
+        ForeignKey(
+            entity = PaymentEntity::class,
+            parentColumns = ["operationId"],
+            childColumns = ["operationId"],
+            onDelete = ForeignKey.RESTRICT
+        ),
+        ForeignKey(
+            entity = LoanInstallmentEntity::class,
+            parentColumns = ["loanId", "number"],
+            childColumns = ["loanId", "installmentNumber"],
+            onDelete = ForeignKey.RESTRICT
+        )
+    ],
+    indices = [
+        Index("operationId"),
+        Index(value = ["loanId", "installmentNumber"])
+    ]
+)
+data class PaymentAllocationEntity(
+    val operationId: String,
+    val loanId: String,
+    val installmentNumber: Int,
+    val lateFeePaidMinor: Long,
+    val chargesPaidMinor: Long,
+    val interestPaidMinor: Long,
+    val principalPaidMinor: Long
 )
 
 @Entity(
@@ -292,8 +328,47 @@ interface LoanInstallmentDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(installments: List<LoanInstallmentEntity>)
 
+    @Query("""
+        UPDATE loan_installments
+        SET paidLateFeeMinor = :lateFee,
+            paidChargesMinor = :charges,
+            paidInterestMinor = :interest,
+            paidPrincipalMinor = :principal,
+            status = :status
+        WHERE loanId = :loanId AND number = :number
+    """)
+    suspend fun updatePaidAmounts(
+        loanId: String,
+        number: Int,
+        lateFee: Long,
+        charges: Long,
+        interest: Long,
+        principal: Long,
+        status: String
+    )
+
     @Query("UPDATE loan_installments SET status = :status WHERE loanId = :loanId AND number = :number")
     suspend fun updateStatus(loanId: String, number: Int, status: String)
+}
+
+@Dao
+interface PaymentAllocationDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(allocations: List<PaymentAllocationEntity>)
+
+    @Query("""
+        SELECT * FROM payment_allocations
+        WHERE operationId = :operationId
+        ORDER BY installmentNumber
+    """)
+    fun observeForPayment(operationId: String): Flow<List<PaymentAllocationEntity>>
+
+    @Query("""
+        SELECT * FROM payment_allocations
+        WHERE operationId = :operationId
+        ORDER BY installmentNumber
+    """)
+    suspend fun findForPayment(operationId: String): List<PaymentAllocationEntity>
 }
 
 @Dao
@@ -346,9 +421,10 @@ enum class CreditPaymentResult {
         LoanEntity::class,
         PaymentEntity::class,
         CustomerCreditMovementEntity::class,
-        LoanInstallmentEntity::class
+        LoanInstallmentEntity::class,
+        PaymentAllocationEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 
@@ -421,6 +497,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun payments(): PaymentDao
     abstract fun customerCredits(): CustomerCreditDao
     abstract fun installments(): LoanInstallmentDao
+    abstract fun paymentAllocations(): PaymentAllocationDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -556,6 +633,46 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE loan_installments ADD COLUMN paidLateFeeMinor INTEGER NOT NULL DEFAULT 0"
+        )
+        database.execSQL(
+            "ALTER TABLE loan_installments ADD COLUMN paidChargesMinor INTEGER NOT NULL DEFAULT 0"
+        )
+        database.execSQL(
+            "ALTER TABLE loan_installments ADD COLUMN paidInterestMinor INTEGER NOT NULL DEFAULT 0"
+        )
+        database.execSQL(
+            "ALTER TABLE loan_installments ADD COLUMN paidPrincipalMinor INTEGER NOT NULL DEFAULT 0"
+        )
+        database.execSQL("""
+            CREATE TABLE payment_allocations (
+                operationId TEXT NOT NULL,
+                loanId TEXT NOT NULL,
+                installmentNumber INTEGER NOT NULL,
+                lateFeePaidMinor INTEGER NOT NULL,
+                chargesPaidMinor INTEGER NOT NULL,
+                interestPaidMinor INTEGER NOT NULL,
+                principalPaidMinor INTEGER NOT NULL,
+                PRIMARY KEY(operationId, loanId, installmentNumber),
+                FOREIGN KEY(operationId) REFERENCES payments(operationId)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(loanId, installmentNumber)
+                    REFERENCES loan_installments(loanId, number)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL(
+            "CREATE INDEX index_payment_allocations_operationId ON payment_allocations(operationId)"
+        )
+        database.execSQL(
+            "CREATE INDEX index_payment_allocations_loanId_installmentNumber ON payment_allocations(loanId, installmentNumber)"
+        )
+    }
+}
+
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -563,7 +680,7 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 .build().also { INSTANCE = it }
             }
     }

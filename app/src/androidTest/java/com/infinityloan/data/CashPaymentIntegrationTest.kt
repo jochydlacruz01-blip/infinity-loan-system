@@ -186,4 +186,67 @@ class CashPaymentIntegrationTest {
             database.cashSessions().findMovementByOperation("CASH-PAY-CASH-PAYMENT-ROLLBACK")?.operationId
         )
     }
+
+    @Test
+    fun manualCashMovementIsIdempotentAndCannotOverdrawOrPostAfterClose() = runBlocking {
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = "CASH-SESSION-MANUAL",
+                staffId = "CASHIER-MANUAL",
+                currency = "DOP",
+                openingMinor = 1000L,
+                openedAt = 1L
+            )
+        )
+
+        val overdraft = CashMovementEntity(
+            operationId = "MANUAL-OVERDRAFT",
+            sessionId = "CASH-SESSION-MANUAL",
+            type = "CASH_OUT",
+            amountMinor = 1001L,
+            reason = "No debe superar el efectivo disponible",
+            createdAt = 2L
+        )
+        var rejectedOverdraft = false
+        try {
+            database.postCashMovement(overdraft)
+        } catch (_: IllegalArgumentException) {
+            rejectedOverdraft = true
+        }
+        assertEquals(true, rejectedOverdraft)
+        assertEquals(0, database.cashSessions().findMovements("CASH-SESSION-MANUAL").size)
+
+        val validOut = overdraft.copy(
+            operationId = "MANUAL-VALID-OUT",
+            amountMinor = 1000L,
+            reason = "Salida dentro del efectivo disponible"
+        )
+        database.postCashMovement(validOut)
+        var rejectedDuplicate = false
+        try {
+            database.postCashMovement(validOut)
+        } catch (_: IllegalStateException) {
+            rejectedDuplicate = true
+        }
+        assertEquals(true, rejectedDuplicate)
+        assertEquals(1, database.cashSessions().findMovements("CASH-SESSION-MANUAL").size)
+
+        database.closeCashSession("CASH-SESSION-MANUAL", countedMinor = 0L, closedAt = 3L)
+        var rejectedAfterClose = false
+        try {
+            database.postCashMovement(
+                validOut.copy(
+                    operationId = "MANUAL-AFTER-CLOSE",
+                    type = "CASH_IN",
+                    amountMinor = 100L,
+                    reason = "No debe registrarse después del cierre"
+                )
+            )
+        } catch (_: IllegalStateException) {
+            rejectedAfterClose = true
+        }
+        assertEquals(true, rejectedAfterClose)
+        assertEquals(1, database.cashSessions().findMovements("CASH-SESSION-MANUAL").size)
+    }
+
 }

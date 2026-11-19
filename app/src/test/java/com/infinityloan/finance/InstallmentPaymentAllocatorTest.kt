@@ -192,4 +192,26 @@ class InstallmentPaymentAllocatorTest {
         }
     }
 
+
+    @Test
+    fun partialPaymentFollowsBucketPriorityWithoutSkippingToPrincipal() {
+        val result = InstallmentPaymentAllocator.allocate(175L, listOf(
+            InstallmentPaymentAllocator.DueInstallment(1, LocalDate.parse("2026-01-01"), lateFeeDueMinor = 40L, chargesDueMinor = 30L, interestDueMinor = 60L, principalDueMinor = 200L)
+        ))
+        val item = result.allocations.single()
+        assertEquals(40L, item.lateFeePaidMinor)
+        assertEquals(30L, item.chargesPaidMinor)
+        assertEquals(60L, item.interestPaidMinor)
+        assertEquals(45L, item.principalPaidMinor)
+        assertEquals(0L, result.unappliedMinor)
+        assertEquals(175L, result.totalAllocatedMinor)
+    }
+
+    @Test
+    fun emptyScheduleReturnsEntirePaymentAsUnapplied() {
+        val result = InstallmentPaymentAllocator.allocate(275L, emptyList())
+        assertTrue(result.allocations.isEmpty())
+        assertEquals(0L, result.totalAllocatedMinor)
+        assertEquals(275L, result.unappliedMinor)
+    }
 }

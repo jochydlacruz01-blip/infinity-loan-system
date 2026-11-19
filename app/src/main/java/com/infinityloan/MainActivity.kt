@@ -104,7 +104,7 @@ private fun InfinityApp(db: InfinityDatabase) {
                 },
                 floatingActionButton = {
                     when (screen) {
-                        Screen.CLIENTS -> Screen.CLIENTS -> FloatingActionButton(
+                        Screen.CLIENTS -> FloatingActionButton(
     onClick = {
         selectedClient = null
         showClientForm = true

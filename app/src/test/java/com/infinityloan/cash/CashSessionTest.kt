@@ -168,7 +168,7 @@ class CashStaffReportTest {
         assertEquals(900L, aDop.countedCashMinor)
         assertEquals(-100L, aDop.varianceMinor)
         assertEquals(250L, report.first { it.staffId == "staff-b" }.varianceMinor)
-        assertEquals("EUR", report.last().currency)
+        assertTrue(report.any { it.currency == "EUR" && it.staffId == "staff-a" })
     }
 
     @Test fun emptyStaffReportIsEmpty() { assertTrue(buildCashStaffReport(emptyList()).isEmpty()) }

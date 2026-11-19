@@ -39,7 +39,7 @@ object LoanScheduleGenerator {
         }
 
         val installments = when (method.uppercase()) {
-            "FRANCES" -> LoanCalculator.french(principal, periodicRate, periods, scale)
+            "FRANCES", "FRENCH" -> LoanCalculator.french(principal, periodicRate, periods, scale)
             "ITALIANO" -> LoanCalculator.italian(principal, periodicRate, periods, scale)
             "AMERICANO" -> LoanCalculator.american(principal, periodicRate, periods, scale)
             else -> throw IllegalArgumentException("Método de amortización no válido: $method")

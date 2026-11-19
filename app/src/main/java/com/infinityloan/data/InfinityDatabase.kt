@@ -681,6 +681,18 @@ interface PaymentDao {
             return PaymentPostResult.INVALID_SCHEDULE
         }
 
+        // Ledger invariant: every received minor unit must be either allocated
+        // to a contractual installment or preserved as customer credit.
+        val accountedPayment = try {
+            if (allocation.unappliedMinor < 0L) return PaymentPostResult.INVALID_SCHEDULE
+            Math.addExact(allocation.totalAllocatedMinor, allocation.unappliedMinor)
+        } catch (_: ArithmeticException) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+        if (accountedPayment != payment.amountMinor) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+
         val principalPaid = try {
             allocation.allocations.fold(0L) { total, item ->
                 Math.addExact(total, item.principalPaidMinor)

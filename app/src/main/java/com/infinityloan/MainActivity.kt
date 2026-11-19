@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,7 +104,15 @@ private fun InfinityApp(db: InfinityDatabase) {
                 },
                 floatingActionButton = {
                     when (screen) {
-                        Screen.CLIENTS -> FloatingActionButton(onClick = { showClientForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
+                        Screen.CLIENTS -> Screen.CLIENTS -> FloatingActionButton(
+    onClick = {
+        selectedClient = null
+        showClientForm = true
+    },
+    containerColor = Gold
+) {
+    Text("+", color = Navy, fontSize = 24.sp)
+}
                       Screen.LOANS -> FloatingActionButton(onClick = { showLoanForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
                         Screen.PAYMENTS -> FloatingActionButton(onClick = { showPaymentForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
                         else -> Unit
@@ -135,17 +144,52 @@ private fun InfinityApp(db: InfinityDatabase) {
     }
 
     if (showClientForm) ClientForm(
-        onDismiss = { showClientForm = false },
-        onSave = { name, doc, phone, address ->
-            scope.launch {
-                try {
-                    db.clients().insert(ClientEntity(fullName = name.trim(), documentNumber = doc.trim(), phone = phone.trim(), address = address.trim()))
-                    message = "Cliente guardado en el dispositivo."
-                } catch (_: Exception) { message = "No se pudo guardar: documento repetido o datos inválidos." }
+    initialClient = selectedClient,
+    onDismiss = {
+        showClientForm = false
+        selectedClient = null
+    },
+    onSave = { name, doc, phone, address ->
+        val clientToEdit = selectedClient
+
+        scope.launch {
+            try {
+                val cleanName = name.trim()
+                val cleanDoc = doc.trim()
+                val cleanPhone = phone.trim()
+                val cleanAddress = address.trim()
+
+                require(cleanName.isNotBlank() && cleanDoc.isNotBlank())
+
+                if (clientToEdit == null) {
+                    db.clients().insert(
+                        ClientEntity(
+                            fullName = cleanName,
+                            documentNumber = cleanDoc,
+                            phone = cleanPhone,
+                            address = cleanAddress
+                        )
+                    )
+                    message = "Cliente registrado correctamente."
+                } else {
+                    db.clients().updateClient(
+                        id = clientToEdit.id,
+                        fullName = cleanName,
+                        documentNumber = cleanDoc,
+                        phone = cleanPhone,
+                        address = cleanAddress
+                    )
+                    message = "Cliente actualizado correctamente."
+                }
+            } catch (_: Exception) {
+                message = "No se pudo guardar. Verifica los datos o si el documento ya existe."
+            } finally {
                 showClientForm = false
+                selectedClient = null
             }
         }
-    )
+    }
+)
 
     if (showLoanForm) LoanForm(
         clients = clients,
@@ -405,18 +449,32 @@ private fun ClientsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredClients, key = { it.id }) { client ->
-                        DataCard(
-                            title = client.fullName,
-                            detail = """
-                                Documento: ${client.documentNumber}
-                                Teléfono: ${client.phone}
-                                Dirección: ${client.address}
-                                Registrado: ${formatDate(client.createdAt)}
-                            """.trimIndent()
-                        )
-                    }
-                }
-            }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onEdit(client) },
+        colors = CardDefaults.cardColors(
+            containerColor = Panel
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                text = client.fullName,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Text("Documento: ${client.documentNumber}", color = Muted)
+            Text("Teléfono: ${client.phone}", color = Muted)
+            Text("Dirección: ${client.address}", color = Muted)
+            Text("Registrado: ${formatDate(client.createdAt)}", color = Muted)
+            Text(
+                "Toca para editar el expediente",
+                color = Gold,
+                fontSize = 12.sp
+            )
         }
     }
 }

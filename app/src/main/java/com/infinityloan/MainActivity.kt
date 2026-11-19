@@ -240,12 +240,9 @@ private fun InfinityApp(db: InfinityDatabase) {
                 }
                 if (result == PaymentPostResult.POSTED || result == PaymentPostResult.DUPLICATE) {
     showPaymentForm = false
-}
-            }
-        }
-    )
-  }
-} 
+         )
+      }
+    } 
 
 @Composable
 private fun HomeScreen(

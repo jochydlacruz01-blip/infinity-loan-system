@@ -27,6 +27,8 @@ Los resultados anteriores prueban los casos automatizados del repositorio en eso
 
 Se añadió `PaymentReversalPolicy`, un control de elegibilidad puro (sin escrituras contables) con pruebas unitarias. Rechaza importes inválidos, actor o motivo vacíos, libros de crédito inconsistentes, pagos posteriores en el mismo préstamo, crédito excedente ya consumido y reversos de cobros en efectivo cuando la caja original ya está cerrada.
 
+El catálogo de permisos incluye PAYMENT_REVERSE: por defecto solo el administrador lo recibe; los demás perfiles requieren una concesión explícita. Las denegaciones explícitas siguen prevaleciendo.
+
 **Límite importante:** esto todavía no contabiliza reversos ni modifica pagos, cuotas, principal, crédito, caja o auditoría. La siguiente etapa debe implementar una operación Room atómica y append-only, exigir sesión/permisos vigentes y registrar el reverso y la auditoría sin borrar el pago original. La política exige que el llamador suministre hechos verificados desde la base de datos; no debe confiar en valores proporcionados por la interfaz.
 
 ## Conciliaciones adicionales requeridas antes de producción

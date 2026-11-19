@@ -25,6 +25,23 @@ class AccessPolicyTest {
         assertFalse(AccessPolicy.allows(profile, Permission.SYSTEM_SETTINGS_MANAGE))
     }
 
+
+    @Test
+    fun onlyAdministratorHasPaymentReversalByDefault() {
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.ADMINISTRATOR), Permission.PAYMENT_REVERSE))
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.SUPERVISOR), Permission.PAYMENT_REVERSE))
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.CASHIER), Permission.PAYMENT_REVERSE))
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.COLLECTOR), Permission.PAYMENT_REVERSE))
+    }
+
+    @Test
+    fun paymentReversalPermissionCanBeExplicitlyGrantedOrDenied() {
+        val granted = AccessProfile(StaffRole.CASHIER, grants = setOf(Permission.PAYMENT_REVERSE))
+        val denied = AccessProfile(StaffRole.ADMINISTRATOR, denials = setOf(Permission.PAYMENT_REVERSE))
+        assertTrue(AccessPolicy.allows(granted, Permission.PAYMENT_REVERSE))
+        assertFalse(AccessPolicy.allows(denied, Permission.PAYMENT_REVERSE))
+    }
+
     @Test
     fun collectorCannotManageCashMovementsButCashierCan() {
         assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.COLLECTOR), Permission.CASH_MOVEMENT_MANAGE))

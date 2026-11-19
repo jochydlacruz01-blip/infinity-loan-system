@@ -170,15 +170,25 @@ data class CustomerCreditMovementEntity(
 interface CustomerCreditDao {
 
     @Query("""
-        SELECT COALESCE(SUM(amountMinor), 0)
+        SELECT amountMinor
         FROM customer_credit_movements
         WHERE clientId = :clientId
         AND currency = :currency
+        ORDER BY createdAt, operationId
     """)
-    suspend fun getBalance(
+    suspend fun getMovementAmounts(
         clientId: String,
         currency: String
-    ): Long
+    ): List<Long>
+
+    /**
+     * Uses checked addition so an unrepresentable ledger balance fails explicitly
+     * instead of being truncated or wrapped by a numeric aggregate.
+     */
+    suspend fun getBalance(clientId: String, currency: String): Long =
+        getMovementAmounts(clientId, currency).fold(0L) { total, amount ->
+            Math.addExact(total, amount)
+        }
 
     @Query("""
         SELECT * FROM customer_credit_movements

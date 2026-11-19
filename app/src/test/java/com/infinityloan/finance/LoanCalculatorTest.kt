@@ -287,4 +287,35 @@ class LoanCalculatorTest {
             }
         }
     }
+
+    @Test
+    fun deterministicRateAndTermMatrixReconcilesAllAmortizationMethods() {
+        val methods: List<(BigDecimal, BigDecimal, Int) -> List<LoanCalculator.Installment>> = listOf(
+            { p, r, n -> LoanCalculator.french(p, r, n) },
+            { p, r, n -> LoanCalculator.italian(p, r, n) },
+            { p, r, n -> LoanCalculator.american(p, r, n) }
+        )
+        repeat(48) { index ->
+            val rawPrincipal = BigDecimal.valueOf((index + 1L) * 137L, 2)
+            val periodicRate = BigDecimal.valueOf((index % 26).toLong(), 3)
+            val periods = index % 24 + 1
+            val expectedPrincipal = rawPrincipal.setScale(2, java.math.RoundingMode.HALF_UP)
+
+            methods.forEach { method ->
+                val rows = method(rawPrincipal, periodicRate, periods)
+                assertEquals(periods, rows.size)
+                assertEquals(
+                    0,
+                    rows.fold(BigDecimal.ZERO) { sum, row -> sum.add(row.principal) }
+                        .compareTo(expectedPrincipal)
+                )
+                assertTrue(rows.all { row ->
+                    row.principal >= BigDecimal.ZERO &&
+                        row.interest >= BigDecimal.ZERO &&
+                        row.total.compareTo(row.principal.add(row.interest)) == 0
+                })
+            }
+        }
+    }
+
 }

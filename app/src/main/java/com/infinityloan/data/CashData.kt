@@ -13,6 +13,15 @@ import kotlinx.coroutines.flow.Flow
 /** Read-only projection used to audit persisted loan payments against cash receipts. */
 data class PersistedPaymentForReconciliation(val operationId: String, val amountMinor: Long, val currency: String)
 
+data class PersistedCashSessionForAudit(
+    val sessionId: String,
+    val staffId: String,
+    val currency: String,
+    val openingMinor: Long,
+    val closedAt: Long?,
+    val countedClosingMinor: Long?
+)
+
 data class PersistedCashMovementForReconciliation(
     val operationId: String,
     val type: String,
@@ -52,6 +61,9 @@ data class CashMovementEntity(
 
 @Dao
 interface CashSessionDao {
+    @Query("SELECT sessionId, staffId, currency, openingMinor, closedAt, countedClosingMinor FROM cash_sessions ORDER BY openedAt, sessionId")
+    suspend fun findAllSessionsForAudit(): List<PersistedCashSessionForAudit>
+
     @Query("SELECT cash_movements.operationId AS operationId, cash_movements.type AS type, cash_movements.amountMinor AS amountMinor, cash_sessions.currency AS sessionCurrency FROM cash_movements INNER JOIN cash_sessions ON cash_movements.sessionId = cash_sessions.sessionId ORDER BY cash_movements.createdAt, cash_movements.operationId")
     suspend fun findAllMovementsForAudit(): List<PersistedCashMovementForReconciliation>
 

@@ -1175,10 +1175,14 @@ private fun StaffManagementScreen(
     var accounts by remember { mutableStateOf(emptyList<StaffAccountSummary>()) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var showCreate by remember { mutableStateOf(false) }
+    var editingAccount by remember { mutableStateOf<StaffAccountSummary?>(null) }
+    var selectedPermissions by remember { mutableStateOf<Set<Permission>>(emptySet()) }
+    var savingPermissions by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val canManage = AccessPolicy.allows(session.profile, Permission.STAFF_MANAGE)
+    val canCustomizePermissions = AccessPolicy.allows(session.profile, Permission.ROLE_PERMISSION_MANAGE)
     val assignableRoles = StaffRole.values().filter { role ->
         (role != StaffRole.ADMINISTRATOR || session.profile.role == StaffRole.ADMINISTRATOR) &&
             AccessPolicy.effectivePermissions(AccessProfile(role)).all {
@@ -1270,6 +1274,91 @@ private fun StaffManagementScreen(
                 }
             }
         }
+    }
+
+    editingAccount?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (!savingPermissions) editingAccount = null },
+            title = { Text("Permisos · ${target.displayName}") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Activa solo las capacidades necesarias para este empleado.",
+                        color = Muted,
+                        fontSize = 12.sp
+                    )
+                    Permission.entries.forEach { permission ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = permission in selectedPermissions,
+                                onCheckedChange = { checked ->
+                                    selectedPermissions = if (checked) {
+                                        selectedPermissions + permission
+                                    } else {
+                                        selectedPermissions - permission
+                                    }
+                                },
+                                enabled = !savingPermissions
+                            )
+                            Text(permission.name.replace('_', ' '), color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !savingPermissions,
+                    onClick = {
+                        savingPermissions = true
+                        scope.launch {
+                            try {
+                                val targetEntity = withContext(Dispatchers.IO) {
+                                    db.staffAccounts().findById(target.id)
+                                } ?: throw IllegalArgumentException("La cuenta ya no existe.")
+                                val role = StaffRole.valueOf(targetEntity.role)
+                                val defaults = AccessPolicy.defaultPermissions(role)
+                                val grants = selectedPermissions - defaults
+                                val denials = defaults - selectedPermissions
+                                withContext(Dispatchers.IO) {
+                                    db.withTransaction {
+                                        service.updateStaffPermissions(session, target.id, grants, denials)
+                                        db.auditLogs().insert(
+                                            AuditLogEntity(
+                                                actorStaffId = session.staffId,
+                                                actorUsername = session.username,
+                                                action = "STAFF_PERMISSIONS_UPDATED",
+                                                targetType = "STAFF_ACCOUNT",
+                                                targetId = target.id,
+                                                details = "grants=${grants.sortedBy { it.name }.joinToString(",")};denials=${denials.sortedBy { it.name }.joinToString(",")}"
+                                            )
+                                        )
+                                    }
+                                }
+                                refreshKey++
+                                editingAccount = null
+                                onMessage("Permisos actualizados. La cuenta deberá iniciar sesión nuevamente para aplicar los cambios.")
+                            } catch (error: Exception) {
+                                onMessage(error.message ?: "No se pudieron actualizar los permisos.")
+                            } finally {
+                                savingPermissions = false
+                            }
+                        }
+                    }
+                ) { Text(if (savingPermissions) "Guardando…" else "Guardar", color = Gold) }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !savingPermissions,
+                    onClick = { editingAccount = null }
+                ) { Text("Cancelar") }
+            }
+        )
     }
 
     if (showCreate) {

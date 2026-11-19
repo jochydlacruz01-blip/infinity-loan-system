@@ -556,4 +556,50 @@ class CashPaymentIntegrationTest {
     }
 
 
+
+    @Test
+    fun persistedCashReconciliationReadsReceiptsAndFindsOrphanMovements() = runBlocking {
+        val loan = createDueLoan()
+        val sessionId = "CASH-SESSION-PERSISTED-AUDIT"
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = sessionId,
+                staffId = "CASHIER-PERSISTED-AUDIT",
+                currency = "DOP",
+                openingMinor = 0L,
+                openedAt = 1L
+            )
+        )
+        val payment = PaymentEntity(
+            operationId = "CASH-PAY-PERSISTED-AUDIT",
+            loanId = loan.id,
+            amountMinor = 2500L,
+            reference = "Pago para conciliación persistida",
+            createdAt = 2L
+        )
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
+
+        val clean = database.reconcilePersistedCashPayments()
+        assertEquals(1, clean.checkedPayments)
+        assertEquals(emptyList<com.infinityloan.finance.CashReconciliationIssue>(), clean.findings)
+
+        database.cashSessions().insertMovement(
+            CashMovementEntity(
+                operationId = "CASH-PAY-MISSING-PAYMENT",
+                sessionId = sessionId,
+                type = "CASH_IN",
+                amountMinor = 700L,
+                reason = "Recibo sin pago asociado para prueba de auditoría",
+                createdAt = 3L
+            )
+        )
+
+        val withOrphan = database.reconcilePersistedCashPayments()
+        assertEquals(1, withOrphan.checkedPayments)
+        assertTrue(
+            withOrphan.findings.any {
+                it.type == com.infinityloan.finance.CashReconciliationIssueType.ORPHAN_CASH_MOVEMENT
+            }
+        )
+    }
 }

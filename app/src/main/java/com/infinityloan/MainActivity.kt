@@ -617,6 +617,8 @@ private fun AuthenticatedInfinityApp(
                     PaymentPostResult.INVALID_SCHEDULE -> "El calendario o la caja no son válidos. No se registró el pago."
                     PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> "Este préstamo tiene pagos históricos sin distribución por cuotas. Requiere conciliación."
                     PaymentPostResult.INVALID_AMOUNT -> message ?: "Importe inválido o caja no abierta. No se registró el cobro."
+                    PaymentPostResult.INVALID_REFERENCE -> "La referencia del pago es obligatoria."
+                    PaymentPostResult.INVALID_OPERATION_ID -> "El identificador de operación es inválido."
                 }
                 if (result == PaymentPostResult.POSTED || result == PaymentPostResult.DUPLICATE) {
                     showPaymentForm = false

@@ -536,7 +536,7 @@ private fun AuthenticatedInfinityApp(
                         ))
                     }
                     postResult
-   
+                    }
                 } catch (_: Exception) { PaymentPostResult.INVALID_AMOUNT }
                 message = when (result) {
                     PaymentPostResult.POSTED -> "Pago registrado y saldo actualizado."

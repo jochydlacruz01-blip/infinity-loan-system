@@ -13,11 +13,25 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)
 class PaymentDaoTest {
 
     private lateinit var database: InfinityDatabase
+
+    private suspend fun insertLoanWithDueInstallment(loan: LoanEntity) {
+        database.loans().insert(loan)
+        val principalDue = loan.balanceMinor
+        database.installments().insertAll(
+            listOf(LoanInstallmentEntity(
+                loanId = loan.id, number = 1,
+                dueDate = LocalDate.now().minusDays(1).toString(),
+                principalMinor = principalDue, interestMinor = 0L,
+                totalMinor = principalDue, remainingPrincipalMinor = 0L
+            ))
+        )
+    }
 
     @Before
     fun setup() {
@@ -134,14 +148,11 @@ class PaymentDaoTest {
             database.payments().postPayment(negativePayment)
         )
 
-        assertEquals(
-            PaymentPostResult.EXCEEDS_BALANCE,
-            database.payments().postPayment(excessivePayment)
-        )
-
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(excessivePayment))
         val updatedLoan = database.payments().findLoan(loan.id)
-
-        assertEquals(10000L, updatedLoan?.balanceMinor)
+        val excessCredit = database.customerCredits().getBalance(client.id, "DOP")
+        assertEquals(0L, updatedLoan?.balanceMinor)
+        assertEquals(1L, excessCredit)
     }
 
     @Test
@@ -167,7 +178,7 @@ class PaymentDaoTest {
             status = "CLOSED"
         )
 
-        database.loans().insert(closedLoan)
+        insertLoanWithDueInstallment(closedLoan)
 
         val missingLoanPayment = PaymentEntity(
             operationId = "TEST-MISSING-001",
@@ -254,17 +265,10 @@ class PaymentDaoTest {
 
         val updatedLoan = database.payments().findLoan(loan.id)
 
-        assertEquals(
-            1,
-            results.count { it == PaymentPostResult.POSTED }
-        )
-
-        assertEquals(
-            1,
-            results.count { it == PaymentPostResult.EXCEEDS_BALANCE }
-        )
-
-        assertEquals(3000L, updatedLoan?.balanceMinor)
+        assertEquals(2, results.count { it == PaymentPostResult.POSTED })
+        assertEquals(0, results.count { it == PaymentPostResult.EXCEEDS_BALANCE })
+        assertEquals(0L, updatedLoan?.balanceMinor)
+        assertEquals(4000L, database.customerCredits().getBalance(client.id, "DOP"))
     }
         @Test
     fun customerCreditPaymentUpdatesLoanAndCreditAtomically() = runBlocking {
@@ -625,18 +629,10 @@ class PaymentDaoTest {
         val creditBalance =
             database.customerCredits().getBalance(client.id, "DOP")
 
-        assertEquals(
-            CreditPaymentResult.EXCEEDS_BALANCE,
-            result
-        )
-
-        assertEquals(2000L, updatedLoan?.balanceMinor)
-        assertEquals(5000L, creditBalance)
-
-        assertEquals(
-            null,
-            database.payments().findByOperationId(payment.operationId)
-        )
+        assertEquals(CreditPaymentResult.POSTED, result)
+        assertEquals(0L, updatedLoan?.balanceMinor)
+        assertEquals(3000L, creditBalance)
+        assertEquals(payment.operationId, database.payments().findByOperationId(payment.operationId)?.operationId)
     }
 }
 

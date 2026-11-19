@@ -407,7 +407,7 @@ class CashPaymentIntegrationTest {
         val payment = PaymentEntity("CASH-PAYMENT-REVERSAL", loan.id, 3000L, "Pago reversible", 2L)
         assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
         assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Registro duplicado", 3L))
-        assertEquals(PaymentReversalResult.ALREADY_REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin", "Segundo intento", 4L))
+        assertEquals(PaymentReversalResult.ALREADY_REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Segundo intento", 4L))
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
         val movements = database.cashSessions().findMovements(sessionId)
         assertEquals(2, movements.size)
@@ -489,6 +489,68 @@ class CashPaymentIntegrationTest {
             PaymentReversalResult.INVALID_ACTOR,
             service.reverse(session, "NONEXISTENT-PAYMENT", "Intento sin permiso")
         )
+    }
+
+
+    @Test
+    fun reversalRestoresCustomerCreditUsedToFundPayment() = runBlocking {
+        val loan = createDueLoan()
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                "SEED-CREDIT-REVERSAL", loan.clientId, loan.id, loan.currency, 10000L,
+                "Crédito inicial del cliente", 1L
+            )
+        )
+        val payment = PaymentEntity("PAYMENT-FUNDED-BY-CREDIT", loan.id, 10000L, "Pago con crédito", 50L)
+        assertEquals(CreditPaymentResult.POSTED, database.postPaymentWithCustomerCredit(payment))
+        assertEquals(0L, database.customerCredits().getBalance(loan.clientId, loan.currency))
+        assertEquals(
+            PaymentReversalResult.REVERSED,
+            database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Aplicación de crédito incorrecta", 51L)
+        )
+        assertEquals(10000L, database.customerCredits().getBalance(loan.clientId, loan.currency))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals("PENDING", database.installments().findForLoan(loan.id).single().status)
+    }
+
+    @Test
+    fun reversalIsBlockedWhenAnotherPaymentExistsForTheLoan() = runBlocking {
+        val loan = createDueLoan()
+        val first = PaymentEntity("PAYMENT-FIRST-REVERSAL", loan.id, 1000L, "Primer pago", 60L)
+        val second = PaymentEntity("PAYMENT-SECOND-REVERSAL", loan.id, 1000L, "Segundo pago", 61L)
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(first))
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(second))
+        assertEquals(
+            PaymentReversalResult.LATER_PAYMENT_EXISTS,
+            database.reversePayment(first.operationId, "ADMIN-001", "admin0", "Reverso fuera de secuencia", 62L)
+        )
+        assertEquals(8000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.paymentReversals().findByOriginalOperationId(first.operationId))
+    }
+
+    @Test
+    fun reversalLedgerConflictRollsBackEveryAccountingChange() = runBlocking {
+        val loan = createDueLoan()
+        val payment = PaymentEntity("PAYMENT-REVERSAL-ROLLBACK", loan.id, 12500L, "Pago para rollback", 70L)
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                "PAYMENT-REVERSAL-CREDIT-" + payment.operationId,
+                loan.clientId, loan.id, loan.currency, 1L,
+                "Colisión intencional de idempotencia", 71L
+            )
+        )
+        var rolledBack = false
+        try {
+            database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Prueba de rollback", 72L)
+        } catch (_: IllegalStateException) {
+            rolledBack = true
+        }
+        assertEquals(true, rolledBack)
+        assertEquals(0L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(2501L, database.customerCredits().getBalance(loan.clientId, loan.currency))
+        assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
+        assertEquals(0, database.auditLogs().findByActor("ADMIN-001", 5).size)
     }
 
 

@@ -38,7 +38,7 @@ La operación `reversePayment`:
 
 La pantalla Pagos muestra la acción de reverso solo a perfiles autorizados, exige motivo en un diálogo de confirmación y marca el recibo como revertido en el historial. La puerta `PaymentReversalService` vuelve a validar sesión y `PAYMENT_REVERSE`; además, la propia transacción vuelve a comprobar cuenta activa, identidad y permiso persistido para evitar una carrera entre autorización y contabilización. Por defecto, solo el administrador dispone de ese permiso; otros perfiles requieren concesión explícita y las denegaciones prevalecen.
 
-**Alcance:** contabilización local Android/Room. No es todavía un flujo central multi-dispositivo, no publica reversos en un backend y no sustituye una política de aprobación de supervisor ni la conciliación contable independiente. Los cobros de caja de sesiones ya cerradas se bloquean y deben resolverse mediante un ajuste separado autorizado.
+**Alcance:** contabilización local Android/Room. No es todavía un flujo central multi-dispositivo, no publica reversos en un backend y no sustituye una política de aprobación de supervisor ni la conciliación contable independiente. Los cobros de caja de sesiones ya cerradas se bloquean y deben resolverse mediante un ajuste separado autorizado. La batería instrumentada cubre reverso de caja, excedente de crédito no consumido, crédito consumido, caja cerrada, restauración de crédito aplicado, pagos posteriores, falta de permiso y rollback ante colisión del ledger.
 
 ## Conciliaciones adicionales requeridas antes de producción
 

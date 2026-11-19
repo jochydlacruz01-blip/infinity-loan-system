@@ -467,6 +467,8 @@ enum class CustomerCreditResult {
     APPLIED,
     DUPLICATE,
     INVALID_AMOUNT,
+    INVALID_REFERENCE,
+    INVALID_OPERATION_ID,
     LOAN_NOT_FOUND,
     LOAN_NOT_ACTIVE,
     CLIENT_MISMATCH,
@@ -895,6 +897,8 @@ abstract class InfinityDatabase : RoomDatabase() {
                 return@withTransaction when (result) {
                     PaymentPostResult.DUPLICATE -> CreditPaymentResult.DUPLICATE
                     PaymentPostResult.INVALID_AMOUNT -> CreditPaymentResult.INVALID_AMOUNT
+                    PaymentPostResult.INVALID_REFERENCE -> CreditPaymentResult.INVALID_REFERENCE
+                    PaymentPostResult.INVALID_OPERATION_ID -> CreditPaymentResult.INVALID_OPERATION_ID
                     PaymentPostResult.LOAN_NOT_FOUND -> CreditPaymentResult.LOAN_NOT_FOUND
                     PaymentPostResult.LOAN_NOT_ACTIVE -> CreditPaymentResult.LOAN_NOT_ACTIVE
                     PaymentPostResult.EXCEEDS_BALANCE -> CreditPaymentResult.EXCEEDS_BALANCE

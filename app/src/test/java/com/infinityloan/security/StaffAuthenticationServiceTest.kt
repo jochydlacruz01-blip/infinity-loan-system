@@ -126,12 +126,12 @@ class StaffAuthenticationServiceTest {
                 initialPassword
             )
         )
-        assertTrue(initialPassword.all { it == '\\u0000' })
+        assertTrue(initialPassword.all { it == '\u0000' })
 
         val loginPassword = "UnaClaveMuySegura-2026".toCharArray()
         val (result, _) = service.authenticate("admin", loginPassword)
         assertEquals(AuthenticationResult.AUTHENTICATED, result)
-        assertTrue(loginPassword.all { it == '\\u0000' })
+        assertTrue(loginPassword.all { it == '\u0000' })
     }
 
     @Test
@@ -144,7 +144,7 @@ class StaffAuthenticationServiceTest {
 
         assertEquals(AuthenticationResult.INVALID_CREDENTIALS, result)
         assertNull(session)
-        assertTrue(password.all { it == '\\u0000' })
+        assertTrue(password.all { it == '\u0000' })
     }
 
     @Test(expected = IllegalArgumentException::class)

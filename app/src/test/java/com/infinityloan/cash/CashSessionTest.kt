@@ -101,3 +101,27 @@ class CashSessionTest {
     }
 
 }
+
+
+class CashReportTest {
+    @Test fun reportGroupsCurrenciesAndKeepsOpenExpectedCashSeparateFromCountedCash() {
+        val open = CashSession("open", "staff", "DOP", 5_000L)
+            .addMovement(CashMovement("in", CashMovementType.CASH_IN, 1_000L, "Cobro"))
+        val closed = CashSession("closed", "staff", "DOP", 2_000L)
+            .addMovement(CashMovement("out", CashMovementType.CASH_OUT, 500L, "Salida"))
+            .close(1_400L)
+        val usd = CashSession("usd", "staff", "USD", 900L).close(800L)
+
+        val report = buildCashReport(listOf(open, closed, usd))
+        val dop = report.first { it.currency == "DOP" }
+        assertEquals(2, dop.sessionCount)
+        assertEquals(1, dop.openSessionCount)
+        assertEquals(1, dop.closedSessionCount)
+        assertEquals(7_500L, dop.expectedCashMinor)
+        assertEquals(1_400L, dop.countedCashMinor)
+        assertEquals(-100L, dop.varianceMinor)
+        assertEquals("USD", report.last().currency)
+    }
+
+    @Test fun emptyReportIsEmpty() { assertTrue(buildCashReport(emptyList()).isEmpty()) }
+}

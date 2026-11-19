@@ -69,6 +69,7 @@ class StaffAuthenticationService(
         denials: Set<Permission> = emptySet()
     ): Boolean {
         try {
+            require(isSessionValid(actor)) { "La sesión del empleado ya no está activa." }
             require(AccessPolicy.allows(actor.profile, Permission.STAFF_MANAGE)) {
                 "No tienes permiso para administrar empleados."
             }
@@ -121,6 +122,7 @@ class StaffAuthenticationService(
         staffId: String,
         active: Boolean
     ) {
+        require(isSessionValid(actor)) { "La sesión del empleado ya no está activa." }
         require(AccessPolicy.allows(actor.profile, Permission.STAFF_MANAGE)) {
             "No tienes permiso para administrar empleados."
         }
@@ -142,6 +144,16 @@ class StaffAuthenticationService(
             }
         }
         staffAccounts.setActive(staffId, active)
+    }
+
+
+    suspend fun isSessionValid(session: StaffSession): Boolean {
+        val account = staffAccounts.findById(session.staffId) ?: return false
+        if (!account.isActive || account.username != session.username) return false
+        val role = runCatching { StaffRole.valueOf(account.role) }.getOrNull() ?: return false
+        return role == session.profile.role &&
+            parsePermissions(account.grants) == session.profile.grants &&
+            parsePermissions(account.denials) == session.profile.denials
     }
 
     suspend fun authenticate(

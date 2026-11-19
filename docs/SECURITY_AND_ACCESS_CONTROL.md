@@ -18,7 +18,7 @@ Esta documentación distingue los cimientos ya implementados de los controles qu
 
 ### Límites actuales
 
-La autenticación y la auditoría son locales a este dispositivo. Todavía no hay backend compartido, sesiones de servidor, sincronización multi-dispositivo, limitación persistente de intentos ni bloqueo progresivo. La pantalla de personal asigna perfiles predeterminados; la edición granular de permisos aún no está integrada en la interfaz. La auditoría actual cubre eventos principales, no todos los accesos y cambios posibles. No se considera una autorización de producción hasta completar backend, revisión de seguridad y pruebas de extremo a extremo.
+La autenticación y la auditoría son locales a este dispositivo. Todavía no hay backend compartido, sesiones de servidor ni sincronización multi-dispositivo. La base local aplica un bloqueo temporal de 15 minutos después de cinco contraseñas incorrectas para cuentas existentes; el control por dispositivo no sustituye limitación de intentos por IP/usuario en el servidor. La pantalla de personal asigna perfiles predeterminados; la edición granular de permisos aún no está integrada en la interfaz. La auditoría actual cubre eventos principales, no todos los accesos y cambios posibles. No se considera una autorización de producción hasta completar backend, revisión de seguridad y pruebas de extremo a extremo.
 
 ## Reglas obligatorias para la integración
 
@@ -45,6 +45,6 @@ Los permisos predeterminados son una base conservadora, no una política final a
 
 - Integrar autenticación real y sesiones.
 - Migrar la identidad local a un proveedor de identidad/backend compartido, con sesiones revocables y autorización del lado servidor.
-- Añadir limitación de intentos, bloqueo progresivo, recuperación segura y controles de enrolamiento del administrador.
+- Trasladar la protección contra fuerza bruta al backend y añadir recuperación segura y controles de enrolamiento del administrador.
 - Añadir autorización en todos los endpoints y pruebas de seguridad.
 - Revisar privacidad, protección de datos y requisitos regulatorios aplicables.

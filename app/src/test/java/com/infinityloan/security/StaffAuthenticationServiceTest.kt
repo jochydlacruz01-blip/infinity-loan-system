@@ -484,4 +484,54 @@ class StaffAuthenticationServiceTest {
             )
         }
     }
+    @Test
+    fun permissionCheckRejectsDisabledOrChangedPersistedSession() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+
+        assertTrue(service.hasPermission(admin, Permission.PAYMENT_REGISTER))
+        dao.updatePermissions(admin.staffId, "", Permission.PAYMENT_REGISTER.name)
+        assertFalse(service.hasPermission(admin, Permission.PAYMENT_REGISTER))
+        assertFalse(service.hasPermission(admin, Permission.CASH_MOVEMENT_MANAGE))
+
+        dao.setActive(admin.staffId, false)
+        assertFalse(service.hasPermission(admin, Permission.DASHBOARD_VIEW))
+    }
+
+    @Test
+    fun permissionCheckUsesTheAuthenticatedRoleCapabilities() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "collector",
+            displayName = "Cobrador",
+            role = StaffRole.COLLECTOR,
+            password = "ClaveCobradorMuySegura-2026".toCharArray()
+        )
+        val collector = requireNotNull(
+            service.authenticate("collector", "ClaveCobradorMuySegura-2026".toCharArray()).second
+        )
+
+        assertTrue(service.hasPermission(collector, Permission.PAYMENT_REGISTER))
+        assertFalse(service.hasPermission(collector, Permission.CASH_MOVEMENT_MANAGE))
+        assertFalse(service.hasPermission(collector, Permission.LOAN_CREATE))
+    }
+
 }

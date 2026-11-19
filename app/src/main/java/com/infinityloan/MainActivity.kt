@@ -635,7 +635,7 @@ private fun HomeScreen(
             DataCard(
                 title = "CUOTAS VENCIDAS · ${overdue.size}",
                 detail = "Préstamos con cuotas vencidas: ${overdueLoans.size}\n" +
-                    currencies.joinToString("\\n") { currency ->
+                    currencies.joinToString("\n") { currency ->
                         val amount = overdue.filter { row -> loans.any { it.id == row.loanId && it.currency == currency } }
                             .map { it.totalMinor - it.paidPrincipalMinor - it.paidInterestMinor }
                         "Saldo vencido $currency: ${moneyTotal(amount)} $currency"

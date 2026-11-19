@@ -792,4 +792,6 @@ private fun money(minor: Long): String =
         "dd/MM/yyyy HH:mm",
         Locale.getDefault()
     ).format(Date(timestamp))
+    )
+   }
 }

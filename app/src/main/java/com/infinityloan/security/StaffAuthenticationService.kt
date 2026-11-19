@@ -127,14 +127,14 @@ class StaffAuthenticationService(
         require(active || actor.staffId != staffId) {
             "No puedes desactivar tu propia cuenta."
         }
-        val target = staffAccounts.getAll().firstOrNull { it.id == staffId }
+        val target = staffAccounts.getAllSummaries().firstOrNull { it.id == staffId }
             ?: throw IllegalArgumentException("La cuenta seleccionada no existe.")
         require(
             target.role != StaffRole.ADMINISTRATOR.name ||
                 actor.profile.role == StaffRole.ADMINISTRATOR
         ) { "Solo un administrador puede modificar otra cuenta administradora." }
         if (!active && target.role == StaffRole.ADMINISTRATOR.name && target.isActive) {
-            val activeAdministrators = staffAccounts.getAll().count {
+            val activeAdministrators = staffAccounts.getAllSummaries().count {
                 it.role == StaffRole.ADMINISTRATOR.name && it.isActive
             }
             require(activeAdministrators > 1) {

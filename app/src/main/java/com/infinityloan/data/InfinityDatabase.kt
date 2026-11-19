@@ -595,6 +595,20 @@ abstract class InfinityDatabase : RoomDatabase() {
                 return@withTransaction CreditPaymentResult.INSUFFICIENT_CREDIT
             }
 
+            val result = payments().postPayment(payment)
+            if (result != PaymentPostResult.POSTED) {
+                return@withTransaction when (result) {
+                    PaymentPostResult.DUPLICATE -> CreditPaymentResult.DUPLICATE
+                    PaymentPostResult.INVALID_AMOUNT -> CreditPaymentResult.INVALID_AMOUNT
+                    PaymentPostResult.LOAN_NOT_FOUND -> CreditPaymentResult.LOAN_NOT_FOUND
+                    PaymentPostResult.LOAN_NOT_ACTIVE -> CreditPaymentResult.LOAN_NOT_ACTIVE
+                    PaymentPostResult.EXCEEDS_BALANCE -> CreditPaymentResult.EXCEEDS_BALANCE
+                    PaymentPostResult.SCHEDULE_NOT_FOUND -> CreditPaymentResult.SCHEDULE_NOT_FOUND
+                    PaymentPostResult.INVALID_SCHEDULE -> CreditPaymentResult.INVALID_SCHEDULE
+                    PaymentPostResult.POSTED -> CreditPaymentResult.POSTED
+                }
+            }
+
             val debit = CustomerCreditMovementEntity(
                 operationId = "PAYMENT-CREDIT-${payment.operationId}",
                 clientId = loan.clientId,
@@ -604,18 +618,8 @@ abstract class InfinityDatabase : RoomDatabase() {
                 reference = "Aplicación de crédito al pago ${payment.operationId}"
             )
             val debitInserted = customerCredits().insertIfAbsent(debit)
-            if (debitInserted == -1L) return@withTransaction CreditPaymentResult.DUPLICATE
-
-            when (payments().postPayment(payment)) {
-                PaymentPostResult.POSTED -> CreditPaymentResult.POSTED
-                PaymentPostResult.DUPLICATE -> CreditPaymentResult.DUPLICATE
-                PaymentPostResult.INVALID_AMOUNT -> CreditPaymentResult.INVALID_AMOUNT
-                PaymentPostResult.LOAN_NOT_FOUND -> CreditPaymentResult.LOAN_NOT_FOUND
-                PaymentPostResult.LOAN_NOT_ACTIVE -> CreditPaymentResult.LOAN_NOT_ACTIVE
-                PaymentPostResult.EXCEEDS_BALANCE -> CreditPaymentResult.EXCEEDS_BALANCE
-                PaymentPostResult.SCHEDULE_NOT_FOUND -> CreditPaymentResult.SCHEDULE_NOT_FOUND
-                PaymentPostResult.INVALID_SCHEDULE -> CreditPaymentResult.INVALID_SCHEDULE
-            }
+            check(debitInserted != -1L) { "No se pudo descontar el crédito aplicado." }
+            CreditPaymentResult.POSTED
         }
 
     abstract fun clients(): ClientDao

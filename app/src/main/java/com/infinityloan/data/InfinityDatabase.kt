@@ -2,6 +2,7 @@ package com.infinityloan.data
 import androidx.room.withTransaction
 import android.content.Context
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Database
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -49,8 +50,8 @@ data class LoanEntity(
     val method: String,
     val status: String = "ACTIVE",
     val createdAt: Long = System.currentTimeMillis(),
-    val frequency: String = "MONTHLY",
-    val firstDueDate: String = "1970-01-01"
+    @ColumnInfo(defaultValue = "'MONTHLY'") val frequency: String = "MONTHLY",
+    @ColumnInfo(defaultValue = "'1970-01-01'") val firstDueDate: String = "1970-01-01"
 )
 
 

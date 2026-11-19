@@ -40,6 +40,21 @@ class CashSessionTest {
         }
     }
 
+    @Test fun cashOutCannotExceedAvailableBalance() {
+        assertThrows(IllegalArgumentException::class.java) {
+            session().addMovement(CashMovement("out", CashMovementType.CASH_OUT, 10_001L, "Egreso"))
+        }
+    }
+
+    @Test fun closureStateMustMatchPhysicalCount() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CashSession("S", "staff", "DOP", 0L, closed = false, countedClosingMinor = 0L)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            CashSession("S", "staff", "DOP", 0L, closed = true)
+        }
+    }
+
     @Test fun arithmeticOverflowFailsExplicitly() {
         val initial = CashSession("S", "staff", "USD", Long.MAX_VALUE)
         assertThrows(ArithmeticException::class.java) {

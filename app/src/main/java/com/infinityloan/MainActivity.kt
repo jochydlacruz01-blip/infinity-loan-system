@@ -244,7 +244,8 @@ private fun InfinityApp(db: InfinityDatabase) {
             }
         }
     )
-}
+  }
+} 
 
 @Composable
 private fun HomeScreen(

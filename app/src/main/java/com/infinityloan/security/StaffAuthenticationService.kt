@@ -190,6 +190,16 @@ class StaffAuthenticationService(
             parsePermissions(account.denials) == session.profile.denials
     }
 
+    /**
+     * Revalidates the persisted account and its current permission snapshot for
+     * every sensitive action. UI visibility is only a convenience, never the
+     * authorization check used by an operation handler.
+     */
+    suspend fun hasPermission(session: StaffSession, permission: Permission): Boolean {
+        if (!isSessionValid(session)) return false
+        return AccessPolicy.allows(session.profile, permission)
+    }
+
     suspend fun authenticate(
         username: String,
         password: CharArray

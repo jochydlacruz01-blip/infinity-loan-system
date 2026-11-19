@@ -10,6 +10,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
+/** Read-only projection used to audit persisted loan payments against cash receipts. */
+data class PersistedPaymentForReconciliation(val operationId: String, val amountMinor: Long, val currency: String)
+
 @Entity(tableName = "cash_sessions", indices = [Index("staffId"), Index("openedAt")])
 data class CashSessionEntity(
     @PrimaryKey val sessionId: String,

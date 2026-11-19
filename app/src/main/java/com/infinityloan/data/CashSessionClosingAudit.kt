@@ -42,8 +42,8 @@ suspend fun InfinityDatabase.auditPersistedCashClosings(): PersistedCashCloseAud
                     operationId = movement.operationId,
                     type = CashMovementType.valueOf(movement.type),
                     amountMinor = movement.amountMinor,
-                    reason = "Movimiento persistido de caja",
-                    createdAt = 0L
+                    reason = movement.reason,
+                    createdAt = movement.createdAt
                 )
             }
             val session = CashSession(

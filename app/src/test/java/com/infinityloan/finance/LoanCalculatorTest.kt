@@ -209,4 +209,32 @@ class LoanCalculatorTest {
         }
     }
 
+    @Test
+    fun variedSchedulesReconcileRoundedPrincipalAndRemainNonnegative() {
+        val cases = listOf(
+            Triple(BigDecimal("999.995"), BigDecimal("0.015"), 5),
+            Triple(BigDecimal("0.11"), BigDecimal("0.02"), 4),
+            Triple(BigDecimal("10000.555"), BigDecimal("0.0"), 17),
+            Triple(BigDecimal("321.789"), BigDecimal("0.125"), 9),
+            Triple(BigDecimal("75.01"), BigDecimal("0.035"), 2)
+        )
+        cases.forEach { (rawPrincipal, periodicRate, periods) ->
+            val roundedPrincipal = rawPrincipal.setScale(2, java.math.RoundingMode.HALF_UP)
+            val schedules = listOf(
+                LoanCalculator.french(rawPrincipal, periodicRate, periods),
+                LoanCalculator.italian(rawPrincipal, periodicRate, periods),
+                LoanCalculator.american(rawPrincipal, periodicRate, periods)
+            )
+            schedules.forEach { rows ->
+                assertEquals(periods, rows.size)
+                assertEquals(0, rows.fold(BigDecimal.ZERO) { sum, row -> sum + row.principal }.compareTo(roundedPrincipal))
+                assertTrue(rows.all { row ->
+                    row.principal >= BigDecimal.ZERO &&
+                        row.interest >= BigDecimal.ZERO &&
+                        row.total.compareTo(row.principal.add(row.interest)) == 0
+                })
+            }
+        }
+    }
+
 }

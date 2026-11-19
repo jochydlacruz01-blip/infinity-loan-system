@@ -701,7 +701,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
         
-private val MIGRATION_1_2 = object : Migration(1, 2) {
+internal val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(
         database: SupportSQLiteDatabase
     ) {
@@ -728,7 +728,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
         """.trimIndent())
     }
 }
-private val MIGRATION_2_3 = object : Migration(2, 3) {
+internal val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(
         database: SupportSQLiteDatabase
     ) {

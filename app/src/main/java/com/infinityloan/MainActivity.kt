@@ -335,8 +335,10 @@ private fun AuthenticatedInfinityApp(
                         Screen.CLIENTS -> ClientsScreen(
     clients = clients,
     onEdit = { client ->
-        selectedClient = client
-        showClientForm = true
+        if (can(Permission.CLIENT_UPDATE)) {
+            selectedClient = client
+            showClientForm = true
+        }
     }
 )
                         Screen.LOANS -> LoansScreen(loans, clients)

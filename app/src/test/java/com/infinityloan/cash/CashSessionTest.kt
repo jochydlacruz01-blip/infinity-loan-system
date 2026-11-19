@@ -125,3 +125,28 @@ class CashReportTest {
 
     @Test fun emptyReportIsEmpty() { assertTrue(buildCashReport(emptyList()).isEmpty()) }
 }
+
+
+    @Test fun reportArithmeticOverflowFailsInsteadOfWrapping() {
+        val first = CashSession("first", "staff", "USD", Long.MAX_VALUE)
+        val second = CashSession("second", "staff", "USD", 1L)
+        assertThrows(ArithmeticException::class.java) {
+            buildCashReport(listOf(first, second))
+        }
+    }
+
+    @Test fun closedSessionReportVarianceIsPositiveWhenOverCounted() {
+        val closed = CashSession("S", "staff", "EUR", 1_000L).close(1_250L)
+        val report = buildCashReport(listOf(closed)).single()
+        assertEquals(250L, report.varianceMinor)
+        assertEquals(1_250L, report.countedCashMinor)
+    }
+
+    @Test fun reportVarianceOnlyIncludesClosedSessions() {
+        val closed = CashSession("closed", "staff", "DOP", 1_000L).close(900L)
+        val open = CashSession("open", "staff", "DOP", 5_000L)
+        val report = buildCashReport(listOf(closed, open)).single()
+        assertEquals(-100L, report.varianceMinor)
+        assertEquals(900L, report.countedCashMinor)
+        assertEquals(6_000L, report.expectedCashMinor)
+    }

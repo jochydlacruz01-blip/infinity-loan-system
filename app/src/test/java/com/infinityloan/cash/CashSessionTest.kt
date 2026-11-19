@@ -118,6 +118,8 @@ class CashReportTest {
         assertEquals(1, dop.openSessionCount)
         assertEquals(1, dop.closedSessionCount)
         assertEquals(7_500L, dop.expectedCashMinor)
+        assertEquals(6_000L, dop.expectedOpenCashMinor)
+        assertEquals(1_500L, dop.expectedClosedCashMinor)
         assertEquals(1_400L, dop.countedCashMinor)
         assertEquals(-100L, dop.varianceMinor)
         assertEquals("USD", report.last().currency)

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.infinityloan.data.*
 import com.infinityloan.finance.LoanScheduleGenerator
 import com.infinityloan.finance.MinorUnitTotals
+import com.infinityloan.finance.OverdueBalance
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
 import com.infinityloan.security.AuthenticationResult
@@ -736,7 +737,7 @@ private fun ReportsSummaryScreen(
             val overdueRows = installments.filter { row ->
                 row.dueDate < today && row.status != "PAID" &&
                     loans.any { it.id == row.loanId && it.currency == currency } &&
-                    row.totalMinor - row.paidPrincipalMinor - row.paidInterestMinor > 0L
+                    OverdueBalance.remainingMinor(row.totalMinor, row.paidPrincipalMinor, row.paidInterestMinor) > 0L
             }
             DataCard(
                 title = "Informe · $currency",

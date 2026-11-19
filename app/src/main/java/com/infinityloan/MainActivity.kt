@@ -786,12 +786,13 @@ private fun PaymentForm(
 }
 
 private fun money(minor: Long): String =
-    BigDecimal.valueOf(minor, 2).setScale(2, RoundingMode.HALF_UP).toPlainString()
-    private fun formatDate(timestamp: Long): String {
+    BigDecimal.valueOf(minor, 2)
+        .setScale(2, RoundingMode.HALF_UP)
+        .toPlainString()
+
+private fun formatDate(timestamp: Long): String {
     return SimpleDateFormat(
         "dd/MM/yyyy HH:mm",
         Locale.getDefault()
-    .format(Date(timestamp))
-    )
-   }
-
+    ).format(Date(timestamp))
+}

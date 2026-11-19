@@ -295,17 +295,35 @@ private fun AuthenticatedInfinityApp(
                 },
                 floatingActionButton = {
                     when (screen) {
-                        Screen.CLIENTS -> if (can(Permission.CLIENT_CREATE)) FloatingActionButton(
-    onClick = {
-        selectedClient = null
-        showClientForm = true
-    },
-    containerColor = Gold
-) {
-    Text("+", color = Navy, fontSize = 24.sp)
-}
-                      Screen.LOANS -> FloatingActionButton(onClick = { showLoanForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
-                        Screen.PAYMENTS -> FloatingActionButton(onClick = { showPaymentForm = true }, containerColor = Gold) { Text("+", color = Navy, fontSize = 24.sp) }
+                        Screen.CLIENTS -> {
+                            if (can(Permission.CLIENT_CREATE)) {
+                                FloatingActionButton(
+                                    onClick = {
+                                        selectedClient = null
+                                        showClientForm = true
+                                    },
+                                    containerColor = Gold
+                                ) {
+                                    Text("+", color = Navy, fontSize = 24.sp)
+                                }
+                            }
+                        }
+                        Screen.LOANS -> {
+                            if (can(Permission.LOAN_CREATE)) {
+                                FloatingActionButton(
+                                    onClick = { showLoanForm = true },
+                                    containerColor = Gold
+                                ) { Text("+", color = Navy, fontSize = 24.sp) }
+                            }
+                        }
+                        Screen.PAYMENTS -> {
+                            if (can(Permission.PAYMENT_REGISTER)) {
+                                FloatingActionButton(
+                                    onClick = { showPaymentForm = true },
+                                    containerColor = Gold
+                                ) { Text("+", color = Navy, fontSize = 24.sp) }
+                            }
+                        }
                         else -> Unit
                     }
                 }

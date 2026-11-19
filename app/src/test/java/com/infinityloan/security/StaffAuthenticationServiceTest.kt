@@ -21,6 +21,9 @@ class StaffAuthenticationServiceTest {
 
         override suspend fun count(): Int = accounts.size
 
+        override suspend fun getAll(): List<StaffAccountEntity> =
+            accounts.values.sortedBy { it.displayName }
+
         override suspend fun insert(account: StaffAccountEntity) {
             check(accounts.putIfAbsent(account.username, account) == null)
         }
@@ -145,6 +148,74 @@ class StaffAuthenticationServiceTest {
         assertEquals(AuthenticationResult.INVALID_CREDENTIALS, result)
         assertNull(session)
         assertTrue(password.all { it.code == 0 })
+    }
+
+
+    @Test
+    fun administratorCanCreateCashierAndPasswordIsCleared() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val (_, admin) = service.authenticate(
+            "admin",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val password = "ClaveCajeroMuySegura-2026".toCharArray()
+
+        assertTrue(
+            service.createStaffAccount(
+                actor = requireNotNull(admin),
+                username = "  CAJERO  ",
+                displayName = "Cajero principal",
+                role = StaffRole.CASHIER,
+                password = password
+            )
+        )
+        assertTrue(password.all { it.code == 0 })
+        assertEquals(StaffRole.CASHIER.name, dao.accounts["cajero"]?.role)
+    }
+
+    @Test
+    fun cashierCannotProvisionStaffAccounts() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "cashier",
+            displayName = "Cajero",
+            role = StaffRole.CASHIER,
+            password = "ClaveCajeroMuySegura-2026".toCharArray()
+        )
+        val cashier = requireNotNull(
+            service.authenticate("cashier", "ClaveCajeroMuySegura-2026".toCharArray()).second
+        )
+
+        val password = "OtraClaveMuySegura-2026".toCharArray()
+        try {
+            service.createStaffAccount(
+                actor = cashier,
+                username = "intruso",
+                displayName = "No autorizado",
+                role = StaffRole.CASHIER,
+                password = password
+            )
+            throw AssertionError("La cuenta de cajero no debe crear empleados.")
+        } catch (_: IllegalArgumentException) {
+            assertTrue(password.all { it.code == 0 })
+        }
+        assertNull(dao.accounts["intruso"])
     }
 
     @Test(expected = IllegalArgumentException::class)

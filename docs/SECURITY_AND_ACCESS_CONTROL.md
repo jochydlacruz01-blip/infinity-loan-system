@@ -9,16 +9,16 @@ Esta documentación distingue los cimientos ya implementados de los controles qu
 - `StaffRole` define administrador, supervisor, cajero y cobrador.
 - `Permission` define capacidades individuales y `AccessPolicy` aplica denegaciones explícitas antes de concesiones y permisos predeterminados.
 - `PasswordHasher` implementa hashes versionados PBKDF2-HMAC-SHA256, sal aleatoria de 16 bytes y comparación en tiempo constante.
-- Room v7 persiste cuentas de empleados; el primer inicio permite crear el administrador sin contraseña predeterminada.
+- Room v8 persiste cuentas de empleados, intentos fallidos y bloqueos temporales; el primer inicio permite crear el administrador sin contraseña predeterminada.
 - La interfaz Android exige autenticación antes de abrir el panel y mantiene la sesión en memoria.
 - La navegación y las acciones principales de clientes, préstamos y pagos se filtran por permisos; los manejadores de escritura vuelven a comprobar la autorización.
-- Existe administración local de empleados, con restricciones para evitar escalamiento de privilegios y desactivar el último administrador.
+- Existe administración local de empleados, con restricciones para evitar escalamiento de privilegios y desactivar el último administrador. El administrador puede personalizar permisos individuales por empleado; las denegaciones explícitas prevalecen sobre los permisos predeterminados y los cambios invalidan la sesión anterior.
 - Room v7 incorpora un registro de auditoría de solo inserción. La interfaz muestra los últimos 200 eventos a perfiles autorizados.
 - Se registran altas y modificaciones de clientes, creación de préstamos, pagos y cambios de cuentas de empleados.
 
 ### Límites actuales
 
-La autenticación y la auditoría son locales a este dispositivo. Todavía no hay backend compartido, sesiones de servidor ni sincronización multi-dispositivo. La base local aplica un bloqueo temporal de 15 minutos después de cinco contraseñas incorrectas para cuentas existentes; el control por dispositivo no sustituye limitación de intentos por IP/usuario en el servidor. La pantalla de personal asigna perfiles predeterminados; la edición granular de permisos aún no está integrada en la interfaz. La auditoría actual cubre eventos principales, no todos los accesos y cambios posibles. No se considera una autorización de producción hasta completar backend, revisión de seguridad y pruebas de extremo a extremo.
+La autenticación y la auditoría son locales a este dispositivo. Todavía no hay backend compartido, sesiones de servidor ni sincronización multi-dispositivo. La base local aplica un bloqueo temporal de 15 minutos después de cinco contraseñas incorrectas para cuentas existentes; el control por dispositivo no sustituye limitación de intentos por IP/usuario en el servidor. La edición granular de permisos está integrada en la interfaz local y protegida por el permiso `ROLE_PERMISSION_MANAGE`; su validación automatizada se mantiene en GitHub Actions. La auditoría actual cubre eventos principales, incluida la creación del administrador inicial y los cambios de permisos, pero no todos los accesos y cambios posibles. No se considera una autorización de producción hasta completar backend, revisión de seguridad y pruebas de extremo a extremo.
 
 ## Reglas obligatorias para la integración
 

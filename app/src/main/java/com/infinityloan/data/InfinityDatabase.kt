@@ -684,6 +684,8 @@ interface PaymentDao {
      */
     @Transaction
     suspend fun postPayment(payment: PaymentEntity): PaymentPostResult {
+        if (payment.operationId.isBlank()) return PaymentPostResult.INVALID_OPERATION_ID
+        if (payment.reference.isBlank()) return PaymentPostResult.INVALID_REFERENCE
         if (payment.amountMinor <= 0L) return PaymentPostResult.INVALID_AMOUNT
         if (findByOperationId(payment.operationId) != null) return PaymentPostResult.DUPLICATE
         val loan = findLoan(payment.loanId) ?: return PaymentPostResult.LOAN_NOT_FOUND
@@ -839,7 +841,7 @@ enum class PaymentReversalResult {
 }
 
 enum class PaymentPostResult {
-    POSTED, DUPLICATE, INVALID_AMOUNT, LOAN_NOT_FOUND, LOAN_NOT_ACTIVE, EXCEEDS_BALANCE,
+    POSTED, DUPLICATE, INVALID_AMOUNT, INVALID_REFERENCE, INVALID_OPERATION_ID, LOAN_NOT_FOUND, LOAN_NOT_ACTIVE, EXCEEDS_BALANCE,
     SCHEDULE_NOT_FOUND, INVALID_SCHEDULE, LEGACY_RECONCILIATION_REQUIRED
 }
 enum class CreditPaymentResult {
@@ -1150,6 +1152,8 @@ abstract class InfinityDatabase : RoomDatabase() {
      */
     /** Atomically posts a loan payment and its cash receipt against an open session. */
     suspend fun postCashLoanPayment(payment: PaymentEntity, sessionId: String): PaymentPostResult = withTransaction {
+        if (payment.operationId.isBlank()) return@withTransaction PaymentPostResult.INVALID_OPERATION_ID
+        if (payment.reference.isBlank()) return@withTransaction PaymentPostResult.INVALID_REFERENCE
         if (payment.amountMinor <= 0L) return@withTransaction PaymentPostResult.INVALID_AMOUNT
         if (payments().findByOperationId(payment.operationId) != null) return@withTransaction PaymentPostResult.DUPLICATE
         val loan = loans().findById(payment.loanId) ?: return@withTransaction PaymentPostResult.LOAN_NOT_FOUND

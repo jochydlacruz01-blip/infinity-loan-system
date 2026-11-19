@@ -76,4 +76,28 @@ class LoanScheduleGeneratorTest {
             firstDueDate = firstDueDate
         )
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsPrincipalThatRoundsToZeroAtRequestedScale() {
+        LoanScheduleGenerator.generate(
+            BigDecimal("0.001"), rate, 2, "FRANCES",
+            firstDueDate = firstDueDate, scale = 2
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNegativePeriodicRate() {
+        LoanScheduleGenerator.generate(
+            principal, BigDecimal("-0.01"), 2, "FRANCES",
+            firstDueDate = firstDueDate
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsUnsupportedMoneyScale() {
+        LoanScheduleGenerator.generate(
+            principal, rate, 2, "FRANCES",
+            firstDueDate = firstDueDate, scale = 7
+        )
+    }
 }

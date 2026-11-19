@@ -189,7 +189,7 @@ private fun StaffAccessGate(
                                                 AuthenticationResult.ACCOUNT_DISABLED ->
                                                     message = "Esta cuenta está desactivada. Contacta al administrador."
                                                 AuthenticationResult.ACCOUNT_LOCKED ->
-                                                    message = "Demasiados intentos fallidos. Espera 15 minutos antes de volver a intentar."
+                                                    message = "La cuenta está temporalmente bloqueada por intentos fallidos. Intenta nuevamente más tarde."
                                             }
                                         }
                                     } catch (error: IllegalArgumentException) {

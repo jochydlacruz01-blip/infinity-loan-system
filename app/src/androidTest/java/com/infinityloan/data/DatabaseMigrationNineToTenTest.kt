@@ -66,16 +66,24 @@ class DatabaseMigrationNineToTenTest {
                 """.trimIndent())
             }
 
-            assertThrows(SQLiteConstraintException::class.java) {
-                db.execSQL("""
-                    INSERT INTO payment_reversals (
-                        reversalId, originalOperationId, loanId, amountMinor,
-                        reason, actorStaffId, createdAt
-                    ) VALUES (
-                        'reversal-orphan', 'missing-payment', 'loan-1', 500,
-                        'Pago inexistente', 'staff-1', 102
+            // Verify foreign-key declarations directly. SQLite test helpers may leave
+            // enforcement disabled on this raw connection, so do not rely on an
+            // orphan INSERT to prove the migration schema.
+            db.query("PRAGMA foreign_key_list(payment_reversals)").use { cursor ->
+                val foreignKeys = mutableSetOf<String>()
+                while (cursor.moveToNext()) {
+                    foreignKeys.add(
+                        "${cursor.getString(2)}:${cursor.getString(3)}:" +
+                            "${cursor.getString(4)}:${cursor.getString(6)}"
                     )
-                """.trimIndent())
+                }
+                assertEquals(
+                    setOf(
+                        "payments:originalOperationId:operationId:RESTRICT",
+                        "loans:loanId:id:RESTRICT"
+                    ),
+                    foreignKeys
+                )
             }
 
             db.query("PRAGMA index_list(payment_reversals)").use { cursor ->

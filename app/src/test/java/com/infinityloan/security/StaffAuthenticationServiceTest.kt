@@ -578,7 +578,8 @@ class StaffAuthenticationServiceTest {
         ).second)
         service.createStaffAccount(
             admin, "supervisor", "Supervisor", StaffRole.SUPERVISOR,
-            "ClaveSupervisorMuySegura-2026".toCharArray()
+            "ClaveSupervisorMuySegura-2026".toCharArray(),
+            grants = setOf(Permission.ROLE_PERMISSION_MANAGE)
         )
         val supervisor = requireNotNull(service.authenticate(
             "supervisor", "ClaveSupervisorMuySegura-2026".toCharArray()
@@ -614,7 +615,8 @@ class StaffAuthenticationServiceTest {
         ).second)
         service.createStaffAccount(
             admin, "supervisor", "Supervisor", StaffRole.SUPERVISOR,
-            "ClaveSupervisorMuySegura-2026".toCharArray()
+            "ClaveSupervisorMuySegura-2026".toCharArray(),
+            grants = setOf(Permission.ROLE_PERMISSION_MANAGE)
         )
         val supervisor = requireNotNull(service.authenticate(
             "supervisor", "ClaveSupervisorMuySegura-2026".toCharArray()

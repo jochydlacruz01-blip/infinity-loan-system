@@ -21,6 +21,7 @@ import com.infinityloan.data.*
 import com.infinityloan.finance.LoanScheduleGenerator
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.math.RoundingMode
 import java.util.UUID
 import java.text.SimpleDateFormat
@@ -229,7 +230,7 @@ private fun InfinityApp(db: InfinityDatabase) {
                             remainingPrincipalMinor = item.remainingPrincipal.movePointRight(2).longValueExact()
                         )
                     }
-                    require(rows.sumOf { it.principalMinor } == minor) {
+                    require(rows.fold(0L) { total, row -> Math.addExact(total, row.principalMinor) } == minor) {
                         "El calendario no reconcilia el capital del préstamo."
                     }
                     db.withTransaction {
@@ -341,7 +342,7 @@ private fun HomeScreen(
                 title = "Cartera activa · $currency",
                 detail = """
                     Préstamos activos: ${activeLoans.size}
-                    Capital pendiente: ${money(activeLoans.sumOf { it.balanceMinor })} $currency
+                    Capital pendiente: ${moneyTotal(activeLoans.map { it.balanceMinor })} $currency
                 """.trimIndent()
             )
         }
@@ -357,8 +358,8 @@ private fun HomeScreen(
                 title = "Cartera total · $currency",
                 detail = """
                     Préstamos registrados: ${currencyLoans.size}
-                    Capital inicial: ${money(currencyLoans.sumOf { it.principalMinor })} $currency
-                    Saldo pendiente: ${money(currencyLoans.sumOf { it.balanceMinor })} $currency
+                    Capital inicial: ${moneyTotal(currencyLoans.map { it.principalMinor })} $currency
+                    Saldo pendiente: ${moneyTotal(currencyLoans.map { it.balanceMinor })} $currency
                 """.trimIndent()
             )
         }
@@ -405,7 +406,7 @@ private fun HomeScreen(
             DataCard(
                 title = "Pagos recibidos · $currency",
                 detail = """
-                    Total registrado: ${money(currencyPayments.sumOf { it.amountMinor })} $currency
+                    Total registrado: ${moneyTotal(currencyPayments.map { it.amountMinor })} $currency
                     Operaciones: ${currencyPayments.size}
                 """.trimIndent()
             )
@@ -851,6 +852,16 @@ private fun PaymentForm(
         } },
         confirmButton = { TextButton(enabled = loans.isNotEmpty() && amount.toBigDecimalOrNull() != null, onClick = { onSave(operationId, selected, amount, reference) }) { Text("Registrar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
+}
+
+private fun moneyTotal(amounts: Iterable<Long>): String {
+    val totalMinor = amounts.fold(BigInteger.ZERO) { total, amount ->
+        total.add(BigInteger.valueOf(amount))
+    }
+    return BigDecimal(totalMinor)
+        .movePointLeft(2)
+        .setScale(2, RoundingMode.HALF_UP)
+        .toPlainString()
 }
 
 private fun money(minor: Long): String =

@@ -603,4 +603,42 @@ class CashPaymentIntegrationTest {
             }
         )
     }
+
+    @Test
+    fun persistedCashClosingAuditRebuildsExpectedCashPerEmployeeAndCurrency() = runBlocking {
+        val closedId = "CASH-SESSION-CLOSE-AUDIT-REPORT"
+        val openId = "CASH-SESSION-OPEN-AUDIT-REPORT"
+        database.openCashSession(
+            CashSessionEntity(closedId, "CASHIER-AUDIT-REPORT", "DOP", 5000L, 10L)
+        )
+        database.postCashMovement(
+            CashMovementEntity(
+                "CASH-AUDIT-REPORT-IN", closedId, "CASH_IN", 1500L,
+                "Ingreso de prueba", 11L
+            )
+        )
+        database.closeCashSession(closedId, countedMinor = 6200L, closedAt = 12L)
+
+        database.openCashSession(
+            CashSessionEntity(openId, "CASHIER-AUDIT-REPORT-2", "USD", 900L, 13L)
+        )
+
+        val report = database.auditPersistedCashClosings()
+        assertEquals(2, report.sessionsChecked)
+        val closed = report.rows.first { it.sessionId == closedId }
+        assertEquals("CASHIER-AUDIT-REPORT", closed.staffId)
+        assertEquals("DOP", closed.currency)
+        assertEquals(true, closed.closed)
+        assertEquals(6500L, closed.expectedCashMinor)
+        assertEquals(6200L, closed.countedCashMinor)
+        assertEquals(-300L, closed.varianceMinor)
+        assertNull(closed.issue)
+
+        val open = report.rows.first { it.sessionId == openId }
+        assertEquals(false, open.closed)
+        assertEquals(900L, open.expectedCashMinor)
+        assertNull(open.countedCashMinor)
+        assertNull(open.varianceMinor)
+        assertNull(open.issue)
+    }
 }

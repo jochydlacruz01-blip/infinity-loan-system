@@ -791,7 +791,7 @@ private fun money(minor: Long): String =
     return SimpleDateFormat(
         "dd/MM/yyyy HH:mm",
         Locale.getDefault()
-    ).format(Date(timestamp))
+    .format(Date(timestamp))
     )
    }
-}
+

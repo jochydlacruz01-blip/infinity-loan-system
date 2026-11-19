@@ -30,6 +30,30 @@ class StaffAccountDaoTest {
     }
 
     @Test
+    fun permissionOverridesArePersistedAndReadable() = runBlocking {
+        val account = StaffAccountEntity(
+            username = "collector",
+            displayName = "Cobrador",
+            role = "COLLECTOR",
+            passwordAlgorithm = "PBKDF2_SHA256_V1",
+            passwordIterations = 210000,
+            passwordSaltBase64 = "c2FsdA==",
+            passwordHashBase64 = "aGFzaA=="
+        )
+        database.staffAccounts().insert(account)
+
+        database.staffAccounts().updatePermissions(
+            account.id,
+            grants = "CLIENT_UPDATE|REPORT_VIEW",
+            denials = "PAYMENT_REGISTER"
+        )
+
+        val updated = database.staffAccounts().findById(account.id)
+        assertEquals("CLIENT_UPDATE|REPORT_VIEW", updated?.grants)
+        assertEquals("PAYMENT_REGISTER", updated?.denials)
+    }
+
+    @Test
     fun failedLoginCounterLocksAccountAndCanBeReset() = runBlocking {
         val account = StaffAccountEntity(
             username = "admin",

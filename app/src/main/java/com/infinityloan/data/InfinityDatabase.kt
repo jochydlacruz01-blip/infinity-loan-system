@@ -196,6 +196,9 @@ interface PaymentReversalDao {
     @Query("SELECT * FROM payment_reversals WHERE originalOperationId = :operationId LIMIT 1")
     suspend fun findByOriginalOperationId(operationId: String): PaymentReversalEntity?
 
+    @Query("SELECT originalOperationId FROM payment_reversals")
+    suspend fun findAllReversedPaymentIds(): List<String>
+
     @Query("SELECT originalOperationId FROM payment_reversals ORDER BY createdAt DESC")
     fun observeReversedOperationIds(): Flow<List<String>>
 }

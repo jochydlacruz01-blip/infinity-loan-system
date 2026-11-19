@@ -6,6 +6,8 @@ Se incorporó un modelo de dominio Kotlin independiente para sesiones de caja, i
 - Apertura con saldo inicial no negativo.
 - Movimiento con identificador de operación, dirección, importe positivo y descripción.
 - Rechazo de identificadores duplicados y de operaciones sobre sesiones cerradas.
+- Rechazo de egresos que exceden el saldo disponible.
+- Invariantes estrictas: el estado de cierre debe corresponder con el conteo físico; el saldo esperado nunca puede ser negativo.
 - Cierre con conteo físico y cálculo explícito de diferencia (conteo menos saldo esperado).
 - Aritmética checked (`Math.addExact`/`subtractExact`) para evitar desbordamientos silenciosos.
 

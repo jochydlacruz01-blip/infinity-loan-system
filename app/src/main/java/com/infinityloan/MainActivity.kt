@@ -539,39 +539,41 @@ private fun AuthenticatedInfinityApp(
                     require(can(Permission.PAYMENT_REGISTER)) { "No tienes permiso para registrar pagos." }
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
                     db.withTransaction {
-                    val postResult = db.payments().postPayment(
-                        PaymentEntity(
-                            operationId = operationId,
-                            loanId = loanId,
-                            amountMinor = minor,
-                            reference = reference.trim()
+                        val loan = db.loans().findById(loanId) ?: error("Préstamo no encontrado.")
+                        val cashSession = db.cashSessions().findOpenSession(session.staffId, loan.currency)
+                            ?: error("Abre primero una caja en ${loan.currency} para registrar este cobro.")
+                        val postResult = db.postCashLoanPayment(
+                            PaymentEntity(operationId, loanId, minor, reference.trim()),
+                            cashSession.sessionId
                         )
-                    )
-                    if (postResult == PaymentPostResult.POSTED) {
-                        db.auditLogs().insert(AuditLogEntity(
-                            actorStaffId = session.staffId,
-                            actorUsername = session.username,
-                            action = "PAYMENT_REGISTERED",
-                            targetType = "PAYMENT",
-                            targetId = operationId,
-                            details = "loanId=$loanId;amountMinor=$minor"
-                        ))
+                        if (postResult == PaymentPostResult.POSTED) {
+                            db.auditLogs().insert(AuditLogEntity(
+                                actorStaffId = session.staffId,
+                                actorUsername = session.username,
+                                action = "PAYMENT_REGISTERED_WITH_CASH",
+                                targetType = "PAYMENT",
+                                targetId = operationId,
+                                details = "loanId=$loanId;amountMinor=$minor;currency=${loan.currency};cashSessionId=${cashSession.sessionId}"
+                            ))
+                        }
+                        postResult
                     }
-                    postResult
-                    }
-                } catch (_: Exception) { PaymentPostResult.INVALID_AMOUNT }
+                } catch (e: Exception) {
+                    message = e.message ?: "No se pudo registrar el cobro."
+                    PaymentPostResult.INVALID_AMOUNT
+                }
                 message = when (result) {
-                    PaymentPostResult.POSTED -> "Pago registrado y saldo actualizado."
+                    PaymentPostResult.POSTED -> "Pago registrado y entrada de efectivo vinculada a caja."
                     PaymentPostResult.EXCEEDS_BALANCE -> "El pago supera el saldo pendiente."
                     PaymentPostResult.LOAN_NOT_FOUND -> "No se encontró el préstamo."
                     PaymentPostResult.LOAN_NOT_ACTIVE -> "El préstamo no está activo."
                     PaymentPostResult.DUPLICATE -> "Operación duplicada."
                     PaymentPostResult.SCHEDULE_NOT_FOUND -> "El préstamo no tiene calendario de cuotas."
-                    PaymentPostResult.INVALID_SCHEDULE -> "El calendario del préstamo no es válido. No se registró el pago."
-                    PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> "Este préstamo tiene pagos históricos sin distribución por cuotas. Requiere conciliación antes de aceptar nuevos pagos."
-                    PaymentPostResult.INVALID_AMOUNT -> "Importe inválido. No se registró el pago."
+                    PaymentPostResult.INVALID_SCHEDULE -> "El calendario o la caja no son válidos. No se registró el pago."
+                    PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> "Este préstamo tiene pagos históricos sin distribución por cuotas. Requiere conciliación."
+                    PaymentPostResult.INVALID_AMOUNT -> message ?: "Importe inválido o caja no abierta. No se registró el cobro."
                 }
-                               if (result == PaymentPostResult.POSTED || result == PaymentPostResult.DUPLICATE) {
+                if (result == PaymentPostResult.POSTED || result == PaymentPostResult.DUPLICATE) {
                     showPaymentForm = false
                 }
             }

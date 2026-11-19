@@ -61,4 +61,43 @@ class CashSessionTest {
             initial.addMovement(CashMovement("x", CashMovementType.CASH_IN, 1L, "Overflow")).expectedCashMinor
         }
     }
+    @Test fun sessionRejectsUnsupportedCurrencyAndNegativeOpeningBalance() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CashSession("S", "staff", "GBP", 0L)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            CashSession("S", "staff", "DOP", -1L)
+        }
+    }
+
+    @Test fun sessionRejectsBlankIdentifiers() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CashSession("", "staff", "DOP", 0L)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            CashSession("S", "", "DOP", 0L)
+        }
+    }
+
+    @Test fun movementRequiresDescriptionAndOperationId() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CashMovement("", CashMovementType.CASH_IN, 100L, "Ingreso")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            CashMovement("x", CashMovementType.CASH_IN, 100L, " ")
+        }
+    }
+
+    @Test fun varianceUsesCheckedArithmetic() {
+        val closed = CashSession("S", "staff", "DOP", Long.MAX_VALUE).close(0L)
+        assertThrows(ArithmeticException::class.java) { closed.varianceMinor }
+    }
+
+    @Test fun cashOutExactlyAvailableBalanceIsAllowed() {
+        val result = session().addMovement(
+            CashMovement("out", CashMovementType.CASH_OUT, 10_000L, "Salida")
+        )
+        assertEquals(0L, result.expectedCashMinor)
+    }
+
 }

@@ -8,7 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class DatabaseMigrationOneToSixTest {
+class DatabaseMigrationOneToSevenTest {
 
     @Test
     fun completeMigrationPathPreservesLegacyCreditAndBuildsPaymentLedger() {
@@ -72,6 +72,7 @@ class DatabaseMigrationOneToSixTest {
             InfinityDatabase.MIGRATION_3_4.migrate(db)
             InfinityDatabase.MIGRATION_4_5.migrate(db)
             InfinityDatabase.MIGRATION_5_6.migrate(db)
+            InfinityDatabase.MIGRATION_6_7.migrate(db)
 
             db.query("""
                 SELECT clientId, loanId, currency, amountMinor
@@ -103,6 +104,11 @@ class DatabaseMigrationOneToSixTest {
             """.trimIndent())
 
             db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'staff_accounts'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1L, cursor.getLong(0))
+            }
+
+            db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'audit_logs'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(1L, cursor.getLong(0))
             }

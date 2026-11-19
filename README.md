@@ -38,7 +38,7 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 
 ## Funciones pendientes antes de producción
 
-- Backend central compartido entre la aplicación Android y la plataforma web.
+- Backend central compartido entre la aplicación Android y la plataforma web, con cartera única accesible desde varios celulares y sincronización de cambios (offline con cola pendiente, idempotencia, resolución de conflictos y revocación de dispositivos) aún por implementar.
 - Completar autorización en cada caso de uso/operación sensible; migrar la identidad local a sesiones seguras y autenticación centralizada en backend para varios dispositivos.
 - Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
 - Caja, cierres, arqueos, contabilidad y conciliación.

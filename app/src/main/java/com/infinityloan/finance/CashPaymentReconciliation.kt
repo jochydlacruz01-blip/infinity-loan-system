@@ -67,7 +67,7 @@ object CashPaymentReconciliation {
             .groupBy { it.linkedPaymentOperationId!! }
 
         payments.sortedBy { it.operationId }.forEach { payment ->
-            if (paymentById[payment.operationId]?.size ?: 0 > 1) return@forEach
+            if ((paymentById[payment.operationId]?.size ?: 0) > 1) return@forEach
             if (payment.operationId.isBlank() || payment.amountMinor <= 0L || payment.currency.isBlank()) {
                 issues += CashReconciliationIssue(
                     CashReconciliationIssueType.INVALID_PAYMENT, payment.operationId,

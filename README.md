@@ -19,7 +19,7 @@ Aplicación Android nativa en desarrollo para gestión de préstamos. El proyect
 - Distribución de pagos por antigüedad de cuotas; excedentes registrados como movimientos de crédito del cliente.
 - Auditoría local de operaciones de clientes, préstamos, pagos y administración de empleados; historial de solo inserción expuesto para perfiles autorizados.
 - Sumas de importes en el panel y saldos de crédito con aritmética comprobada para evitar desbordamientos.
-- Cimientos de seguridad: política RBAC por capacidades, hash PBKDF2 versionado, cuentas de empleados persistidas en Room y servicio de autenticación local con creación única del administrador inicial. La interfaz de inicio de sesión y la aplicación transversal de permisos todavía deben integrarse y probarse; no se considera seguridad de producción.
+- Cimientos de seguridad: política RBAC por capacidades, hash PBKDF2 versionado, cuentas de empleados persistidas en Room y servicio de autenticación local con creación única del administrador inicial. La interfaz de inicio de sesión, administración de empleados, permisos individuales y controles de sesión están integrados localmente; no se considera seguridad de producción.
 
 ## Validación automatizada
 
@@ -39,7 +39,7 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 ## Funciones pendientes antes de producción
 
 - Backend central compartido entre la aplicación Android y la plataforma web.
-- Integración de autenticación en la interfaz, gestión de empleados y autorización en cada caso de uso/operación sensible; sesiones seguras y autenticación centralizada en backend para varios dispositivos.
+- Completar autorización en cada caso de uso/operación sensible; migrar la identidad local a sesiones seguras y autenticación centralizada en backend para varios dispositivos.
 - Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
 - Caja, cierres, arqueos, contabilidad y conciliación.
 - Mora, cargos, recibos, reversos, refinanciamientos y reglas completas de pagos anticipados, con políticas de negocio aprobadas.

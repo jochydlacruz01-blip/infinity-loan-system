@@ -320,4 +320,56 @@ class CashPaymentIntegrationTest {
         )
     }
 
+
+    @Test
+    fun cashPaymentReconcilesInstallmentAllocationCustomerCreditAndCashReceipt() = runBlocking {
+        val loan = createDueLoan()
+        val sessionId = "CASH-SESSION-RECONCILIATION"
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = sessionId,
+                staffId = "CASHIER-RECONCILIATION",
+                currency = "DOP",
+                openingMinor = 0L,
+                openedAt = 1L
+            )
+        )
+        val payment = PaymentEntity(
+            operationId = "CASH-PAYMENT-RECONCILIATION",
+            loanId = loan.id,
+            amountMinor = 12500L,
+            reference = "Pago superior al saldo vencido",
+            createdAt = 2L
+        )
+
+        assertEquals(
+            PaymentPostResult.POSTED,
+            database.postCashLoanPayment(payment, sessionId)
+        )
+
+        val allocations = database.paymentAllocations().findForPayment(payment.operationId)
+        val allocatedMinor = allocations.fold(0L) { total, row ->
+            Math.addExact(
+                total,
+                Math.addExact(
+                    Math.addExact(row.lateFeePaidMinor, row.chargesPaidMinor),
+                    Math.addExact(row.interestPaidMinor, row.principalPaidMinor)
+                )
+            )
+        }
+        val creditMinor = database.customerCredits().getBalance(
+            loan.clientId,
+            loan.currency
+        )
+        val cashMovements = database.cashSessions().findMovements(sessionId)
+
+        assertEquals(10000L, allocatedMinor)
+        assertEquals(2500L, creditMinor)
+        assertEquals(payment.amountMinor, Math.addExact(allocatedMinor, creditMinor))
+        assertEquals(1, cashMovements.size)
+        assertEquals(payment.amountMinor, cashMovements.single().amountMinor)
+        assertEquals("CASH_IN", cashMovements.single().type)
+        assertEquals(0L, database.loans().findById(loan.id)?.balanceMinor)
+    }
+
 }

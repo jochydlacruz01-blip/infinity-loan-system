@@ -29,7 +29,10 @@ object InstallmentPaymentAllocator {
         val principalPaidMinor: Long
     ) {
         val totalPaidMinor: Long
-            get() = lateFeePaidMinor + chargesPaidMinor + interestPaidMinor + principalPaidMinor
+            get() = Math.addExact(
+                Math.addExact(lateFeePaidMinor, chargesPaidMinor),
+                Math.addExact(interestPaidMinor, principalPaidMinor)
+            )
     }
 
     data class Result(
@@ -37,7 +40,9 @@ object InstallmentPaymentAllocator {
         val unappliedMinor: Long
     ) {
         val totalAllocatedMinor: Long
-            get() = allocations.sumOf { it.totalPaidMinor }
+            get() = allocations.fold(0L) { total, allocation ->
+                Math.addExact(total, allocation.totalPaidMinor)
+            }
     }
 
     fun allocate(paymentMinor: Long, installments: List<DueInstallment>): Result {
@@ -72,7 +77,11 @@ object InstallmentPaymentAllocator {
                 val interest = take(installment.interestDueMinor)
                 val principal = take(installment.principalDueMinor)
 
-                if (lateFee + charges + interest + principal == 0L) null
+                val installmentPaid = Math.addExact(
+                    Math.addExact(lateFee, charges),
+                    Math.addExact(interest, principal)
+                )
+                if (installmentPaid == 0L) null
                 else InstallmentAllocation(
                     installmentNumber = installment.number,
                     lateFeePaidMinor = lateFee,

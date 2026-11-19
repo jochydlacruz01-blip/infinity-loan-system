@@ -144,7 +144,9 @@ class StaffAuthenticationService(
                 "No puedes desactivar el último administrador activo."
             }
         }
-        staffAccounts.setActive(staffId, active)
+        val result = staffAccounts.setActiveSafely(staffId, active)
+        require(result != -1) { "No puedes desactivar el último administrador activo." }
+        require(result > 0) { "La cuenta ya no existe." }
     }
 
 

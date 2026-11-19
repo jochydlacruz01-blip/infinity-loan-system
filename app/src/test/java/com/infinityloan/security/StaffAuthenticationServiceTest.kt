@@ -2,6 +2,7 @@ package com.infinityloan.security
 
 import com.infinityloan.data.StaffAccountDao
 import com.infinityloan.data.StaffAccountEntity
+import com.infinityloan.data.StaffAccountSummary
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,8 +22,18 @@ class StaffAuthenticationServiceTest {
 
         override suspend fun count(): Int = accounts.size
 
-        override suspend fun getAll(): List<StaffAccountEntity> =
-            accounts.values.sortedBy { it.displayName }
+        override suspend fun getAllSummaries(): List<StaffAccountSummary> =
+            accounts.values.sortedBy { it.displayName }.map {
+                StaffAccountSummary(
+                    id = it.id,
+                    username = it.username,
+                    displayName = it.displayName,
+                    role = it.role,
+                    isActive = it.isActive,
+                    createdAt = it.createdAt,
+                    lastLoginAt = it.lastLoginAt
+                )
+            }
 
         override suspend fun insert(account: StaffAccountEntity) {
             check(accounts.putIfAbsent(account.username, account) == null)

@@ -776,9 +776,11 @@ enum class CreditPaymentResult {
         LoanInstallmentEntity::class,
         PaymentAllocationEntity::class,
         StaffAccountEntity::class,
-        AuditLogEntity::class
+        AuditLogEntity::class,
+        CashSessionEntity::class,
+        CashMovementEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 
@@ -834,6 +836,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun paymentAllocations(): PaymentAllocationDao
     abstract fun staffAccounts(): StaffAccountDao
     abstract fun auditLogs(): AuditLogDao
+    abstract fun cashSessions(): CashSessionDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -1068,6 +1071,38 @@ internal val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+internal val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS cash_sessions (
+                sessionId TEXT NOT NULL PRIMARY KEY,
+                staffId TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                openingMinor INTEGER NOT NULL,
+                openedAt INTEGER NOT NULL,
+                closedAt INTEGER,
+                countedClosingMinor INTEGER
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_cash_sessions_staffId ON cash_sessions(staffId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_cash_sessions_openedAt ON cash_sessions(openedAt)")
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS cash_movements (
+                operationId TEXT NOT NULL PRIMARY KEY,
+                sessionId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                amountMinor INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(sessionId) REFERENCES cash_sessions(sessionId)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_cash_movements_sessionId ON cash_movements(sessionId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_cash_movements_createdAt ON cash_movements(createdAt)")
+    }
+}
+
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -1075,7 +1110,7 @@ internal val MIGRATION_7_8 = object : Migration(7, 8) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
 .build().also { INSTANCE = it }
             }
     }

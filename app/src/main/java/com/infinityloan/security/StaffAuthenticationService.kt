@@ -148,6 +148,37 @@ class StaffAuthenticationService(
     }
 
 
+    suspend fun updateStaffPermissions(
+        actor: StaffSession,
+        staffId: String,
+        grants: Set<Permission>,
+        denials: Set<Permission>
+    ) {
+        require(isSessionValid(actor)) { "La sesión del empleado ya no está activa." }
+        require(AccessPolicy.allows(actor.profile, Permission.ROLE_PERMISSION_MANAGE)) {
+            "No tienes permiso para personalizar permisos."
+        }
+        val target = staffAccounts.findById(staffId)
+            ?: throw IllegalArgumentException("La cuenta seleccionada no existe.")
+        val role = runCatching { StaffRole.valueOf(target.role) }.getOrNull()
+            ?: throw IllegalArgumentException("El perfil de la cuenta no es válido.")
+        require(target.id != actor.staffId) {
+            "No puedes cambiar tus propios permisos durante la sesión."
+        }
+        require((grants + denials).all { AccessPolicy.allows(actor.profile, it) }) {
+            "No puedes asignar ni denegar capacidades fuera de tu alcance."
+        }
+        val profile = AccessProfile(role, grants, denials)
+        require(AccessPolicy.effectivePermissions(profile).all {
+            AccessPolicy.allows(actor.profile, it)
+        }) { "El perfil resultante no puede superar tus propios permisos." }
+        staffAccounts.updatePermissions(
+            staffId,
+            grants.sortedBy { it.name }.joinToString("|") { it.name },
+            denials.sortedBy { it.name }.joinToString("|") { it.name }
+        )
+    }
+
     suspend fun isSessionValid(session: StaffSession): Boolean {
         val account = staffAccounts.findById(session.staffId) ?: return false
         if (!account.isActive || account.username != session.username) return false

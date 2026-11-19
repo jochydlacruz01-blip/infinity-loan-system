@@ -754,7 +754,7 @@ private fun ReportsSummaryScreen(
             )
         }
         item {
-            DataCard("Limitación del informe", "Este resumen utiliza los registros locales disponibles. No equivale a un cierre de caja ni a conciliación contable; esas funciones requieren el módulo de caja y los controles de conciliación.")
+            DataCard("Alcance y control", "Los informes de cartera y la conciliación de caja se calculan con datos locales del dispositivo. La caja incluye sesiones, movimientos, conteo físico y diferencias de cierre. No constituye conciliación contable externa ni sincronización central; estas requieren backend y controles adicionales.")
         }
     }
 }

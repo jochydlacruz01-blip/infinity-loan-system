@@ -14,7 +14,8 @@ data class StaffSession(
 enum class AuthenticationResult {
     AUTHENTICATED,
     INVALID_CREDENTIALS,
-    ACCOUNT_DISABLED
+    ACCOUNT_DISABLED,
+    ACCOUNT_LOCKED
 }
 
 /**
@@ -169,6 +170,11 @@ class StaffAuthenticationService(
             val account = staffAccounts.findByUsername(normalizedUsername)
                 ?: return AuthenticationResult.INVALID_CREDENTIALS to null
 
+            val now = clock()
+            if (account.lockedUntil?.let { it > now } == true) {
+                return AuthenticationResult.ACCOUNT_LOCKED to null
+            }
+
             val storedHash = PasswordHash(
                 algorithm = account.passwordAlgorithm,
                 iterations = account.passwordIterations,
@@ -176,6 +182,12 @@ class StaffAuthenticationService(
                 hashBase64 = account.passwordHashBase64
             )
             if (!PasswordHasher.verify(password, storedHash)) {
+                staffAccounts.recordFailedLogin(
+                    id = account.id,
+                    now = now,
+                    maxAttempts = MAX_FAILED_LOGIN_ATTEMPTS,
+                    lockUntil = Math.addExact(now, LOGIN_LOCKOUT_MILLIS)
+                )
                 return AuthenticationResult.INVALID_CREDENTIALS to null
             }
             if (!account.isActive) {
@@ -189,7 +201,8 @@ class StaffAuthenticationService(
                 grants = parsePermissions(account.grants),
                 denials = parsePermissions(account.denials)
             )
-            staffAccounts.updateLastLogin(account.id, clock())
+            staffAccounts.resetFailedLogins(account.id)
+            staffAccounts.updateLastLogin(account.id, now)
             return AuthenticationResult.AUTHENTICATED to StaffSession(
                 staffId = account.id,
                 username = account.username,
@@ -199,6 +212,11 @@ class StaffAuthenticationService(
         } finally {
             password.fill('\u0000')
         }
+    }
+
+    private companion object {
+        const val MAX_FAILED_LOGIN_ATTEMPTS = 5
+        const val LOGIN_LOCKOUT_MILLIS = 15 * 60 * 1000L
     }
 
     private fun normalizeUsername(username: String): String =

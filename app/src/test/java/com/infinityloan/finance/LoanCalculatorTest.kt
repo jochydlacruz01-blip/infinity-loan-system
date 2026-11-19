@@ -180,4 +180,33 @@ class LoanCalculatorTest {
         }
     }
 
+    @Test
+    fun singlePeriodScheduleIncludesRoundedPrincipalAndInterest() {
+        val schedules = listOf(
+            LoanCalculator.french(BigDecimal("123.456"), BigDecimal("0.075"), 1, 2),
+            LoanCalculator.italian(BigDecimal("123.456"), BigDecimal("0.075"), 1, 2),
+            LoanCalculator.american(BigDecimal("123.456"), BigDecimal("0.075"), 1, 2)
+        )
+        schedules.forEach { rows ->
+            assertEquals(1, rows.size)
+            assertEquals(0, rows.single().principal.compareTo(BigDecimal("123.46")))
+            assertEquals(0, rows.single().interest.compareTo(BigDecimal("9.26")))
+            assertEquals(0, rows.single().total.compareTo(BigDecimal("132.72")))
+        }
+    }
+
+    @Test
+    fun zeroScaleSchedulesReconcileRoundedPrincipal() {
+        val p = BigDecimal("101.49")
+        val schedules = listOf(
+            LoanCalculator.french(p, BigDecimal.ZERO, 7, 0),
+            LoanCalculator.italian(p, BigDecimal.ZERO, 7, 0),
+            LoanCalculator.american(p, BigDecimal.ZERO, 7, 0)
+        )
+        schedules.forEach { rows ->
+            assertEquals(0, rows.fold(BigDecimal.ZERO) { sum, row -> sum + row.principal }.compareTo(BigDecimal("101")))
+            assertTrue(rows.all { it.principal >= BigDecimal.ZERO && it.interest >= BigDecimal.ZERO })
+        }
+    }
+
 }

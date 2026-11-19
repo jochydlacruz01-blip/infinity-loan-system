@@ -1,41 +1,66 @@
-# INFINITY LOAN SYSTEM — Base Android 0.1.0
+# INFINITY LOAN SYSTEM
 
-Esta es una **base inicial de desarrollo**, no el sistema financiero completo ni una APK ya compilada.
+Aplicación Android nativa en desarrollo para gestión de préstamos. El proyecto se trabaja en GitHub, rama `main`, con Kotlin, Jetpack Compose y Room.
 
-## Incluye
-- Proyecto Android nativo con Kotlin y Jetpack Compose.
-- Dashboard inicial azul marino/dorado con indicadores vacíos de demostración.
-- Motor financiero separado con amortización francesa, italiana y americana.
-- `BigDecimal` para importes; no usa `Float` ni `Double` en el motor.
-- Redondeo monetario explícito `HALF_UP` y ajuste del capital en la última cuota.
-- Pruebas unitarias iniciales de los tres métodos, tasa cero y entradas inválidas.
-- GitHub Actions para ejecutar pruebas y generar una APK debug.
+> **Estado:** prototipo funcional en evolución. No es todavía un sistema financiero listo para operar con clientes reales ni una versión publicable en Google Play.
 
-## Requisitos
-- Android Studio compatible con Android Gradle Plugin 8.7.3.
-- JDK 17, Gradle 8.9 y Android SDK 35.
-- Dispositivo Android 8.0 (API 26) o superior.
+## Base técnica actual
 
-## Abrir el proyecto
-1. Descarga y descomprime el ZIP.
-2. En Android Studio selecciona **Open** y abre la carpeta `INFINITY_LOAN_SYSTEM_BASE`.
-3. Espera la sincronización de Gradle.
-4. Ejecuta `gradle testDebugUnitTest`.
-5. Genera la APK debug con `gradle assembleDebug`.
+- Android nativo: Kotlin + Jetpack Compose.
+- Android Gradle Plugin 8.7.3, Kotlin 2.0.21, Gradle 8.9 y JDK 17.
+- `compileSdk 35`, `targetSdk 35`, `minSdk 26`.
+- Persistencia local Room, esquema versión 5.
+- Diseño corporativo azul marino y dorado.
+- Monedas modeladas: DOP, USD y EUR.
+- Motor financiero con amortización francesa, italiana y americana.
+- Tasas expresadas por período de pago y cálculos monetarios con `BigDecimal`.
+- Calendarios de cuotas semanales, quincenales y mensuales.
+- Registro local de clientes, préstamos, cuotas y pagos.
+- Distribución de pagos por antigüedad de cuotas; excedentes registrados como movimientos de crédito del cliente.
+- Auditoría de asignaciones de pago y protección transaccional en operaciones de pago.
 
-## Subirlo a GitHub
-1. Descomprime el ZIP.
-2. Sube **el contenido** de la carpeta a la raíz del repositorio `infinity-loan-system`, rama `main`.
-3. Haz Commit.
-4. Abre **Actions**. El workflow `Android build` debe ejecutarse al recibir el push.
-5. Si termina correctamente, descarga el artefacto `infinity-loan-system-debug`.
+## Validación automatizada
 
-## Límites importantes
-- Dashboard sin API ni datos reales.
-- Aún no están implementados backend, PostgreSQL, autenticación, permisos efectivos, Room, sincronización offline, GPS activo, mapas, pagos digitales, portal web, contabilidad ni reportes productivos.
-- No usar para prestar dinero ni registrar operaciones reales.
-- La tasa recibida por el motor es **por período**: `0.05` significa 5% por cuota/período. La conversión de tasa nominal/efectiva y las frecuencias diarias, semanales, quincenales y mensuales deben configurarse en una capa contractual posterior.
-- Antes de producción hacen falta pruebas de integración y extremo a extremo, revisión contable y validación legal/regulatoria en República Dominicana.
+GitHub Actions ejecuta:
+- Lint Android (incluido en el workflow más reciente).
+- Pruebas unitarias.
+- Compilación de APK debug.
+- Compilación de Android App Bundle (AAB) release sin firma.
+- Pruebas instrumentadas en emulador Android.
 
-## Validación de esta entrega
-Se inspeccionó la estructura y se contrastaron las fórmulas con cálculos numéricos independientes. La compilación Android no se ejecutó en este entorno; el workflow de GitHub está preparado para hacer la compilación y las pruebas en GitHub Actions. No se declara que esta APK ya esté compilada.
+Los artefactos se publican en la sección **Actions** de GitHub cuando el workflow termina correctamente:
+- `infinity-loan-system-debug`
+- `infinity-loan-system-release-aab-unsigned`
+
+Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar en Google Play**. La firma de producción debe configurarse con una clave de carga protegida, fuera del repositorio.
+
+## Funciones pendientes antes de producción
+
+- Backend central compartido entre la aplicación Android y la plataforma web.
+- Autenticación segura y autorización real por roles (administrador, supervisor, cajero y cobrador).
+- Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
+- Caja, cierres, arqueos, contabilidad y conciliación.
+- Mora, cargos, recibos, reversos, refinanciamientos y reglas completas de pagos anticipados, con políticas de negocio aprobadas.
+- GPS y visitas de cobradores con permisos, controles de privacidad y auditoría.
+- Portal del cliente y pasarela de pagos digitales.
+- Informes financieros y operativos completos.
+- Revisión de seguridad, privacidad, protección de datos y requisitos regulatorios aplicables en República Dominicana.
+- Firma de release, pruebas internas/ cerradas y preparación de ficha de Google Play.
+
+## Reglas de integridad financiera
+
+- Los importes se almacenan en unidades menores enteras (por ejemplo, centavos) y se convierten a `BigDecimal` para cálculos.
+- La tasa guardada es la tasa decimal por período: `0.05` representa 5% por cuota/período. La periodicidad y tasa contractual deben coincidir.
+- Los pagos se distribuyen en cuotas vencidas, priorizando mora, cargos, intereses y capital; los campos de mora/cargos todavía no tienen una política contractual implementada.
+- Los importes no aplicados se conservan como crédito del cliente, separados por moneda.
+- Los préstamos heredados con pagos históricos no distribuidos requieren conciliación antes de aceptar nuevos pagos.
+
+## Desarrollo y control de cambios
+
+El repositorio y la rama de trabajo son:
+- Repositorio: `jochydlacruz01-blip/infinity-loan-system`
+- Rama: `main`
+
+Los cambios se realizan directamente en GitHub y se validan mediante Actions. No se deben guardar contraseñas, tokens, claves privadas ni archivos de firma en el repositorio.
+
+Consulta [la lista de control de publicación en Google Play](docs/PLAY_STORE_RELEASE_CHECKLIST.md) para ver las puertas de seguridad, producto y publicación que faltan.

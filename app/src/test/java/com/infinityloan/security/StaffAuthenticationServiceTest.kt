@@ -258,6 +258,28 @@ class StaffAuthenticationServiceTest {
         assertNull(dao.accounts["cashier"])
     }
 
+
+    @Test
+    fun staffCannotDeactivateTheirOwnAccount() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+
+        try {
+            service.setStaffAccountActive(admin, admin.staffId, false)
+            throw AssertionError("No debe permitirse desactivar la propia cuenta.")
+        } catch (_: IllegalArgumentException) {
+            assertTrue(dao.accounts.getValue("admin").isActive)
+        }
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun requiresStrongInitialPassword() {
         runBlocking {

@@ -79,6 +79,10 @@ class StaffAuthenticationService(
                 grants.isEmpty() && denials.isEmpty() ||
                     AccessPolicy.allows(actor.profile, Permission.ROLE_PERMISSION_MANAGE)
             ) { "No tienes permiso para personalizar los permisos." }
+            val targetProfile = AccessProfile(role, grants, denials)
+            require(AccessPolicy.effectivePermissions(targetProfile).all {
+                AccessPolicy.allows(actor.profile, it)
+            }) { "No puedes crear un perfil con más permisos que el tuyo." }
             require((grants + denials).all { AccessPolicy.allows(actor.profile, it) }) {
                 "No puedes asignar permisos que tu perfil no posee."
             }

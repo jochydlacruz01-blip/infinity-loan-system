@@ -28,9 +28,7 @@ data class PersistedCashCloseAuditReport(
 suspend fun InfinityDatabase.auditPersistedCashClosings(): PersistedCashCloseAuditReport {
     val dao = cashSessions()
     val sessions = dao.findAllSessionsForAudit()
-    val movementsBySession = sessions.associate { session ->
-        session.sessionId to dao.findMovements(session.sessionId)
-    }
+    val movementsBySession = dao.findAllMovementsForAudit().groupBy { it.sessionId }
 
     val rows = sessions.map { row ->
         val isClosed = row.closedAt != null
@@ -44,8 +42,8 @@ suspend fun InfinityDatabase.auditPersistedCashClosings(): PersistedCashCloseAud
                     operationId = movement.operationId,
                     type = CashMovementType.valueOf(movement.type),
                     amountMinor = movement.amountMinor,
-                    reason = movement.reason,
-                    createdAt = movement.createdAt
+                    reason = "Movimiento persistido de caja",
+                    createdAt = 0L
                 )
             }
             val session = CashSession(

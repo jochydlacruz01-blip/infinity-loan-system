@@ -1102,7 +1102,7 @@ private fun StaffManagementScreen(
 ) {
     val scope = rememberCoroutineScope()
     val service = remember(db) { StaffAuthenticationService(db.staffAccounts()) }
-    var accounts by remember { mutableStateOf(emptyList<StaffAccountEntity>()) }
+    var accounts by remember { mutableStateOf(emptyList<StaffAccountSummary>()) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var showCreate by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
@@ -1118,7 +1118,7 @@ private fun StaffManagementScreen(
     var selectedRole by remember { mutableStateOf(assignableRoles.firstOrNull() ?: StaffRole.COLLECTOR) }
 
     LaunchedEffect(db, refreshKey) {
-        accounts = withContext(Dispatchers.IO) { db.staffAccounts().getAll() }
+        accounts = withContext(Dispatchers.IO) { db.staffAccounts().getAllSummaries() }
     }
 
     LazyColumn(

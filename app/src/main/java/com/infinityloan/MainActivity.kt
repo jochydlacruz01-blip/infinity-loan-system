@@ -373,7 +373,7 @@ private fun AuthenticatedInfinityApp(
         }
     }
 )
-                        Screen.LOANS -> LoansScreen(loans, clients)
+                        Screen.LOANS -> LoansScreen(loans, clients, installments)
                         Screen.PAYMENTS -> PaymentsScreen(
                             payments = payments,
                             loans = loans,
@@ -1051,7 +1051,8 @@ private fun ClientsScreen(
 
 
 @Composable
-private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
+private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>, installments: List<LoanInstallmentEntity>) {
+    var expandedLoanIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var query by remember { mutableStateOf("") }
 
     val filteredLoans = loans.filter { loan ->
@@ -1117,25 +1118,63 @@ private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
                             ?.stripTrailingZeros()
                             ?.toPlainString() ?: "No disponible"
 
-                        DataCard(
-                            title = client,
-                            detail = """
-                                CAPITAL INICIAL
-                                ${money(loan.principalMinor)} ${loan.currency}
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            DataCard(
+                                title = client,
+                                detail = """
+                                    CAPITAL INICIAL
+                                    ${money(loan.principalMinor)} ${loan.currency}
 
-                                SALDO PENDIENTE
-                                ${money(loan.balanceMinor)} ${loan.currency}
+                                    SALDO PENDIENTE
+                                    ${money(loan.balanceMinor)} ${loan.currency}
 
-                                TASA POR PERÍODO
-                                $ratePercent%
+                                    TASA POR PERÍODO
+                                    $ratePercent%
 
-                                PERÍODOS: ${loan.periods}
-                                AMORTIZACIÓN: ${loan.method}
-                                ESTADO: ${loan.status}
-                                REGISTRO: ${formatDate(loan.createdAt)}
-                                ID: ${loan.id}
-                            """.trimIndent()
-                        )
+                                    PERÍODOS: ${loan.periods}
+                                    AMORTIZACIÓN: ${loan.method}
+                                    FRECUENCIA: ${loan.frequency}
+                                    ESTADO: ${loan.status}
+                                    REGISTRO: ${formatDate(loan.createdAt)}
+                                    ID: ${loan.id}
+                                """.trimIndent()
+                            )
+                            val loanInstallments = installments.filter { it.loanId == loan.id }.sortedBy { it.number }
+                            TextButton(
+                                onClick = {
+                                    expandedLoanIds = if (loan.id in expandedLoanIds) expandedLoanIds - loan.id
+                                    else expandedLoanIds + loan.id
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    if (loan.id in expandedLoanIds) "Ocultar calendario (${loanInstallments.size} cuotas)"
+                                    else "Ver calendario de cuotas (${loanInstallments.size})",
+                                    color = Gold
+                                )
+                            }
+                            if (loan.id in expandedLoanIds) {
+                                if (loanInstallments.isEmpty()) {
+                                    EmptyState("Calendario no disponible", "Este préstamo requiere revisión de su calendario.")
+                                } else {
+                                    loanInstallments.forEach { installment ->
+                                        val remaining = OverdueBalance.remainingMinor(
+                                            installment.totalMinor,
+                                            installment.paidPrincipalMinor,
+                                            installment.paidInterestMinor
+                                        )
+                                        DataCard(
+                                            title = "Cuota ${installment.number} · ${installment.dueDate}",
+                                            detail = "Total: ${money(installment.totalMinor)} ${loan.currency}\n" +
+                                                "Capital pagado: ${money(installment.paidPrincipalMinor)}\n" +
+                                                "Interés pagado: ${money(installment.paidInterestMinor)}\n" +
+                                                "Pendiente: ${money(remaining)} ${loan.currency}\n" +
+                                                "Estado: ${installment.status}"
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

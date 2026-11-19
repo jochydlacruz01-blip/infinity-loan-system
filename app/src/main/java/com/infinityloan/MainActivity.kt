@@ -405,10 +405,10 @@ private fun AuthenticatedInfinityApp(
                 require(withContext(Dispatchers.IO) {
                     authenticationService.isSessionValid(session)
                 }) { "La sesión ha caducado. Inicia sesión nuevamente." }
-                require(
-                    if (clientToEdit == null) can(Permission.CLIENT_CREATE)
-                    else can(Permission.CLIENT_UPDATE)
-                ) { "No tienes permiso para esta operación." }
+                val clientPermission = if (clientToEdit == null) Permission.CLIENT_CREATE else Permission.CLIENT_UPDATE
+                require(withContext(Dispatchers.IO) {
+                    authenticationService.hasPermission(session, clientPermission)
+                }) { "No tienes permiso para esta operación." }
                 val cleanName = name.trim()
                 val cleanDoc = doc.trim()
                 val cleanPhone = phone.trim()
@@ -472,9 +472,8 @@ private fun AuthenticatedInfinityApp(
             scope.launch {
                 try {
                     require(withContext(Dispatchers.IO) {
-                        authenticationService.isSessionValid(session)
-                    }) { "La sesión ha caducado. Inicia sesión nuevamente." }
-                    require(can(Permission.LOAN_CREATE)) { "No tienes permiso para crear préstamos." }
+                        authenticationService.hasPermission(session, Permission.LOAN_CREATE)
+                    }) { "La sesión caducó o no tienes permiso para crear préstamos." }
                     val principal = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP)
                     val minor = principal.movePointRight(2).longValueExact()
                     val rateValue = BigDecimal(rate).divide(BigDecimal("100"))
@@ -535,9 +534,8 @@ private fun AuthenticatedInfinityApp(
             scope.launch {
                 val result = try {
                     require(withContext(Dispatchers.IO) {
-                        authenticationService.isSessionValid(session)
-                    }) { "La sesión ha caducado. Inicia sesión nuevamente." }
-                    require(can(Permission.PAYMENT_REGISTER)) { "No tienes permiso para registrar pagos." }
+                        authenticationService.hasPermission(session, Permission.PAYMENT_REGISTER)
+                    }) { "La sesión caducó o no tienes permiso para registrar pagos." }
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
                     db.withTransaction {
                         val loan = db.loans().findById(loanId) ?: error("Préstamo no encontrado.")
@@ -609,8 +607,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                 OutlinedTextField(value = opening, onValueChange = { opening = it }, label = { Text("Fondo inicial ($currency)") }, modifier = Modifier.fillMaxWidth())
                 Button(enabled = can(Permission.CASH_SESSION_OPEN) && opening.isNotBlank(), onClick = {
                     scope.launch { try {
-                        require(withContext(Dispatchers.IO) { authenticationService.isSessionValid(session) }) { "La sesión ha caducado." }
-                        require(can(Permission.CASH_SESSION_OPEN)) { "No tienes permiso para abrir caja." }
+                        require(withContext(Dispatchers.IO) { authenticationService.hasPermission(session, Permission.CASH_SESSION_OPEN) }) { "La sesión caducó o no tienes permiso para abrir caja." }
                         val startMinor = minor(opening); require(startMinor >= 0L)
                         db.withTransaction {
                             val newSession = CashSessionEntity(UUID.randomUUID().toString(), session.staffId, currency, startMinor, System.currentTimeMillis())
@@ -629,8 +626,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = can(Permission.CASH_MOVEMENT_MANAGE) && amount.isNotBlank() && reason.isNotBlank(), onClick = {
                         scope.launch { try {
-                            require(withContext(Dispatchers.IO) { authenticationService.isSessionValid(session) }) { "La sesión ha caducado." }
-                            require(can(Permission.CASH_MOVEMENT_MANAGE)) { "No tienes permiso para registrar movimientos de caja." }
+                            require(withContext(Dispatchers.IO) { authenticationService.hasPermission(session, Permission.CASH_MOVEMENT_MANAGE) }) { "La sesión caducó o no tienes permiso para registrar movimientos de caja." }
                             val value = minor(amount); require(value > 0)
                             db.withTransaction {
                                 val m = CashMovementEntity(UUID.randomUUID().toString(), own.sessionId, "CASH_IN", value, reason.trim(), System.currentTimeMillis())
@@ -659,8 +655,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                 OutlinedTextField(value = counted, onValueChange = { counted = it }, label = { Text("Conteo físico al cierre ($currency)") }, modifier = Modifier.fillMaxWidth())
                 Button(enabled = can(Permission.CASH_SESSION_CLOSE) && counted.isNotBlank(), onClick = {
                     scope.launch { try {
-                        require(withContext(Dispatchers.IO) { authenticationService.isSessionValid(session) }) { "La sesión ha caducado." }
-                        require(can(Permission.CASH_SESSION_CLOSE)) { "No tienes permiso para cerrar caja." }
+                        require(withContext(Dispatchers.IO) { authenticationService.hasPermission(session, Permission.CASH_SESSION_CLOSE) }) { "La sesión caducó o no tienes permiso para cerrar caja." }
                         val count = minor(counted); require(count >= 0L)
                         db.withTransaction {
                             db.closeCashSession(own.sessionId, count)

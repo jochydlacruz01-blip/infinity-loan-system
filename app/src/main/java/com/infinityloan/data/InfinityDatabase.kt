@@ -893,6 +893,9 @@ abstract class InfinityDatabase : RoomDatabase() {
         val sessionRow = cashSessions().findSession(movement.sessionId)
             ?: error("La sesión de caja no existe.")
         check(sessionRow.closedAt == null) { "La caja está cerrada." }
+        check(cashSessions().findOpenSession(sessionRow.staffId, sessionRow.currency)?.sessionId == sessionRow.sessionId) {
+            "La sesión no es la caja abierta del empleado para esta moneda."
+        }
         check(cashSessions().findMovementByOperation(movement.operationId) == null) {
             "La operación ya fue registrada."
         }

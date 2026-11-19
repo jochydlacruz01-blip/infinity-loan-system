@@ -18,6 +18,8 @@ import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
+import java.time.LocalDate
+import com.infinityloan.finance.InstallmentPaymentAllocator
 
 @Entity(tableName = "clients", indices = [Index(value = ["documentNumber"], unique = true)])
 data class ClientEntity(
@@ -278,7 +280,9 @@ enum class CustomerCreditResult {
     LOAN_NOT_ACTIVE,
     CLIENT_MISMATCH,
     CURRENCY_MISMATCH,
-    INSUFFICIENT_CREDIT
+    INSUFFICIENT_CREDIT,
+    SCHEDULE_NOT_FOUND,
+    INVALID_SCHEDULE
 }
 @Dao
 interface ClientDao {
@@ -379,32 +383,179 @@ interface PaymentDao {
     @Query("SELECT * FROM payments WHERE operationId = :operationId LIMIT 1")
     suspend fun findByOperationId(operationId: String): PaymentEntity?
 
-   @Insert(onConflict = OnConflictStrategy.IGNORE)
-suspend fun insert(payment: PaymentEntity): Long
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(payment: PaymentEntity): Long
 
     @Query("SELECT * FROM loans WHERE id = :loanId LIMIT 1")
     suspend fun findLoan(loanId: String): LoanEntity?
 
+    @Query("SELECT * FROM loan_installments WHERE loanId = :loanId ORDER BY number")
+    suspend fun findInstallments(loanId: String): List<LoanInstallmentEntity>
+
+    @Query("""
+        UPDATE loan_installments
+        SET paidLateFeeMinor = :lateFee,
+            paidChargesMinor = :charges,
+            paidInterestMinor = :interest,
+            paidPrincipalMinor = :principal,
+            status = :status
+        WHERE loanId = :loanId AND number = :number
+    """)
+    suspend fun updateInstallmentPaid(
+        loanId: String, number: Int, lateFee: Long, charges: Long,
+        interest: Long, principal: Long, status: String
+    )
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAllocations(rows: List<PaymentAllocationEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertCreditMovement(row: CustomerCreditMovementEntity): Long
+
     @Query("UPDATE loans SET balanceMinor = :newBalance, status = :newStatus WHERE id = :loanId")
     suspend fun updateLoanBalance(loanId: String, newBalance: Long, newStatus: String)
 
+    /**
+     * Posts only against installments due on the current local date.
+     * Any amount not yet contractually due is preserved as customer credit.
+     * Loan balanceMinor tracks principal only, never gross payment amount.
+     */
     @Transaction
     suspend fun postPayment(payment: PaymentEntity): PaymentPostResult {
         if (payment.amountMinor <= 0L) return PaymentPostResult.INVALID_AMOUNT
         if (findByOperationId(payment.operationId) != null) return PaymentPostResult.DUPLICATE
         val loan = findLoan(payment.loanId) ?: return PaymentPostResult.LOAN_NOT_FOUND
         if (loan.status != "ACTIVE") return PaymentPostResult.LOAN_NOT_ACTIVE
-        if (payment.amountMinor > loan.balanceMinor) return PaymentPostResult.EXCEEDS_BALANCE
-        val insertedId = insert(payment)
-if (insertedId == -1L) return PaymentPostResult.DUPLICATE
-        val remaining = loan.balanceMinor - payment.amountMinor
-        updateLoanBalance(loan.id, remaining, if (remaining == 0L) "PAID" else "ACTIVE")
+
+        val allInstallments = findInstallments(loan.id)
+        if (allInstallments.isEmpty()) return PaymentPostResult.SCHEDULE_NOT_FOUND
+
+        val today = LocalDate.now()
+        val dueRows = allInstallments.filter { row ->
+            val dueDate = try { LocalDate.parse(row.dueDate) }
+            catch (_: Exception) { return PaymentPostResult.INVALID_SCHEDULE }
+            dueDate <= today
+        }
+
+        fun outstanding(contractual: Long, paid: Long): Long {
+            if (contractual < 0L || paid < 0L || paid > contractual) {
+                throw IllegalStateException("Los importes pagados de una cuota no son válidos.")
+            }
+            return contractual - paid
+        }
+
+        val due = try {
+            dueRows.map { row ->
+                InstallmentPaymentAllocator.DueInstallment(
+                    number = row.number,
+                    dueDate = LocalDate.parse(row.dueDate),
+                    lateFeeDueMinor = 0L,
+                    chargesDueMinor = 0L,
+                    interestDueMinor = outstanding(row.interestMinor, row.paidInterestMinor),
+                    principalDueMinor = outstanding(row.principalMinor, row.paidPrincipalMinor)
+                )
+            }
+        } catch (_: Exception) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+
+        val allocation = try {
+            InstallmentPaymentAllocator.allocate(payment.amountMinor, due)
+        } catch (_: Exception) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+
+        val principalPaid = try {
+            allocation.allocations.fold(0L) { total, item ->
+                Math.addExact(total, item.principalPaidMinor)
+            }
+        } catch (_: ArithmeticException) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+        if (principalPaid > loan.balanceMinor) return PaymentPostResult.EXCEEDS_BALANCE
+
+        val newBalance = loan.balanceMinor - principalPaid
+        val allocationsByNumber = allocation.allocations.associateBy { it.installmentNumber }
+
+        val updatedRows = try {
+            dueRows.map { row ->
+                val applied = allocationsByNumber[row.number]
+                val late = Math.addExact(row.paidLateFeeMinor, applied?.lateFeePaidMinor ?: 0L)
+                val charges = Math.addExact(row.paidChargesMinor, applied?.chargesPaidMinor ?: 0L)
+                val interest = Math.addExact(row.paidInterestMinor, applied?.interestPaidMinor ?: 0L)
+                val principal = Math.addExact(row.paidPrincipalMinor, applied?.principalPaidMinor ?: 0L)
+                val isPaid = late == row.paidLateFeeMinor + 0L &&
+                    charges == row.paidChargesMinor + 0L &&
+                    interest == row.interestMinor && principal == row.principalMinor
+                val status = when {
+                    isPaid -> "PAID"
+                    late > 0L || charges > 0L || interest > 0L || principal > 0L -> "PARTIAL"
+                    else -> "PENDING"
+                }
+                row.copy(
+                    paidLateFeeMinor = late,
+                    paidChargesMinor = charges,
+                    paidInterestMinor = interest,
+                    paidPrincipalMinor = principal,
+                    status = status
+                )
+            }
+        } catch (_: ArithmeticException) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        } catch (_: Exception) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+
+        val allPaidAfter = allInstallments.all { original ->
+            val updated = updatedRows.firstOrNull { it.number == original.number } ?: original
+            updated.paidLateFeeMinor == 0L + original.paidLateFeeMinor &&
+                updated.paidChargesMinor == 0L + original.paidChargesMinor &&
+                updated.paidInterestMinor == updated.interestMinor &&
+                updated.paidPrincipalMinor == updated.principalMinor
+        }
+        val newStatus = if (newBalance == 0L && allPaidAfter) "PAID" else "ACTIVE"
+
+        if (insert(payment) == -1L) return PaymentPostResult.DUPLICATE
+        val allocationRows = allocation.allocations.map { item ->
+            PaymentAllocationEntity(
+                operationId = payment.operationId,
+                loanId = loan.id,
+                installmentNumber = item.installmentNumber,
+                lateFeePaidMinor = item.lateFeePaidMinor,
+                chargesPaidMinor = item.chargesPaidMinor,
+                interestPaidMinor = item.interestPaidMinor,
+                principalPaidMinor = item.principalPaidMinor
+            )
+        }
+        if (allocationRows.isNotEmpty()) insertAllocations(allocationRows)
+
+        updatedRows.forEach { row ->
+            updateInstallmentPaid(
+                loan.id, row.number, row.paidLateFeeMinor, row.paidChargesMinor,
+                row.paidInterestMinor, row.paidPrincipalMinor, row.status
+            )
+        }
+        updateLoanBalance(loan.id, newBalance, newStatus)
+
+        if (allocation.unappliedMinor > 0L) {
+            val creditInserted = insertCreditMovement(
+                CustomerCreditMovementEntity(
+                    operationId = "PAYMENT-EXCESS-${payment.operationId}",
+                    clientId = loan.clientId,
+                    loanId = loan.id,
+                    currency = loan.currency,
+                    amountMinor = allocation.unappliedMinor,
+                    reference = "Excedente del pago ${payment.operationId}"
+                )
+            )
+            check(creditInserted != -1L) { "No se pudo registrar el excedente como crédito." }
+        }
         return PaymentPostResult.POSTED
     }
 }
 
 enum class PaymentPostResult {
-    POSTED, DUPLICATE, INVALID_AMOUNT, LOAN_NOT_FOUND, LOAN_NOT_ACTIVE, EXCEEDS_BALANCE
+    POSTED, DUPLICATE, INVALID_AMOUNT, LOAN_NOT_FOUND, LOAN_NOT_ACTIVE, EXCEEDS_BALANCE, SCHEDULE_NOT_FOUND, INVALID_SCHEDULE
 }
 enum class CreditPaymentResult {
     POSTED,
@@ -429,69 +580,44 @@ enum class CreditPaymentResult {
 )
 
 abstract class InfinityDatabase : RoomDatabase() {
-            suspend fun postPaymentWithCustomerCredit(
-        payment: PaymentEntity
-    ): CreditPaymentResult = withTransaction {
+    suspend fun postPaymentWithCustomerCredit(payment: PaymentEntity): CreditPaymentResult =
+        withTransaction {
+            if (payment.amountMinor <= 0L) return@withTransaction CreditPaymentResult.INVALID_AMOUNT
+            if (payments().findByOperationId(payment.operationId) != null) {
+                return@withTransaction CreditPaymentResult.DUPLICATE
+            }
+            val loan = loans().findById(payment.loanId)
+                ?: return@withTransaction CreditPaymentResult.LOAN_NOT_FOUND
+            if (loan.status != "ACTIVE") return@withTransaction CreditPaymentResult.LOAN_NOT_ACTIVE
 
-        if (payment.amountMinor <= 0L) {
-            return@withTransaction CreditPaymentResult.INVALID_AMOUNT
+            val available = customerCredits().getBalance(loan.clientId, loan.currency)
+            if (available < payment.amountMinor) {
+                return@withTransaction CreditPaymentResult.INSUFFICIENT_CREDIT
+            }
+
+            val debit = CustomerCreditMovementEntity(
+                operationId = "PAYMENT-CREDIT-${payment.operationId}",
+                clientId = loan.clientId,
+                loanId = loan.id,
+                currency = loan.currency,
+                amountMinor = -payment.amountMinor,
+                reference = "Aplicación de crédito al pago ${payment.operationId}"
+            )
+            val debitInserted = customerCredits().insertIfAbsent(debit)
+            if (debitInserted == -1L) return@withTransaction CreditPaymentResult.DUPLICATE
+
+            when (payments().postPayment(payment)) {
+                PaymentPostResult.POSTED -> CreditPaymentResult.POSTED
+                PaymentPostResult.DUPLICATE -> CreditPaymentResult.DUPLICATE
+                PaymentPostResult.INVALID_AMOUNT -> CreditPaymentResult.INVALID_AMOUNT
+                PaymentPostResult.LOAN_NOT_FOUND -> CreditPaymentResult.LOAN_NOT_FOUND
+                PaymentPostResult.LOAN_NOT_ACTIVE -> CreditPaymentResult.LOAN_NOT_ACTIVE
+                PaymentPostResult.EXCEEDS_BALANCE -> CreditPaymentResult.EXCEEDS_BALANCE
+                PaymentPostResult.SCHEDULE_NOT_FOUND -> CreditPaymentResult.SCHEDULE_NOT_FOUND
+                PaymentPostResult.INVALID_SCHEDULE -> CreditPaymentResult.INVALID_SCHEDULE
+            }
         }
 
-        if (payments().findByOperationId(payment.operationId) != null) {
-            return@withTransaction CreditPaymentResult.DUPLICATE
-        }
-
-        val loan = loans().findById(payment.loanId)
-            ?: return@withTransaction CreditPaymentResult.LOAN_NOT_FOUND
-
-        if (loan.status != "ACTIVE") {
-            return@withTransaction CreditPaymentResult.LOAN_NOT_ACTIVE
-        }
-
-        if (payment.amountMinor > loan.balanceMinor) {
-            return@withTransaction CreditPaymentResult.EXCEEDS_BALANCE
-        }
-
-        val available = customerCredits().getBalance(
-            loan.clientId,
-            loan.currency
-        )
-
-        if (available < payment.amountMinor) {
-            return@withTransaction CreditPaymentResult.INSUFFICIENT_CREDIT
-        }
-        val movement = CustomerCreditMovementEntity(
-            operationId = "PAYMENT-CREDIT-${payment.operationId}",
-            clientId = loan.clientId,
-            loanId = loan.id,
-            currency = loan.currency,
-            amountMinor = -payment.amountMinor,
-            reference = payment.reference
-        )
-
-        val paymentInserted = payments().insert(payment)
-
-        if (paymentInserted == -1L) {
-            return@withTransaction CreditPaymentResult.DUPLICATE
-        }
-
-        val creditInserted = customerCredits().insertIfAbsent(movement)
-
-        check(creditInserted != -1L) {
-            "No se pudo registrar el movimiento de crédito."
-        }
-
-        val remaining = loan.balanceMinor - payment.amountMinor
-
-        loans().updateBalance(
-            loan.id,
-            remaining,
-            if (remaining == 0L) "PAID" else "ACTIVE"
-        )
-
-                     
-        return@withTransaction CreditPaymentResult.POSTED
-    }
     abstract fun clients(): ClientDao
     abstract fun loans(): LoanDao
     abstract fun payments(): PaymentDao

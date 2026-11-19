@@ -8,7 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class DatabaseMigrationOneToFiveTest {
+class DatabaseMigrationOneToSixTest {
 
     @Test
     fun completeMigrationPathPreservesLegacyCreditAndBuildsPaymentLedger() {
@@ -71,6 +71,7 @@ class DatabaseMigrationOneToFiveTest {
             InfinityDatabase.MIGRATION_2_3.migrate(db)
             InfinityDatabase.MIGRATION_3_4.migrate(db)
             InfinityDatabase.MIGRATION_4_5.migrate(db)
+            InfinityDatabase.MIGRATION_5_6.migrate(db)
 
             db.query("""
                 SELECT clientId, loanId, currency, amountMinor
@@ -100,6 +101,11 @@ class DatabaseMigrationOneToFiveTest {
                     chargesPaidMinor, interestPaidMinor, principalPaidMinor
                 ) VALUES ('payment-1', 'loan-1', 1, 0, 0, 500, 1000)
             """.trimIndent())
+
+            db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'staff_accounts'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1L, cursor.getLong(0))
+            }
 
             db.query("PRAGMA foreign_key_check").use { cursor ->
                 assertTrue("Migration chain left foreign-key violations", !cursor.moveToFirst())

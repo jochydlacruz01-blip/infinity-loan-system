@@ -1,23 +1,35 @@
-# Informe de revisión — Base 0.1.0
+# Informe de validación — INFINITY LOAN SYSTEM
 
-## Comprobaciones realizadas
-- Estructura Android presente: configuración Gradle, manifest, actividad Compose, motor financiero, pruebas unitarias y workflow de GitHub Actions.
-- El motor financiero usa `BigDecimal`; no usa `Float` ni `Double` para dinero.
-- Los tres métodos están implementados: francés, italiano y americano.
-- Se valida principal positivo, tasa no negativa, plazo mayor que cero y escala monetaria entre 0 y 6.
-- Se redondean intereses e importes a la escala configurada con `HALF_UP`.
-- La última cuota ajusta el principal pendiente para reconciliar el total amortizado.
-- Se añadió una prueba de referencia de la cuota francesa y del ajuste de la última cuota.
+## Estado de la revisión
+- Rama: `main`
+- Última revisión de CI registrada: workflow #246.
+- Commit validado: `309e863f5e6c291c51ac3ddac51cbd622edcf40e`.
+- Resultado del workflow #246: **SUCCESS** (GitHub Actions).
 
-## Contraste numérico independiente
-Para un principal de RD$50,000.00, tasa de 5% por período y 12 períodos:
-- Francés: cuota matemática sin redondear ≈ RD$5,641.270501; cuota regular redondeada RD$5,641.27. Por el redondeo acumulado, la última cuota queda RD$5,641.29.
-- Italiano: primera cuota RD$6,666.67.
-- Americano: interés periódico RD$2,500.00 y cuota final RD$52,500.00.
+## Validación automatizada
+El workflow configurado ejecuta la revisión Android (Lint), pruebas unitarias, compilación debug, generación del AAB release sin firma y pruebas instrumentadas en emulador, según su configuración actual. El resultado SUCCESS del workflow #246 confirma que las etapas configuradas para esa ejecución terminaron correctamente.
 
-**Corrección importante:** una referencia anterior indicaba RD$5,641.02 para el método francés. Ese valor era incorrecto. El resultado de la fórmula estándar es RD$5,641.27. El código y la prueba de esta entrega usan el valor corregido.
+- [Workflow #246 en GitHub Actions](https://github.com/jochydlacruz01-blip/infinity-loan-system/actions/runs/44456002879)
 
-## Qué no se pudo certificar
-- No se ejecutó una compilación Android real ni Gradle/JUnit en este entorno. El workflow de GitHub queda configurado para ejecutar `gradle testDebugUnitTest assembleDebug`; el resultado real debe confirmarse en la pestaña Actions.
-- La revisión estática y el contraste numérico independiente no sustituyen la ejecución de JUnit, pruebas de integración, pruebas de interfaz ni auditoría financiera.
-- Esta es una base de arranque. No es todavía el sistema productivo ni una APK final.
+## Funciones presentes en la base actual
+- Kotlin/Jetpack Compose; aplicación Android nativa.
+- Persistencia Room con migraciones hasta esquema v8.
+- Motor de amortización francés, italiano y americano.
+- Calendarios de cuotas semanales, quincenales y mensuales.
+- Distribución de pagos sobre cuotas vencidas y conservación de excedentes como crédito del cliente.
+- Autenticación local, hash de contraseñas, bloqueo temporal por intentos fallidos y administración de empleados.
+- Permisos individuales, auditoría local y comprobaciones de sesión.
+
+## Límites no certificados ni completados
+- El SUCCESS del CI no es una auditoría de seguridad, financiera, regulatoria o de usabilidad.
+- Autenticación, datos y auditoría son locales al dispositivo; no existe todavía backend compartido ni sincronización multi-dispositivo.
+- Caja integral, contabilidad, mora/cargos contractuales, reversos, portal del cliente, pagos digitales y GPS siguen pendientes de desarrollo.
+- El AAB de release generado en CI no está firmado para publicación.
+- Antes de uso real se requieren pruebas operativas, política financiera aprobada, revisión de privacidad y seguridad y validación regulatoria aplicable.
+
+## Próximas prioridades
+1. Mejorar el dashboard y la experiencia operativa sin falsear datos.
+2. Reforzar pruebas de integridad financiera y de permisos.
+3. Definir y construir el backend central con autorización del lado servidor y sincronización.
+4. Desarrollar caja, cierres, informes y conciliación.
+5. Preparar el proceso de release y pruebas de aceptación.

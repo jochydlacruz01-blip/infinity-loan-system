@@ -55,4 +55,34 @@ class LateFeeCalculatorTest {
         }
     }
 
+    @Test fun fixedOnlyPolicyWorksWithoutDailyRate() {
+        val result = LateFeeCalculator.calculate(
+            LateFeePolicy(true, fixedFeeMinor = 250),
+            due, due.plusDays(1), 10000
+        )
+        assertEquals(250L, result.feeMinor)
+        assertEquals(1L, result.overdueDays)
+    }
+
+    @Test fun capOfZeroSuppressesCalculatedFee() {
+        val result = LateFeeCalculator.calculate(
+            LateFeePolicy(true, dailyRate = BigDecimal("0.10"), maximumFeeMinor = 0L),
+            due, due.plusDays(10), 10000
+        )
+        assertEquals(0L, result.feeMinor)
+    }
+
+    @Test fun gracePeriodBoundaryIsDeterministic() {
+        val policy = LateFeePolicy(true, graceDays = 2, dailyRate = BigDecimal("0.01"))
+        assertEquals(0L, LateFeeCalculator.calculate(policy, due, due.plusDays(2), 10000).feeMinor)
+        assertEquals(100L, LateFeeCalculator.calculate(policy, due, due.plusDays(3), 10000).feeMinor)
+    }
+
+    @Test fun maximumFeeIsAppliedToCombinedDailyAndFixedFee() {
+        val result = LateFeeCalculator.calculate(
+            LateFeePolicy(true, dailyRate = BigDecimal("0.01"), fixedFeeMinor = 50, maximumFeeMinor = 150),
+            due, due.plusDays(2), 10000
+        )
+        assertEquals(150L, result.feeMinor)
+    }
 }

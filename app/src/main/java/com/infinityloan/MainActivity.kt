@@ -59,7 +59,8 @@ private enum class Screen(val label: String, val permission: Permission) {
     PAYMENTS("Pagos y caja", Permission.PAYMENT_VIEW),
     REPORTS("Informes", Permission.REPORT_VIEW),
     SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE),
-    STAFF("Personal", Permission.STAFF_VIEW)
+    STAFF("Personal", Permission.STAFF_VIEW),
+    AUDIT("Auditoría", Permission.AUDIT_LOG_VIEW)
 }
 
 @Composable
@@ -353,6 +354,7 @@ private fun AuthenticatedInfinityApp(
                             session = session,
                             onMessage = { message = it }
                         )
+                        Screen.AUDIT -> AuditLogScreen(db)
                     }
                     message?.let {
                         Spacer(Modifier.height(8.dp))
@@ -1173,6 +1175,16 @@ private fun StaffManagementScreen(
                                     try {
                                         withContext(Dispatchers.IO) {
                                             service.setStaffAccountActive(session, account.id, !account.isActive)
+                                            db.auditLogs().insert(
+                                                AuditLogEntity(
+                                                    actorStaffId = session.staffId,
+                                                    actorUsername = session.username,
+                                                    action = if (account.isActive) "STAFF_ACCOUNT_DISABLED" else "STAFF_ACCOUNT_ENABLED",
+                                                    targetType = "STAFF_ACCOUNT",
+                                                    targetId = account.id,
+                                                    details = "username=${account.username}"
+                                                )
+                                            )
                                         }
                                         refreshKey++
                                         onMessage(if (account.isActive) "Cuenta desactivada." else "Cuenta reactivada.")
@@ -1243,6 +1255,16 @@ private fun StaffManagementScreen(
                                         role = selectedRole,
                                         password = submittedPassword.toCharArray()
                                     )
+                                    db.auditLogs().insert(
+                                        AuditLogEntity(
+                                            actorStaffId = session.staffId,
+                                            actorUsername = session.username,
+                                            action = "STAFF_ACCOUNT_CREATED",
+                                            targetType = "STAFF_ACCOUNT",
+                                            targetId = null,
+                                            details = "username=${username.trim().lowercase(Locale.ROOT)};role=${selectedRole.name}"
+                                        )
+                                    )
                                 }
                                 refreshKey++
                                 showCreate = false
@@ -1260,5 +1282,53 @@ private fun StaffManagementScreen(
                 TextButton(onClick = { showCreate = false }) { Text("Cancelar") }
             }
         )
+    }
+}
+
+
+@Composable
+private fun AuditLogScreen(db: InfinityDatabase) {
+    val entries by db.auditLogs().observeRecent(200).collectAsState(initial = emptyList())
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Column {
+                Text("Registro de auditoría", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("Últimos 200 eventos registrados en este dispositivo", color = Muted, fontSize = 12.sp)
+            }
+        }
+        if (entries.isEmpty()) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                    Text("Todavía no hay eventos de auditoría.", color = Muted, modifier = Modifier.padding(16.dp))
+                }
+            }
+        }
+        items(entries, key = { it.id }) { entry ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(entry.action, color = Gold, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "${entry.actorUsername} · ${entry.targetType}${entry.targetId?.let { " · $it" } ?: ""}",
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                    if (entry.details.isNotBlank()) {
+                        Text(entry.details, color = Muted, fontSize = 11.sp)
+                    }
+                    Text(
+                        SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(entry.createdAt)),
+                        color = Muted,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
     }
 }

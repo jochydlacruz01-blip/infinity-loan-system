@@ -104,3 +104,31 @@ fun buildCashReport(sessions: List<CashSession>): List<CashCurrencyReport> =
         }
         CashCurrencyReport(currency, group.size, group.count { !it.closed }, group.count { it.closed }, expected, openExpected, closedExpected, counted, variance)
     }
+
+
+/** Per-employee cash accountability, grouped by employee and currency. */
+data class CashStaffReport(
+    val staffId: String,
+    val currency: String,
+    val sessionCount: Int,
+    val openSessionCount: Int,
+    val closedSessionCount: Int,
+    val expectedCashMinor: Long,
+    val countedCashMinor: Long,
+    val varianceMinor: Long
+)
+
+fun buildCashStaffReport(sessions: List<CashSession>): List<CashStaffReport> =
+    sessions.groupBy { it.staffId to it.currency }.toSortedMap(compareBy<Pair<String, String>> { it.first }.thenBy { it.second }).map { (key, group) ->
+        val closed = group.filter { it.closed }
+        CashStaffReport(
+            staffId = key.first,
+            currency = key.second,
+            sessionCount = group.size,
+            openSessionCount = group.count { !it.closed },
+            closedSessionCount = closed.size,
+            expectedCashMinor = group.fold(0L) { total, session -> Math.addExact(total, session.expectedCashMinor) },
+            countedCashMinor = closed.fold(0L) { total, session -> Math.addExact(total, session.countedClosingMinor ?: 0L) },
+            varianceMinor = closed.fold(0L) { total, session -> Math.addExact(total, session.varianceMinor ?: 0L) }
+        )
+    }

@@ -585,6 +585,7 @@ private fun AuthenticatedInfinityApp(
 
 @Composable
 private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, can: (Permission) -> Boolean, onMessage: (String) -> Unit) {
+    val authenticationService = remember(db) { StaffAuthenticationService(db.staffAccounts()) }
     val openSessions by db.cashSessions().observeOpenSessions().collectAsState(initial = emptyList())
     val allSessions by db.cashSessions().observeSessions().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()

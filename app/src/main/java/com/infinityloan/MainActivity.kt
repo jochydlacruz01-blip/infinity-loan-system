@@ -684,21 +684,36 @@ private fun ReportsSummaryScreen(
     LaunchedEffect(db) {
         db.cashSessions().observeSessions().collect { rows ->
             cashSummary = withContext(Dispatchers.IO) {
-                currencies.map { currency ->
+                val summaries = mutableListOf<String>()
+                for (currency in currencies) {
                     val matching = rows.filter { it.currency == currency }
                     val closed = matching.filter { it.closedAt != null }
-                    fun expectedFor(row: CashSessionEntity): Long =
-                        db.cashSessions().findMovements(row.sessionId).fold(row.openingMinor) { balance, movement ->
-                            if (movement.type == "CASH_IN") Math.addExact(balance, movement.amountMinor)
+                    val expectedBySession = mutableMapOf<Long, Long>()
+                    for (row in matching) {
+                        val movements = db.cashSessions().findMovements(row.sessionId)
+                        var balance = row.openingMinor
+                        for (movement in movements) {
+                            balance = if (movement.type == "CASH_IN") Math.addExact(balance, movement.amountMinor)
                             else Math.subtractExact(balance, movement.amountMinor)
                         }
-                    val expected = matching.fold(0L) { total, row -> Math.addExact(total, expectedFor(row)) }
-                    val counted = closed.fold(0L) { total, row -> Math.addExact(total, row.countedClosingMinor ?: 0L) }
-                    val variance = closed.fold(0L) { total, row -> Math.addExact(total, Math.subtractExact(row.countedClosingMinor ?: 0L, expectedFor(row))) }
-                    currency + " · sesiones: " + matching.size + " (abiertas " + matching.count { it.closedAt == null } + ", cerradas " + closed.size + ")" +
-                        "\nEfectivo esperado: " + money(expected) + "\nConteo físico acumulado (cerradas): " + money(counted) +
-                        "\nDiferencia acumulada (cerradas): " + money(variance)
+                        expectedBySession[row.sessionId] = balance
+                    }
+                    var expected = 0L
+                    for (row in matching) expected = Math.addExact(expected, expectedBySession[row.sessionId] ?: row.openingMinor)
+                    var counted = 0L
+                    var variance = 0L
+                    for (row in closed) {
+                        val physical = row.countedClosingMinor ?: 0L
+                        counted = Math.addExact(counted, physical)
+                        variance = Math.addExact(variance, Math.subtractExact(physical, expectedBySession[row.sessionId] ?: row.openingMinor))
+                    }
+                    summaries.add(
+                        currency + " · sesiones: " + matching.size + " (abiertas " + matching.count { it.closedAt == null } + ", cerradas " + closed.size + ")" +
+                            "\nEfectivo esperado: " + money(expected) + "\nConteo físico acumulado (cerradas): " + money(counted) +
+                            "\nDiferencia acumulada (cerradas): " + money(variance)
+                    )
                 }
+                summaries
             }
         }
     }

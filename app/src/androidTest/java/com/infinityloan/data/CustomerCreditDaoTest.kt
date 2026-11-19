@@ -216,4 +216,49 @@ class CustomerCreditDaoTest {
             database.customerCredits().getBalance(client.id, "DOP")
         )
     }
+
+    @Test(expected = ArithmeticException::class)
+    fun customerCreditBalanceRejectsLongOverflow() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente saldo límite",
+            documentNumber = "CREDIT-OVERFLOW-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        database.loans().insert(
+            LoanEntity(
+                id = "LOAN-OVERFLOW-001",
+                clientId = client.id,
+                principalMinor = 100L,
+                balanceMinor = 100L,
+                currency = "DOP",
+                periodicRate = "0",
+                periods = 1,
+                method = "FRENCH"
+            )
+        )
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-OVERFLOW-001",
+                clientId = client.id,
+                loanId = "LOAN-OVERFLOW-001",
+                currency = "DOP",
+                amountMinor = Long.MAX_VALUE,
+                reference = "Primer movimiento"
+            )
+        )
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-OVERFLOW-002",
+                clientId = client.id,
+                loanId = "LOAN-OVERFLOW-001",
+                currency = "DOP",
+                amountMinor = 1L,
+                reference = "Segundo movimiento"
+            )
+        )
+
+        database.customerCredits().getBalance(client.id, "DOP")
+    }
 }

@@ -1,34 +1,28 @@
 # Informe de validación — INFINITY LOAN SYSTEM
 
 ## Estado
-- Rama de trabajo: `main`.
-- El workflow Android de GitHub Actions valida Lint, tests, build y pruebas instrumentadas según la configuración.
-- El workflow #246 (commit `309e863f5e6c291c51ac3ddac51cbd622edcf40e`) fue SUCCESS; las ejecuciones más recientes asociadas a cambios posteriores deben verificarse individualmente en Actions antes de declarar su validación.
+- Rama: `main`.
+- Validación Android: GitHub Actions, con Lint, pruebas unitarias, compilación debug/AAB y pruebas instrumentadas, según el workflow.
+- Workflow #258 (commit `943724228798524864c5e82eedcdb19516d1f814`) fue SUCCESS.
+- La ejecución asociada al paquete de CI actualizado y cambios de informes debe comprobarse antes de certificar el código nuevo.
 
-## Funciones existentes en el código
+## Funciones implementadas
 - Kotlin/Jetpack Compose Android nativo.
-- Room y migraciones hasta esquema v8.
-- Motor de amortización francés, italiano y americano; periodicidades semanal, quincenal y mensual.
-- Asignación de pagos a cuotas vencidas y excedente como crédito separado.
-- Autenticación local, hashing de contraseña, bloqueo temporal, administración de empleados, permisos y auditoría local.
-- Dashboard con resumen de vencimientos.
+- Room, migraciones hasta esquema v8.
+- Amortización francesa, italiana y americana; calendario semanal, quincenal y mensual.
+- Asignación de pagos sobre cuotas vencidas y crédito separado para excedentes.
+- Autenticación local, hash de contraseña, bloqueo temporal, administración de empleados, permisos y auditoría local.
+- Panel ejecutivo con cartera, pagos y resumen de cuotas vencidas.
+- Informes locales por moneda: préstamo, capital pendiente, pagos y cuotas vencidas.
 
-## Trabajo pendiente y no certificado
-- Caja integral, cierres, conciliación contable y reversos operativos completos.
-- Política de mora/cargos y su integración completa con el flujo de pagos.
-- Backend multiempresa, autorización del servidor y sincronización multi-dispositivo.
-- Portal de cliente y pagos digitales.
-- GPS/rutas sujeto a permisos y política de privacidad.
-- AAB release sin firma; no preparado para publicación.
-- No se afirma que el producto esté listo para uso financiero real ni se ha completado una auditoría externa.
+## Límites
+- Los informes actuales no son cierre de caja ni conciliación contable.
+- Caja integral, mora/cargos contractuales integrados, reversos operativos, backend multiempresa, sincronización, portal, pagos digitales y GPS siguen pendientes.
+- No se ha completado auditoría externa ni certificación para uso financiero real.
+- Release AAB no firmado; publicación pendiente.
 
-## Fases en paralelo
-El diseño consolidado de caja, mora, informes, conciliación, GPS/privacidad, portal, pagos digitales, backend, seguridad y QA se encuentra en `docs/OPERATIONAL_PHASES_DESIGN.md`. Este documento es una especificación de trabajo, no una implementación de todas esas funciones.
+## Plan agrupado
+- Diseño de módulos y pruebas operativas: `docs/OPERATIONAL_PHASES_DESIGN.md`.
+- Contrato backend y cartera compartida opcional: `docs/BACKEND_API_CONTRACT.md`.
+- CI: cambios de código Android activan workflow; ejecuciones por rama no se cancelan automáticamente con cada push (concurrency cancel-in-progress desactivado).
 
-## Próximos controles
-1. Implementar caja con libro de movimientos y pruebas de integridad.
-2. Integrar políticas de mora/cargos configurables con el asignador y conciliación.
-3. Construir reportes de cartera y caja con moneda separada.
-4. Desarrollar backend compartido y controles tenant/sucursal.
-5. Incorporar portal, GPS y pagos digitales tras sus controles.
-6. Ejecutar pruebas de aceptación, privacidad, seguridad y release.

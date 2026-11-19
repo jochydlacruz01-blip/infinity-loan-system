@@ -674,7 +674,6 @@ abstract class InfinityDatabase : RoomDatabase() {
                     PaymentPostResult.SCHEDULE_NOT_FOUND -> CreditPaymentResult.SCHEDULE_NOT_FOUND
                     PaymentPostResult.INVALID_SCHEDULE -> CreditPaymentResult.INVALID_SCHEDULE
                     PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> CreditPaymentResult.LEGACY_RECONCILIATION_REQUIRED
-                    PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> CreditPaymentResult.LEGACY_RECONCILIATION_REQUIRED
                     PaymentPostResult.POSTED -> CreditPaymentResult.POSTED
                 }
             }

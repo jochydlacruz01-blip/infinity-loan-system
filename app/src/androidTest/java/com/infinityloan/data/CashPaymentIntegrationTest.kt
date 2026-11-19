@@ -23,6 +23,33 @@ class CashPaymentIntegrationTest {
         database = Room.inMemoryDatabaseBuilder(context, InfinityDatabase::class.java)
             .allowMainThreadQueries()
             .build()
+
+        listOf("ADMIN-001", "ADMIN-002", "ADMIN-003", "ADMIN-004").forEachIndexed { index, id ->
+            database.staffAccounts().insert(
+                StaffAccountEntity(
+                    id = id,
+                    username = "admin" + index,
+                    displayName = "Administrador de prueba",
+                    role = "ADMINISTRATOR",
+                    passwordAlgorithm = "TEST",
+                    passwordIterations = 1,
+                    passwordSaltBase64 = "",
+                    passwordHashBase64 = ""
+                )
+            )
+        }
+        database.staffAccounts().insert(
+            StaffAccountEntity(
+                id = "CASHIER-TEST",
+                username = "cashier",
+                displayName = "Cajero de prueba",
+                role = "CASHIER",
+                passwordAlgorithm = "TEST",
+                passwordIterations = 1,
+                passwordSaltBase64 = "",
+                passwordHashBase64 = ""
+            )
+        )
     }
 
     @After
@@ -379,7 +406,7 @@ class CashPaymentIntegrationTest {
         database.openCashSession(CashSessionEntity(sessionId, "CASHIER-REVERSAL", "DOP", 5000L, 1L))
         val payment = PaymentEntity("CASH-PAYMENT-REVERSAL", loan.id, 3000L, "Pago reversible", 2L)
         assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
-        assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin", "Registro duplicado", 3L))
+        assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Registro duplicado", 3L))
         assertEquals(PaymentReversalResult.ALREADY_REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin", "Segundo intento", 4L))
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
         val movements = database.cashSessions().findMovements(sessionId)
@@ -396,7 +423,7 @@ class CashPaymentIntegrationTest {
         val payment = PaymentEntity("PAYMENT-EXCESS-REVERSAL", loan.id, 12500L, "Pago con excedente", 10L)
         assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
         assertEquals(2500L, database.customerCredits().getBalance(loan.clientId, "DOP"))
-        assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-002", "admin", "Cobro aplicado por error", 11L))
+        assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-002", "admin1", "Cobro aplicado por error", 11L))
         assertEquals(0L, database.customerCredits().getBalance(loan.clientId, "DOP"))
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
         val installment = database.installments().findForLoan(loan.id).single()
@@ -414,7 +441,7 @@ class CashPaymentIntegrationTest {
             "CONSUME-GENERATED-CREDIT", loan.clientId, loan.id, loan.currency, -2500L,
             "Consumo posterior de crédito", 21L
         ))
-        assertEquals(PaymentReversalResult.GENERATED_CREDIT_ALREADY_USED, database.reversePayment(payment.operationId, "ADMIN-003", "admin", "Reverso bloqueado", 22L))
+        assertEquals(PaymentReversalResult.GENERATED_CREDIT_ALREADY_USED, database.reversePayment(payment.operationId, "ADMIN-003", "admin2", "Reverso bloqueado", 22L))
         assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
         assertEquals(0L, database.loans().findById(loan.id)?.balanceMinor)
     }
@@ -427,9 +454,41 @@ class CashPaymentIntegrationTest {
         val payment = PaymentEntity("CASH-PAYMENT-CLOSED-REVERSAL", loan.id, 1000L, "Cobro para cierre", 31L)
         assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
         database.closeCashSession(sessionId, countedMinor = 1000L, closedAt = 32L)
-        assertEquals(PaymentReversalResult.ORIGINAL_CASH_SESSION_NOT_OPEN, database.reversePayment(payment.operationId, "ADMIN-004", "admin", "Intento tras cierre", 33L))
+        assertEquals(PaymentReversalResult.ORIGINAL_CASH_SESSION_NOT_OPEN, database.reversePayment(payment.operationId, "ADMIN-004", "admin3", "Intento tras cierre", 33L))
         assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
         assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
+    }
+
+
+    @Test
+    fun cashierCannotReverseEvenWhenCallingDatabaseDirectly() = runBlocking {
+        val loan = createDueLoan()
+        val payment = PaymentEntity("PAYMENT-UNAUTHORIZED-REVERSAL", loan.id, 1000L, "Pago protegido", 40L)
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+        assertEquals(
+            PaymentReversalResult.INVALID_ACTOR,
+            database.reversePayment(payment.operationId, "CASHIER-TEST", "cashier", "Motivo no autorizado", 41L)
+        )
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
+    }
+
+    @Test
+    fun reversalServiceRejectsCashierBeforeDatabaseOperation() = runBlocking {
+        val service = PaymentReversalService(
+            database,
+            com.infinityloan.security.StaffAuthenticationService(database.staffAccounts())
+        )
+        val session = com.infinityloan.security.StaffSession(
+            staffId = "CASHIER-TEST",
+            username = "cashier",
+            displayName = "Cajero de prueba",
+            profile = com.infinityloan.security.AccessProfile(com.infinityloan.security.StaffRole.CASHIER)
+        )
+        assertEquals(
+            PaymentReversalResult.INVALID_ACTOR,
+            service.reverse(session, "NONEXISTENT-PAYMENT", "Intento sin permiso")
+        )
     }
 
 

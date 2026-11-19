@@ -253,9 +253,11 @@ private fun AuthenticatedInfinityApp(
     onLogout: () -> Unit
 ) {
     val authenticationService = remember(db) { StaffAuthenticationService(db.staffAccounts()) }
+    val reversalService = remember(db, authenticationService) { PaymentReversalService(db, authenticationService) }
     val clients by db.clients().observeAll().collectAsState(initial = emptyList())
     val loans by db.loans().observeAll().collectAsState(initial = emptyList())
     val payments by db.payments().observeAll().collectAsState(initial = emptyList())
+    val reversedPaymentIds by db.paymentReversals().observeReversedOperationIds().collectAsState(initial = emptyList())
     val installments by db.installments().observeAll().collectAsState(initial = emptyList())
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -371,7 +373,40 @@ private fun AuthenticatedInfinityApp(
     }
 )
                         Screen.LOANS -> LoansScreen(loans, clients)
-                        Screen.PAYMENTS -> PaymentsScreen(payments, loans, clients)
+                        Screen.PAYMENTS -> PaymentsScreen(
+                            payments = payments,
+                            loans = loans,
+                            clients = clients,
+                            reversedPaymentIds = reversedPaymentIds.toSet(),
+                            canReverse = can(Permission.PAYMENT_REVERSE),
+                            onReverse = { payment, reason ->
+                                scope.launch {
+                                    val result = try {
+                                        withContext(Dispatchers.IO) {
+                                            reversalService.reverse(session, payment.operationId, reason)
+                                        }
+                                    } catch (e: Exception) {
+                                        message = e.message ?: "No se pudo completar el reverso; no se confirmaron cambios parciales."
+                                        null
+                                    }
+                                    if (result != null) message = when (result) {
+                                        PaymentReversalResult.REVERSED -> "Reverso contabilizado; se restauraron cuotas, principal y movimientos asociados."
+                                        PaymentReversalResult.ALREADY_REVERSED -> "Este pago ya fue revertido."
+                                        PaymentReversalResult.PAYMENT_NOT_FOUND -> "No se encontró el pago original."
+                                        PaymentReversalResult.LOAN_NOT_FOUND -> "No se encontró el préstamo asociado."
+                                        PaymentReversalResult.INVALID_ACTOR -> "Sesión vencida o sin permiso para revertir pagos."
+                                        PaymentReversalResult.INVALID_REASON -> "Escribe un motivo válido de hasta 500 caracteres."
+                                        PaymentReversalResult.LATER_PAYMENT_EXISTS -> "No se puede revertir: el préstamo tiene otros pagos posteriores o simultáneos."
+                                        PaymentReversalResult.GENERATED_CREDIT_ALREADY_USED -> "No se puede revertir: el crédito generado ya fue utilizado."
+                                        PaymentReversalResult.ORIGINAL_CASH_SESSION_NOT_OPEN -> "No se puede revertir en una caja cerrada; requiere un ajuste autorizado."
+                                        PaymentReversalResult.INVALID_CREDIT_LEDGER -> "El libro de crédito requiere conciliación antes del reverso."
+                                        PaymentReversalResult.INVALID_CASH_LEDGER -> "El movimiento de caja no coincide con el pago original."
+                                        PaymentReversalResult.INVALID_ALLOCATION -> "Las asignaciones o saldos no cuadran; el reverso fue bloqueado."
+                                        PaymentReversalResult.INVALID_AMOUNT -> "El importe del pago original no es válido."
+                                    }
+                                }
+                            }
+                        )
                         Screen.CASH -> CashManagementScreen(db, session, can, onMessage = { message = it })
                         Screen.REPORTS -> ReportsSummaryScreen(db, clients, loans, payments, installments)
                         Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")
@@ -1111,9 +1146,14 @@ private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {
 private fun PaymentsScreen(
     payments: List<PaymentEntity>,
     loans: List<LoanEntity>,
-    clients: List<ClientEntity>
+    clients: List<ClientEntity>,
+    reversedPaymentIds: Set<String>,
+    canReverse: Boolean,
+    onReverse: (PaymentEntity, String) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+    var selectedPayment by remember { mutableStateOf<PaymentEntity?>(null) }
+    var reversalReason by remember { mutableStateOf("") }
 
     val filteredPayments = payments
         .sortedByDescending { it.createdAt }
@@ -1182,29 +1222,75 @@ private fun PaymentsScreen(
                             it.id == loan?.clientId
                         }
 
-                        DataCard(
-                            title = "RECIBO · ${payment.reference.ifBlank { "Sin referencia" }}",
-                            detail = """
-                                CLIENTE
-                                ${client?.fullName ?: "No disponible"}
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            DataCard(
+                                title = "RECIBO · ${payment.reference.ifBlank { "Sin referencia" }}",
+                                detail = """
+                                    CLIENTE
+                                    ${client?.fullName ?: "No disponible"}
 
-                                IMPORTE
-                                ${money(payment.amountMinor)} ${loan?.currency ?: ""}
+                                    IMPORTE
+                                    ${money(payment.amountMinor)} ${loan?.currency ?: ""}
 
-                                FECHA
-                                ${formatDate(payment.createdAt)}
+                                    FECHA
+                                    ${formatDate(payment.createdAt)}
 
-                                PRÉSTAMO
-                                ${payment.loanId.take(8)}
+                                    PRÉSTAMO
+                                    ${payment.loanId.take(8)}
 
-                                ESTADO
-                                REGISTRADO LOCALMENTE
-                            """.trimIndent()
-                        )
+                                    ESTADO
+                                    ${if (payment.operationId in reversedPaymentIds) "REVERTIDO CON AUDITORÍA" else "REGISTRADO LOCALMENTE"}
+                                """.trimIndent()
+                            )
+                            if (canReverse && payment.operationId !in reversedPaymentIds) {
+                                Button(
+                                    onClick = {
+                                        selectedPayment = payment
+                                        reversalReason = ""
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Revertir pago")
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+    val paymentToReverse = selectedPayment
+    if (paymentToReverse != null) {
+        AlertDialog(
+            onDismissRequest = { selectedPayment = null },
+            title = { Text("Confirmar reverso de pago") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Esta operación conservará el recibo original y registrará movimientos compensatorios. Si la caja original está cerrada o el crédito fue consumido, el reverso será bloqueado.")
+                    Text("Importe: ${money(paymentToReverse.amountMinor)}")
+                    OutlinedTextField(
+                        value = reversalReason,
+                        onValueChange = { reversalReason = it },
+                        label = { Text("Motivo obligatorio") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = reversalReason.isNotBlank() && reversalReason.trim().length <= 500,
+                    onClick = {
+                        onReverse(paymentToReverse, reversalReason.trim())
+                        selectedPayment = null
+                    }
+                ) { Text("Confirmar reverso") }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedPayment = null }) { Text("Cancelar") }
+            }
+        )
     }
 }
 @Composable

@@ -23,6 +23,10 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import com.infinityloan.finance.InstallmentPaymentAllocator
 import com.infinityloan.finance.LoanScheduleGenerator
+import com.infinityloan.security.AccessPolicy
+import com.infinityloan.security.AccessProfile
+import com.infinityloan.security.Permission
+import com.infinityloan.security.StaffRole
 
 @Entity(tableName = "clients", indices = [Index(value = ["documentNumber"], unique = true)])
 data class ClientEntity(
@@ -191,6 +195,9 @@ interface PaymentReversalDao {
 
     @Query("SELECT * FROM payment_reversals WHERE originalOperationId = :operationId LIMIT 1")
     suspend fun findByOriginalOperationId(operationId: String): PaymentReversalEntity?
+
+    @Query("SELECT originalOperationId FROM payment_reversals ORDER BY createdAt DESC")
+    fun observeReversedOperationIds(): Flow<List<String>>
 }
 
 data class StaffAccountSummary(
@@ -912,6 +919,24 @@ abstract class InfinityDatabase : RoomDatabase() {
     ): PaymentReversalResult = withTransaction {
         if (actorStaffId.isBlank() || actorUsername.isBlank()) return@withTransaction PaymentReversalResult.INVALID_ACTOR
         if (reason.isBlank() || reason.trim().length > 500) return@withTransaction PaymentReversalResult.INVALID_REASON
+        val persistedActor = staffAccounts().findById(actorStaffId)
+            ?: return@withTransaction PaymentReversalResult.INVALID_ACTOR
+        if (!persistedActor.isActive || persistedActor.username != actorUsername) {
+            return@withTransaction PaymentReversalResult.INVALID_ACTOR
+        }
+        val actorRole = runCatching { StaffRole.valueOf(persistedActor.role) }.getOrNull()
+            ?: return@withTransaction PaymentReversalResult.INVALID_ACTOR
+        fun decodePermissions(encoded: String): Set<Permission> = encoded.split('|').mapNotNull { token ->
+            runCatching { Permission.valueOf(token) }.getOrNull()
+        }.toSet()
+        val actorProfile = AccessProfile(
+            role = actorRole,
+            grants = decodePermissions(persistedActor.grants),
+            denials = decodePermissions(persistedActor.denials)
+        )
+        if (!AccessPolicy.allows(actorProfile, Permission.PAYMENT_REVERSE)) {
+            return@withTransaction PaymentReversalResult.INVALID_ACTOR
+        }
         if (paymentReversals().findByOriginalOperationId(operationId) != null) {
             return@withTransaction PaymentReversalResult.ALREADY_REVERSED
         }

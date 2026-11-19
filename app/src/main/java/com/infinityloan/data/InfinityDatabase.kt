@@ -19,7 +19,10 @@ import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 import java.time.LocalDate
+import java.math.BigDecimal
+import java.math.RoundingMode
 import com.infinityloan.finance.InstallmentPaymentAllocator
+import com.infinityloan.finance.LoanScheduleGenerator
 
 @Entity(tableName = "clients", indices = [Index(value = ["documentNumber"], unique = true)])
 data class ClientEntity(
@@ -392,6 +395,60 @@ interface PaymentDao {
     @Query("SELECT * FROM loan_installments WHERE loanId = :loanId ORDER BY number")
     suspend fun findInstallments(loanId: String): List<LoanInstallmentEntity>
 
+    @Query("SELECT COUNT(*) FROM payments WHERE loanId = :loanId")
+    suspend fun countPaymentsForLoan(loanId: String): Int
+
+    /**
+     * Safely reconstructs only untouched legacy loans. Historical payments cannot
+     * be allocated retroactively without a verified accounting reconciliation.
+     */
+    @Transaction
+    suspend fun ensureLegacySchedule(loan: LoanEntity): PaymentPostResult? {
+        if (findInstallments(loan.id).isNotEmpty()) return null
+        if (countPaymentsForLoan(loan.id) > 0 || loan.balanceMinor != loan.principalMinor) {
+            return PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED
+        }
+        return try {
+            val frequency = LoanScheduleGenerator.Frequency.valueOf(loan.frequency)
+            val firstDueDate = LocalDate.parse(loan.firstDueDate)
+            val principal = BigDecimal.valueOf(loan.principalMinor, 2)
+            val rate = BigDecimal(loan.periodicRate)
+            val schedule = LoanScheduleGenerator.generate(
+                principal = principal,
+                periodicRate = rate,
+                periods = loan.periods,
+                method = loan.method,
+                frequency = frequency,
+                firstDueDate = firstDueDate,
+                scale = 2
+            )
+            val rows = schedule.map { item ->
+                fun toMinor(value: BigDecimal): Long =
+                    value.setScale(2, RoundingMode.UNNECESSARY)
+                        .movePointRight(2).longValueExact()
+                LoanInstallmentEntity(
+                    loanId = loan.id,
+                    number = item.number,
+                    dueDate = item.dueDate.toString(),
+                    principalMinor = toMinor(item.principal),
+                    interestMinor = toMinor(item.interest),
+                    totalMinor = toMinor(item.total),
+                    remainingPrincipalMinor = toMinor(item.remainingPrincipal)
+                )
+            }
+            val scheduledPrincipal = rows.fold(0L) { total, row ->
+                Math.addExact(total, row.principalMinor)
+            }
+            if (rows.size != loan.periods || scheduledPrincipal != loan.principalMinor) {
+                return PaymentPostResult.INVALID_SCHEDULE
+            }
+            installments().insertAll(rows)
+            null
+        } catch (_: Exception) {
+            PaymentPostResult.INVALID_SCHEDULE
+        }
+    }
+
     @Query("""
         UPDATE loan_installments
         SET paidLateFeeMinor = :lateFee,
@@ -427,6 +484,8 @@ interface PaymentDao {
         val loan = findLoan(payment.loanId) ?: return PaymentPostResult.LOAN_NOT_FOUND
         if (loan.status != "ACTIVE") return PaymentPostResult.LOAN_NOT_ACTIVE
 
+        val scheduleResult = ensureLegacySchedule(loan)
+        if (scheduleResult != null) return scheduleResult
         val allInstallments = findInstallments(loan.id)
         if (allInstallments.isEmpty()) return PaymentPostResult.SCHEDULE_NOT_FOUND
 
@@ -608,6 +667,7 @@ abstract class InfinityDatabase : RoomDatabase() {
                     PaymentPostResult.EXCEEDS_BALANCE -> CreditPaymentResult.EXCEEDS_BALANCE
                     PaymentPostResult.SCHEDULE_NOT_FOUND -> CreditPaymentResult.SCHEDULE_NOT_FOUND
                     PaymentPostResult.INVALID_SCHEDULE -> CreditPaymentResult.INVALID_SCHEDULE
+                    PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> CreditPaymentResult.LEGACY_RECONCILIATION_REQUIRED
                     PaymentPostResult.POSTED -> CreditPaymentResult.POSTED
                 }
             }

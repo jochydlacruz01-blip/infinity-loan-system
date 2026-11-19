@@ -11,15 +11,15 @@ Esta documentación distingue los cimientos ya implementados de los controles qu
 - `PasswordHasher` implementa hashes versionados PBKDF2-HMAC-SHA256, sal aleatoria de 16 bytes y comparación en tiempo constante.
 - Room v9 persiste cuentas de empleados, intentos fallidos y bloqueos temporales; el primer inicio permite crear el administrador sin contraseña predeterminada.
 - La interfaz Android exige autenticación antes de abrir el panel y mantiene la sesión en memoria.
-- La navegación y las acciones principales se filtran por permisos; los manejadores de escritura vuelven a comprobar autorización en los flujos integrados.
+- La navegación y las acciones principales se filtran por permisos; `StaffAuthenticationService.hasPermission` vuelve a validar la cuenta persistida, el estado activo y el perfil antes de ejecutar las operaciones protegidas integradas.
 - Existe administración local de empleados, restricciones contra escalamiento de privilegios y protección del último administrador. Los permisos individuales permiten concesiones y denegaciones; las denegaciones prevalecen.
 - Room incluye un registro de auditoría de solo inserción. La interfaz muestra eventos recientes a perfiles autorizados.
 - Se registran operaciones principales de clientes, préstamos, pagos y administración de empleados.
-- Las operaciones de caja exigen sesión válida y permisos en la interfaz; el cobro de préstamo se registra transaccionalmente con el movimiento de caja.
+- Las operaciones integradas de clientes, préstamos, pagos y caja consultan el servicio de autorización local antes de escribir; el cobro se registra transaccionalmente con el movimiento de caja. Esto sigue siendo una protección local del cliente, no una frontera segura frente a manipulación del APK.
 
 ### Límites actuales
 
-La autenticación y auditoría son locales a este dispositivo. Todavía no hay backend compartido, sesiones de servidor ni sincronización multi-dispositivo. El bloqueo local de 15 minutos después de cinco contraseñas incorrectas no sustituye limitación de intentos por IP/usuario en servidor. La cobertura de autorización y auditoría no está demostrada para todas las rutas de escritura; debe completarse en la capa de dominio/servicio y probarse invocando operaciones directamente. Los permisos comprobados en la UI no constituyen una frontera de seguridad contra manipulación del cliente. No se considera seguridad de producción.
+La autenticación y auditoría son locales a este dispositivo. Todavía no hay backend compartido, sesiones de servidor ni sincronización multi-dispositivo. El bloqueo local de 15 minutos después de cinco contraseñas incorrectas no sustituye limitación de intentos por IP/usuario en servidor. La autorización local centralizada se ha reforzado en los manejadores integrados de clientes, préstamos, pagos y caja mediante `hasPermission`, con pruebas de permisos y revocación de sesiones modificadas. Aún falta encapsular cada escritura en casos de uso/repositorios protegidos y demostrar la cobertura de todas las rutas invocando operaciones directamente. Los permisos comprobados en la UI no constituyen una frontera de seguridad contra manipulación del cliente. No se considera seguridad de producción.
 
 ## Reglas obligatorias para la integración
 

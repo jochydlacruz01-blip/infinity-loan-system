@@ -832,6 +832,30 @@ abstract class InfinityDatabase : RoomDatabase() {
      * Cash operations are serialized inside Room transactions and validated by the domain model.
      * Amounts are stored in minor units (integer cents/centavos).
      */
+    /** Atomically posts a loan payment and its cash receipt against an open session. */
+    suspend fun postCashLoanPayment(payment: PaymentEntity, sessionId: String): PaymentPostResult = withTransaction {
+        if (payment.amountMinor <= 0L) return@withTransaction PaymentPostResult.INVALID_AMOUNT
+        if (payments().findByOperationId(payment.operationId) != null) return@withTransaction PaymentPostResult.DUPLICATE
+        val loan = loans().findById(payment.loanId) ?: return@withTransaction PaymentPostResult.LOAN_NOT_FOUND
+        if (loan.status != "ACTIVE") return@withTransaction PaymentPostResult.LOAN_NOT_ACTIVE
+        val session = cashSessions().findSession(sessionId) ?: return@withTransaction PaymentPostResult.INVALID_SCHEDULE
+        if (session.closedAt != null || session.currency != loan.currency) return@withTransaction PaymentPostResult.INVALID_SCHEDULE
+        check(cashSessions().findOpenSession(session.staffId, session.currency)?.sessionId == sessionId) { "La sesión no es la caja abierta del empleado." }
+        val result = payments().postPayment(payment)
+        if (result != PaymentPostResult.POSTED) return@withTransaction result
+        val cashOperationId = "CASH-PAY-" + payment.operationId
+        check(cashSessions().findMovementByOperation(cashOperationId) == null) { "El movimiento de caja ya existe." }
+        val existing = cashSessions().findMovements(sessionId).map { row ->
+            com.infinityloan.cash.CashMovement(row.operationId, com.infinityloan.cash.CashMovementType.valueOf(row.type), row.amountMinor, row.reason, row.createdAt)
+        }
+        val reason = "Cobro de préstamo " + payment.loanId + " / " + payment.operationId
+        val domain = com.infinityloan.cash.CashSession(session.sessionId, session.staffId, session.currency, session.openingMinor, movements = existing).addMovement(
+            com.infinityloan.cash.CashMovement(cashOperationId, com.infinityloan.cash.CashMovementType.CASH_IN, payment.amountMinor, reason, payment.createdAt)
+        )
+        check(domain.expectedCashMinor >= 0L)
+        cashSessions().insertMovement(CashMovementEntity(cashOperationId, sessionId, "CASH_IN", payment.amountMinor, reason, payment.createdAt))
+        PaymentPostResult.POSTED
+    }
     suspend fun openCashSession(session: CashSessionEntity) = withTransaction {
         require(session.sessionId.isNotBlank() && session.staffId.isNotBlank())
         require(session.currency in setOf("DOP", "USD", "EUR"))

@@ -19,9 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.infinityloan.data.*
 import com.infinityloan.finance.LoanScheduleGenerator
+import com.infinityloan.finance.MinorUnitTotals
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
-import java.math.BigInteger
 import java.math.RoundingMode
 import java.util.UUID
 import java.text.SimpleDateFormat
@@ -854,15 +854,10 @@ private fun PaymentForm(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
 }
 
-private fun moneyTotal(amounts: Iterable<Long>): String {
-    val totalMinor = amounts.fold(BigInteger.ZERO) { total, amount ->
-        total.add(BigInteger.valueOf(amount))
-    }
-    return BigDecimal(totalMinor)
-        .movePointLeft(2)
+private fun moneyTotal(amounts: Iterable<Long>): String =
+    MinorUnitTotals.sum(amounts)
         .setScale(2, RoundingMode.HALF_UP)
         .toPlainString()
-}
 
 private fun money(minor: Long): String =
     BigDecimal.valueOf(minor, 2)

@@ -71,7 +71,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         val payment = PaymentEntity(
             operationId = "PAYMENT-TEST-001",
@@ -115,7 +115,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         val zeroPayment = PaymentEntity(
             operationId = "TEST-ZERO-001",
@@ -238,7 +238,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         val payment1 = PaymentEntity(
             operationId = "TEST-CONCURRENT-001",
@@ -292,7 +292,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         database.customerCredits().insert(
             CustomerCreditMovementEntity(
@@ -350,7 +350,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         database.customerCredits().insert(
             CustomerCreditMovementEntity(
@@ -412,7 +412,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         database.customerCredits().insert(
             CustomerCreditMovementEntity(
@@ -471,7 +471,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         database.customerCredits().insert(
             CustomerCreditMovementEntity(
@@ -536,7 +536,7 @@ class PaymentDaoTest {
             status = "CLOSED"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         database.customerCredits().insert(
             CustomerCreditMovementEntity(
@@ -600,7 +600,7 @@ class PaymentDaoTest {
             method = "FRENCH"
         )
 
-        database.loans().insert(loan)
+        insertLoanWithDueInstallment(loan)
 
         database.customerCredits().insert(
             CustomerCreditMovementEntity(

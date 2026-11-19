@@ -126,8 +126,6 @@ class CashReportTest {
     }
 
     @Test fun emptyReportIsEmpty() { assertTrue(buildCashReport(emptyList()).isEmpty()) }
-}
-
 
     @Test fun reportArithmeticOverflowFailsInsteadOfWrapping() {
         val first = CashSession("first", "staff", "USD", Long.MAX_VALUE)
@@ -152,3 +150,4 @@ class CashReportTest {
         assertEquals(900L, report.countedCashMinor)
         assertEquals(6_000L, report.expectedCashMinor)
     }
+}

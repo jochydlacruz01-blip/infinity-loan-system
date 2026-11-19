@@ -18,12 +18,11 @@ suspend fun InfinityDatabase.reconcilePersistedCashPayments(): PersistedCashReco
     val persistedPayments = cashSessions().findAllPaymentsForCashAudit()
     val reversedIds = paymentReversals().findAllReversedPaymentIds().toSet()
     val eligiblePayments = persistedPayments.filter { it.operationId !in reversedIds }
-    val eligibleIds = eligiblePayments.map { it.operationId }.toSet()
     val receiptRows = cashSessions().findAllMovementsForAudit().filter { row ->
         row.type == "CASH_IN" && row.operationId.startsWith("CASH-PAY-")
     }.filter { row ->
         val linkedId = row.operationId.removePrefix("CASH-PAY-")
-        linkedId in eligibleIds
+        linkedId !in reversedIds
     }
     val payments = eligiblePayments.map { row ->
         ReconciliationPayment(row.operationId, row.amountMinor, row.currency)

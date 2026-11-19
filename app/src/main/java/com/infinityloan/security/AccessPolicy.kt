@@ -26,6 +26,7 @@ enum class Permission {
     CUSTOMER_CREDIT_APPLY,
     CASH_SESSION_OPEN,
     CASH_SESSION_CLOSE,
+    CASH_MOVEMENT_MANAGE,
     REPORT_VIEW,
     REPORT_EXPORT,
     STAFF_VIEW,
@@ -61,6 +62,7 @@ object AccessPolicy {
         Permission.CUSTOMER_CREDIT_VIEW,
         Permission.CASH_SESSION_OPEN,
         Permission.CASH_SESSION_CLOSE,
+        Permission.CASH_MOVEMENT_MANAGE,
         Permission.REPORT_VIEW,
         Permission.REPORT_EXPORT,
         Permission.STAFF_VIEW,
@@ -76,7 +78,8 @@ object AccessPolicy {
         Permission.CUSTOMER_CREDIT_VIEW,
         Permission.CUSTOMER_CREDIT_APPLY,
         Permission.CASH_SESSION_OPEN,
-        Permission.CASH_SESSION_CLOSE
+        Permission.CASH_SESSION_CLOSE,
+        Permission.CASH_MOVEMENT_MANAGE
     )
 
     private val collector = setOf(

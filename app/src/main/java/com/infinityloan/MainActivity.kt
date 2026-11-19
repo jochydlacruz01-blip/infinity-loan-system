@@ -58,7 +58,8 @@ private enum class Screen(val label: String, val permission: Permission) {
     HOME("Panel principal", Permission.DASHBOARD_VIEW),
     CLIENTS("Clientes", Permission.CLIENT_VIEW),
     LOANS("Préstamos y cuotas", Permission.LOAN_VIEW),
-    PAYMENTS("Pagos y caja", Permission.PAYMENT_VIEW),
+    PAYMENTS("Pagos", Permission.PAYMENT_VIEW),
+    CASH("Gestión de caja", Permission.CASH_SESSION_OPEN),
     REPORTS("Informes", Permission.REPORT_VIEW),
     SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE),
     STAFF("Personal", Permission.STAFF_VIEW),
@@ -370,6 +371,7 @@ private fun AuthenticatedInfinityApp(
 )
                         Screen.LOANS -> LoansScreen(loans, clients)
                         Screen.PAYMENTS -> PaymentsScreen(payments, loans, clients)
+                        Screen.CASH -> CashManagementScreen(db, session, can, onMessage = { message = it })
                         Screen.REPORTS -> ReportsSummaryScreen(clients, loans, payments, installments)
                         Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")
                         Screen.STAFF -> StaffManagementScreen(
@@ -576,6 +578,95 @@ private fun AuthenticatedInfinityApp(
         }
     )
 }
+
+
+@Composable
+private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, can: (Permission) -> Boolean, onMessage: (String) -> Unit) {
+    val openSessions by db.cashSessions().observeOpenSessions().collectAsState(initial = emptyList())
+    val allSessions by db.cashSessions().observeSessions().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
+    var currency by remember { mutableStateOf("DOP") }
+    var opening by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var reason by remember { mutableStateOf("") }
+    var counted by remember { mutableStateOf("") }
+    val own = openSessions.firstOrNull { it.staffId == session.staffId && it.currency == currency }
+    val ownMovements by (if (own == null) kotlinx.coroutines.flow.flowOf(emptyList()) else db.cashSessions().observeMovements(own.sessionId)).collectAsState(initial = emptyList())
+    fun minor(value: String): Long = BigDecimal(value.trim()).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
+    fun display(value: Long): String = BigDecimal.valueOf(value, 2).toPlainString()
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("CONTROL DE CAJA", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Sesión individual · " + session.displayName, color = Muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("DOP", "USD", "EUR").forEach { c -> FilterChip(selected = currency == c, onClick = { currency = c }, label = { Text(c) }) } }
+        }
+        item {
+            if (own == null) {
+                OutlinedTextField(value = opening, onValueChange = { opening = it }, label = { Text("Fondo inicial ($currency)") }, modifier = Modifier.fillMaxWidth())
+                Button(enabled = can(Permission.CASH_SESSION_OPEN) && opening.isNotBlank(), onClick = {
+                    scope.launch { try {
+                        val startMinor = minor(opening); require(startMinor >= 0L)
+                        db.withTransaction {
+                            val newSession = CashSessionEntity(UUID.randomUUID().toString(), session.staffId, currency, startMinor, System.currentTimeMillis())
+                            db.openCashSession(newSession)
+                            db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_OPENED", "CASH_SESSION", newSession.sessionId, "currency=$currency;openingMinor=$startMinor"))
+                        }
+                        opening=""; onMessage("Caja abierta ($currency).")
+                    } catch(e:Exception) { onMessage(e.message ?: "No se pudo abrir la caja.") } }
+                }) { Text("Abrir caja") }
+            } else {
+                val expected = ownMovements.fold(own.openingMinor) { acc, m -> if(m.type=="CASH_IN") Math.addExact(acc,m.amountMinor) else Math.subtractExact(acc,m.amountMinor) }
+                DataCard("Caja abierta · $currency", "Fondo inicial: " + display(own.openingMinor) + " $currency\nMovimientos: " + ownMovements.size + "\nEfectivo esperado: " + display(expected) + " $currency")
+                Text("Registrar movimiento", color = Gold, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Monto") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text("Motivo / descripción") }, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(enabled = can(Permission.PAYMENT_REGISTER) && amount.isNotBlank() && reason.isNotBlank(), onClick = {
+                        scope.launch { try {
+                            val value = minor(amount); require(value > 0)
+                            db.withTransaction {
+                                val m = CashMovementEntity(UUID.randomUUID().toString(), own.sessionId, "CASH_IN", value, reason.trim(), System.currentTimeMillis())
+                                db.postCashMovement(m)
+                                db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_IN_RECORDED", "CASH_MOVEMENT", m.operationId, "amountMinor=$value;currency=$currency"))
+                            }
+                            amount=""; reason=""; onMessage("Entrada registrada.")
+                        } catch(e:Exception) { onMessage(e.message ?: "No se pudo registrar.") } }
+                    }) { Text("Entrada") }
+                    Button(enabled = can(Permission.CASH_SESSION_OPEN) && amount.isNotBlank() && reason.isNotBlank(), onClick = {
+                        scope.launch { try {
+                            val value = minor(amount); require(value > 0)
+                            db.withTransaction {
+                                val m = CashMovementEntity(UUID.randomUUID().toString(), own.sessionId, "CASH_OUT", value, reason.trim(), System.currentTimeMillis())
+                                db.postCashMovement(m)
+                                db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_OUT_RECORDED", "CASH_MOVEMENT", m.operationId, "amountMinor=$value;currency=$currency"))
+                            }
+                            amount=""; reason=""; onMessage("Salida registrada.")
+                        } catch(e:Exception) { onMessage(e.message ?: "No se pudo registrar.") } }
+                    }) { Text("Salida") }
+                }
+                Text("Movimientos de la sesión", color = Gold, fontWeight = FontWeight.SemiBold)
+                items(ownMovements) { m -> DataCard(if(m.type=="CASH_IN") "Entrada" else "Salida", m.reason + "\n" + display(m.amountMinor) + " $currency") }
+                OutlinedTextField(value = counted, onValueChange = { counted = it }, label = { Text("Conteo físico al cierre ($currency)") }, modifier = Modifier.fillMaxWidth())
+                Button(enabled = can(Permission.CASH_SESSION_CLOSE) && counted.isNotBlank(), onClick = {
+                    scope.launch { try {
+                        val count = minor(counted); require(count >= 0L)
+                        db.withTransaction {
+                            db.closeCashSession(own.sessionId, count)
+                            db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_CLOSED", "CASH_SESSION", own.sessionId, "countedMinor=$count;expectedMinor=$expected;varianceMinor=${Math.subtractExact(count,expected)}"))
+                        }
+                        counted=""; onMessage("Caja cerrada. Diferencia: " + display(Math.subtractExact(count,expected)) + " $currency")
+                    } catch(e:Exception) { onMessage(e.message ?: "No se pudo cerrar.") } }
+                }) { Text("Cerrar y conciliar caja") }
+            }
+        }
+        item { Text("Historial de sesiones", color = Gold, fontWeight = FontWeight.Bold) }
+        items(allSessions.take(30)) { row ->
+            val state = if(row.closedAt==null) "ABIERTA" else "CERRADA"
+            DataCard("$state · ${row.currency}", "Apertura: " + display(row.openingMinor) + "\nFecha: " + SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(row.openedAt)) + "\n" + (if(row.countedClosingMinor!=null) "Conteo cierre: " + display(row.countedClosingMinor) else "En curso"))
+        }
+    }
+}
+
 
 @Composable
 private fun ReportsSummaryScreen(

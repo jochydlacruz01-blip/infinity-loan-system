@@ -41,7 +41,7 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 - Backend central compartido entre la aplicación Android y la plataforma web, con compartición de cartera entre varios celulares/cobradores opcional por empresa (y restricciones por sucursal, permisos y asignación); sincronización de cambios, cola offline, idempotencia, resolución de conflictos y revocación de dispositivos aún por implementar.
 - Completar autorización en cada caso de uso/operación sensible; migrar la identidad local a sesiones seguras y autenticación centralizada en backend para varios dispositivos.
 - Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
-- Caja local: sesiones persistidas, movimientos de entrada/salida, validación de saldo disponible, cierre con arqueo físico y API transaccional que enlaza cobros de préstamos con entradas de efectivo; aún pendiente de integración de interfaz, permisos, auditoría y conciliación.
+- Caja local: sesiones persistidas, movimientos de entrada/salida, validación de saldo disponible, cierre con arqueo físico; los cobros desde el formulario de pagos requieren una sesión abierta en la moneda del préstamo y se vinculan transaccionalmente a entradas de caja, con auditoría. Pendiente ampliar pruebas, conciliación/reportes y controles operativos.
 - Mora, cargos, recibos, reversos, refinanciamientos y reglas completas de pagos anticipados, con políticas de negocio aprobadas.
 - GPS y visitas de cobradores con permisos, controles de privacidad y auditoría.
 - Portal del cliente y pasarela de pagos digitales.

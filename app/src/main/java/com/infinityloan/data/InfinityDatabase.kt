@@ -631,7 +631,8 @@ enum class CreditPaymentResult {
     EXCEEDS_BALANCE,
     INSUFFICIENT_CREDIT,
     SCHEDULE_NOT_FOUND,
-    INVALID_SCHEDULE
+    INVALID_SCHEDULE,
+    LEGACY_RECONCILIATION_REQUIRED
 }
 @Database(
     entities = [

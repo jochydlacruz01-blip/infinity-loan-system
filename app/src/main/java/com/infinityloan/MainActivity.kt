@@ -1609,6 +1609,34 @@ private fun StaffManagementScreen(
                             Text(if (account.isActive) "Desactivar" else "Activar", color = Gold)
                         }
                     }
+                    if (canCustomizePermissions && account.id != session.staffId) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val targetEntity = withContext(Dispatchers.IO) {
+                                            db.staffAccounts().findById(account.id)
+                                        } ?: throw IllegalArgumentException("La cuenta ya no existe.")
+                                        val role = StaffRole.valueOf(targetEntity.role)
+                                        val grants = targetEntity.grants.split('|').mapNotNull {
+                                            runCatching { Permission.valueOf(it) }.getOrNull()
+                                        }.toSet()
+                                        val denials = targetEntity.denials.split('|').mapNotNull {
+                                            runCatching { Permission.valueOf(it) }.getOrNull()
+                                        }.toSet()
+                                        selectedPermissions = AccessPolicy.effectivePermissions(
+                                            AccessProfile(role, grants, denials)
+                                        )
+                                        editingAccount = account
+                                    } catch (error: Exception) {
+                                        onMessage(error.message ?: "No se pudieron cargar los permisos.")
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Permisos", color = Gold)
+                        }
+                    }
                 }
             }
         }

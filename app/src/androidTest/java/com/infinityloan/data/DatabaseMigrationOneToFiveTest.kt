@@ -155,6 +155,58 @@ class DatabaseMigrationOneToNineTest {
                 assertTrue(cursor.moveToFirst())
                 assertEquals(1L, cursor.getLong(0))
             }
+
+            // Complete the historical upgrade path through the current schema (v10).
+            InfinityDatabase.MIGRATION_9_10.migrate(db)
+
+            db.query("PRAGMA table_info(payment_reversals)").use { cursor ->
+                val columns = mutableSetOf<String>()
+                while (cursor.moveToNext()) columns += cursor.getString(1)
+                assertEquals(
+                    setOf(
+                        "reversalId", "originalOperationId", "loanId",
+                        "amountMinor", "reason", "actorStaffId", "createdAt"
+                    ),
+                    columns
+                )
+            }
+
+            db.execSQL("""
+                INSERT INTO payment_reversals (
+                    reversalId, originalOperationId, loanId, amountMinor,
+                    reason, actorStaffId, createdAt
+                ) VALUES (
+                    'reversal-1', 'payment-1', 'loan-1', 1500,
+                    'Prueba de migración', 'staff-1', 12
+                )
+            """.trimIndent())
+
+            db.query("""
+                SELECT originalOperationId, loanId, amountMinor
+                FROM payment_reversals WHERE reversalId = 'reversal-1'
+            """.trimIndent()).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("payment-1", cursor.getString(0))
+                assertEquals("loan-1", cursor.getString(1))
+                assertEquals(1500L, cursor.getLong(2))
+            }
+
+            db.query("PRAGMA index_list(payment_reversals)").use { cursor ->
+                val indexes = mutableSetOf<String>()
+                while (cursor.moveToNext()) indexes += cursor.getString(1)
+                assertTrue(
+                    "Missing unique original-payment reversal index",
+                    indexes.contains("index_payment_reversals_originalOperationId")
+                )
+                assertTrue(
+                    "Missing loanId reversal index",
+                    indexes.contains("index_payment_reversals_loanId")
+                )
+            }
+
+            db.query("PRAGMA foreign_key_check").use { cursor ->
+                assertTrue("Migration v10 left foreign-key violations", !cursor.moveToFirst())
+            }
         } finally {
             helper.close()
         }

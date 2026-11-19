@@ -59,6 +59,59 @@ class StaffAuthenticationService(
         }
     }
 
+    suspend fun createStaffAccount(
+        actor: StaffSession,
+        username: String,
+        displayName: String,
+        role: StaffRole,
+        password: CharArray,
+        grants: Set<Permission> = emptySet(),
+        denials: Set<Permission> = emptySet()
+    ): Boolean {
+        try {
+            require(AccessPolicy.allows(actor.profile, Permission.STAFF_MANAGE)) {
+                "No tienes permiso para administrar empleados."
+            }
+            require(role != StaffRole.ADMINISTRATOR || actor.profile.role == StaffRole.ADMINISTRATOR) {
+                "Solo un administrador puede crear otra cuenta administradora."
+            }
+            require(
+                grants.isEmpty() && denials.isEmpty() ||
+                    AccessPolicy.allows(actor.profile, Permission.ROLE_PERMISSION_MANAGE)
+            ) { "No tienes permiso para personalizar los permisos." }
+            require((grants + denials).all { AccessPolicy.allows(actor.profile, it) }) {
+                "No puedes asignar permisos que tu perfil no posee."
+            }
+
+            val normalizedUsername = normalizeUsername(username)
+            require(normalizedUsername.length in 3..64) {
+                "El usuario debe tener entre 3 y 64 caracteres."
+            }
+            require(displayName.isNotBlank()) { "El nombre no puede estar vacío." }
+            require(password.size >= 12) {
+                "La contraseña debe tener al menos 12 caracteres."
+            }
+
+            val hash = PasswordHasher.hash(password)
+            staffAccounts.insert(
+                StaffAccountEntity(
+                    username = normalizedUsername,
+                    displayName = displayName.trim(),
+                    role = role.name,
+                    grants = grants.sortedBy { it.name }.joinToString("|") { it.name },
+                    denials = denials.sortedBy { it.name }.joinToString("|") { it.name },
+                    passwordAlgorithm = hash.algorithm,
+                    passwordIterations = hash.iterations,
+                    passwordSaltBase64 = hash.saltBase64,
+                    passwordHashBase64 = hash.hashBase64
+                )
+            )
+            return true
+        } finally {
+            password.fill('\\u0000')
+        }
+    }
+
     suspend fun authenticate(
         username: String,
         password: CharArray

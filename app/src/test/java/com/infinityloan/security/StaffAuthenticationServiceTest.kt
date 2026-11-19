@@ -25,6 +25,9 @@ class StaffAuthenticationServiceTest {
 
         override suspend fun count(): Int = accounts.size
 
+        override suspend fun countActiveAdministrators(): Int =
+            accounts.values.count { it.role == StaffRole.ADMINISTRATOR.name && it.isActive }
+
         override suspend fun getAllSummaries(): List<StaffAccountSummary> =
             accounts.values.sortedBy { it.displayName }.map {
                 StaffAccountSummary(

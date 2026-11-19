@@ -142,3 +142,19 @@ La cartera debe ser compartida por dos o más celulares y por los clientes web f
 - `GET /v1/devices` y `DELETE /v1/devices/{deviceId}` (gestión/revocación de dispositivos, sujeto a permisos)
 
 Las rutas son propuestas contractuales, no endpoints disponibles aún. Se debe implementar aislamiento por sucursal, TLS, autorización y trazabilidad antes de conectar celulares reales.
+
+
+## Compartición de cartera: opcional por empresa (requisito aprobado)
+
+La sincronización entre varios celulares y cobradores será una función optativa, controlada por configuración de la empresa; no se activará automáticamente para todas las organizaciones.
+
+- En la configuración inicial, la empresa elige entre modo individual/local-organizado y modo cartera compartida multiusuario (cuando el backend esté disponible).
+- Un administrador autorizado podrá activar o desactivar la compartición, con confirmación, registro de auditoría y advertencia sobre el alcance de los datos.
+- La opción compartida permite que los empleados autorizados consulten y trabajen la cartera de la empresa, en los límites de roles, permisos, sucursal y asignaciones definidos.
+- La empresa podrá restringir cobradores a clientes, grupos o préstamos asignados, en vez de compartir toda la cartera; permisos de supervisores y administradores podrán ser más amplios.
+- Compartir no significa acceso irrestricto: cada petición se valida en servidor por empresa (tenant), sucursal, usuario, rol, permiso y asignación.
+- Empresas distintas quedan aisladas. Ninguna opción de compartir puede exponer clientes, pagos, documentos o balances a otra empresa.
+- Desactivar el modo compartido detiene el acceso sincronizado de los dispositivos y aplica la política de la empresa; no borra automáticamente registros ni historial. Se define un proceso seguro para conservar y exportar registros y evitar pérdida de datos.
+- El modo y las asignaciones deben reflejarse en web y Android. Deben probarse casos de compartir, limitar, revocar y desactivar.
+
+El ajuste de compartición es un requisito de diseño, no una función disponible hasta que el backend, configuración, autorización y sincronización estén implementados y validados.

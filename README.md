@@ -9,7 +9,7 @@ Aplicación Android nativa en desarrollo para gestión de préstamos. El proyect
 - Android nativo: Kotlin + Jetpack Compose.
 - Android Gradle Plugin 8.7.3, Kotlin 2.0.21, Gradle 8.9 y JDK 17.
 - `compileSdk 35`, `targetSdk 35`, `minSdk 26`.
-- Persistencia local Room, esquema versión 5.
+- Persistencia local Room, esquema versión 6, con cuentas de empleados y migraciones 1→6.
 - Diseño corporativo azul marino y dorado.
 - Monedas modeladas: DOP, USD y EUR.
 - Motor financiero con amortización francesa, italiana y americana.
@@ -19,7 +19,7 @@ Aplicación Android nativa en desarrollo para gestión de préstamos. El proyect
 - Distribución de pagos por antigüedad de cuotas; excedentes registrados como movimientos de crédito del cliente.
 - Auditoría de asignaciones de pago y protección transaccional en operaciones de pago.
 - Sumas de importes en el panel y saldos de crédito con aritmética comprobada para evitar desbordamientos.
-- Cimientos de seguridad en desarrollo: política RBAC por capacidades y hash PBKDF2 versionado. Todavía no están integrados en un inicio de sesión ni en autorización efectiva de operaciones.
+- Cimientos de seguridad: política RBAC por capacidades, hash PBKDF2 versionado, cuentas de empleados persistidas en Room y servicio de autenticación local con creación única del administrador inicial. La interfaz de inicio de sesión y la aplicación transversal de permisos todavía deben integrarse y probarse; no se considera seguridad de producción.
 
 ## Validación automatizada
 
@@ -39,7 +39,7 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 ## Funciones pendientes antes de producción
 
 - Backend central compartido entre la aplicación Android y la plataforma web.
-- Integración completa de autenticación, sesiones y autorización real por roles (los cimientos de RBAC y hash de contraseñas están implementados, pero todavía no protegen la interfaz ni las operaciones).
+- Integración de autenticación en la interfaz, gestión de empleados y autorización en cada caso de uso/operación sensible; sesiones seguras y autenticación centralizada en backend para varios dispositivos.
 - Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
 - Caja, cierres, arqueos, contabilidad y conciliación.
 - Mora, cargos, recibos, reversos, refinanciamientos y reglas completas de pagos anticipados, con políticas de negocio aprobadas.

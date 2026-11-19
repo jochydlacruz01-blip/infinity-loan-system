@@ -406,9 +406,7 @@ private fun ClientsScreen(
         client.phone.contains(query, ignoreCase = true)
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -449,35 +447,41 @@ private fun ClientsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredClients, key = { it.id }) { client ->
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onEdit(client) },
-        colors = CardDefaults.cardColors(
-            containerColor = Panel
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            Text(
-                text = client.fullName,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-            Text("Documento: ${client.documentNumber}", color = Muted)
-            Text("Teléfono: ${client.phone}", color = Muted)
-            Text("Dirección: ${client.address}", color = Muted)
-            Text("Registrado: ${formatDate(client.createdAt)}", color = Muted)
-            Text(
-                "Toca para editar el expediente",
-                color = Gold,
-                fontSize = 12.sp
-            )
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onEdit(client) },
+                            colors = CardDefaults.cardColors(
+                                containerColor = Panel
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Text(
+                                    client.fullName,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text("Documento: ${client.documentNumber}", color = Muted)
+                                Text("Teléfono: ${client.phone}", color = Muted)
+                                Text("Dirección: ${client.address}", color = Muted)
+                                Text("Registrado: ${formatDate(client.createdAt)}", color = Muted)
+                                Text(
+                                    "Toca para editar el expediente",
+                                    color = Gold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
+
 
 @Composable
 private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>) {

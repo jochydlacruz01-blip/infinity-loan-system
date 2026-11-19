@@ -15,12 +15,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.infinityloan.data.*
 import com.infinityloan.finance.LoanScheduleGenerator
 import com.infinityloan.finance.MinorUnitTotals
+import com.infinityloan.security.StaffAuthenticationService
+import com.infinityloan.security.StaffSession
+import com.infinityloan.security.AuthenticationResult
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
@@ -47,9 +53,171 @@ private enum class Screen(val label: String) {
     PAYMENTS("Pagos y caja"), REPORTS("Informes"), SETTINGS("Configuración")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun InfinityApp(db: InfinityDatabase) {
+    var session by remember { mutableStateOf<StaffSession?>(null) }
+    var accountCount by remember { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(db) {
+        accountCount = withContext(Dispatchers.IO) { db.staffAccounts().count() }
+    }
+
+    val currentSession = session
+    if (currentSession == null) {
+        StaffAccessGate(
+            accountCount = accountCount,
+            service = remember(db) { StaffAuthenticationService(db.staffAccounts()) },
+            onAuthenticated = { session = it }
+        )
+    } else {
+        AuthenticatedInfinityApp(
+            db = db,
+            session = currentSession,
+            onLogout = { session = null }
+        )
+    }
+}
+
+@Composable
+private fun StaffAccessGate(
+    accountCount: Int?,
+    service: StaffAuthenticationService,
+    onAuthenticated: (StaffSession) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val firstRun = accountCount == 0
+
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary = Gold, background = Navy, surface = Panel,
+        onPrimary = Navy, onBackground = Color.White, onSurface = Color.White
+    )) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text("INFINITY", color = Gold, fontWeight = FontWeight.Bold, fontSize = 27.sp)
+                    Text("LOAN SYSTEM", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (accountCount == null) "Preparando acceso seguro…"
+                        else if (firstRun) "Configuración inicial · Administrador principal"
+                        else "Acceso del personal",
+                        color = Muted
+                    )
+                    if (accountCount != null) {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            label = { Text("Usuario") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy
+                        )
+                        if (firstRun) {
+                            OutlinedTextField(
+                                value = displayName,
+                                onValueChange = { displayName = it },
+                                label = { Text("Nombre del administrador") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !busy
+                            )
+                        }
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text(if (firstRun) "Contraseña (mínimo 12 caracteres)" else "Contraseña") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy
+                        )
+                        Button(
+                            onClick = {
+                                val submittedPassword = password
+                                password = ""
+                                busy = true
+                                message = null
+                                scope.launch {
+                                    try {
+                                        if (firstRun) {
+                                            val created = withContext(Dispatchers.IO) {
+                                                service.createInitialAdministrator(
+                                                    username, displayName, submittedPassword.toCharArray()
+                                                )
+                                            }
+                                            if (created) {
+                                                accountCount = 1
+                                                message = "Administrador creado. Inicia sesión con tus credenciales."
+                                            } else {
+                                                accountCount = 1
+                                                message = "La configuración inicial ya fue completada. Inicia sesión."
+                                            }
+                                        } else {
+                                            val (result, authenticatedSession) = withContext(Dispatchers.IO) {
+                                                service.authenticate(username, submittedPassword.toCharArray())
+                                            }
+                                            when (result) {
+                                                AuthenticationResult.AUTHENTICATED ->
+                                                    authenticatedSession?.let(onAuthenticated)
+                                                AuthenticationResult.INVALID_CREDENTIALS ->
+                                                    message = "Usuario o contraseña incorrectos."
+                                                AuthenticationResult.ACCOUNT_DISABLED ->
+                                                    message = "Esta cuenta está desactivada. Contacta al administrador."
+                                            }
+                                        }
+                                    } catch (error: IllegalArgumentException) {
+                                        message = error.message ?: "No se pudieron validar las credenciales."
+                                    } catch (_: Exception) {
+                                        message = "No se pudo completar la operación de acceso."
+                                    } finally {
+                                        busy = false
+                                    }
+                                }
+                            },
+                            enabled = !busy && username.isNotBlank() && password.isNotEmpty() &&
+                                (!firstRun || displayName.isNotBlank()),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Navy)
+                        ) {
+                            Text(
+                                if (busy) "Procesando…" else if (firstRun) "Crear administrador" else "Iniciar sesión",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        message?.let { Text(it, color = Gold) }
+                    }
+                    Text(
+                        "Las credenciales de esta versión se almacenan localmente en este dispositivo. La identidad compartida entre sucursales y dispositivos requiere el backend central.",
+                        color = Muted,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AuthenticatedInfinityApp(
+    db: InfinityDatabase,
+    session: StaffSession,
+    onLogout: () -> Unit
+) {
     val clients by db.clients().observeAll().collectAsState(initial = emptyList())
     val loans by db.loans().observeAll().collectAsState(initial = emptyList())
     val payments by db.payments().observeAll().collectAsState(initial = emptyList())
@@ -97,7 +265,17 @@ private fun InfinityApp(db: InfinityDatabase) {
                 containerColor = Navy,
                 topBar = {
                     TopAppBar(
-                        title = { Text(screen.label, color = Color.White, fontWeight = FontWeight.SemiBold) },
+                        title = {
+                            Column {
+                                Text(screen.label, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text(session.displayName, color = Muted, fontSize = 10.sp)
+                            }
+                        },
+                        actions = {
+                            TextButton(onClick = onLogout) {
+                                Text("Salir", color = Gold)
+                            }
+                        },
                         navigationIcon = {
                             TextButton(onClick = { scope.launch { drawerState.open() } }) {
                                 Text("☰", color = Gold, fontSize = 25.sp)

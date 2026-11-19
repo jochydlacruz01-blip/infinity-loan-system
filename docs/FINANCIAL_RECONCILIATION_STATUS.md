@@ -63,3 +63,10 @@ No anunciar reversos, conciliación central, autoridad de fecha del servidor, mo
 Se añadió `CashPaymentReconciliation`, un modelo determinista de entradas normalizadas, sin escrituras ni cambios en los ledgers. El modelo informa las siguientes categorías: pago inválido, movimiento de caja faltante, importe diferente, moneda diferente, movimiento duplicado y movimiento huérfano (referencia a pago ausente). Las pruebas unitarias cubren escenarios básicos de hallazgo, resultado limpio y determinismo. Si el identificador del pago aparece repetido, el modelo marca la ambigüedad y omite el cotejo de ese identificador para no generar conclusiones de ausencia o huérfano engañosas.
 
 **Limitaciones de la fase:** el modelo todavía no consulta automáticamente Room, no incluye movimientos sin referencia de pago en todas las fuentes, no clasifica reversos/ajustes de caja, no genera pantalla de informe ni bloquea contabilizaciones. Antes de conectarlo a datos reales se debe definir el conjunto de movimientos elegibles (incluidos reversos), la regla de unicidad por operación, y cómo tratar las sesiones cerradas y ajustes autorizados. Los resultados son diagnósticos; no reparan ni modifican saldos.
+
+
+## Adaptador de conciliación a registros persistidos (fase de lectura)
+
+Se añadieron consultas Room de lectura para recuperar pagos con la moneda del préstamo y los movimientos de caja persistidos, y un adaptador `reconcilePersistedCashPayments()` que convierte esas filas en entradas del modelo de diagnóstico. Se consideran recibos de cobro únicamente los movimientos CASH_IN con prefijo de operación integrado `CASH-PAY-`; se excluyen pagos que constan como reversados y se omiten movimientos manuales y salidas de reverso de esta comparación específica. El adaptador no escribe ni modifica saldos.
+
+**Limitaciones:** no sustituye conciliación de cierre por sesión ni auditoría completa de movimientos manuales/reversos; depende del formato de identificador utilizado por la integración de cobro y es una función de lectura sin pantalla. La compilación y pruebas de esta incorporación están pendientes de GitHub Actions.

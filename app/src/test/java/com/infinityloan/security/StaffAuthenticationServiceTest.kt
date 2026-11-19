@@ -113,11 +113,13 @@ class StaffAuthenticationServiceTest {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun requiresStrongInitialPassword() = runBlocking {
-        StaffAuthenticationService(FakeStaffAccountDao()).createInitialAdministrator(
-            "admin",
-            "Administración",
-            "short".toCharArray()
-        )
+    fun requiresStrongInitialPassword() {
+        runBlocking {
+            StaffAuthenticationService(FakeStaffAccountDao()).createInitialAdministrator(
+                "admin",
+                "Administración",
+                "short".toCharArray()
+            )
+        }
     }
 }

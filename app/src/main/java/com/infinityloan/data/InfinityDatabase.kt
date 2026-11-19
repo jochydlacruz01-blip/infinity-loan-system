@@ -457,6 +457,9 @@ interface LoanDao {
 
 @Dao
 interface LoanInstallmentDao {
+    @Query("SELECT * FROM loan_installments ORDER BY dueDate, loanId, number")
+    fun observeAll(): Flow<List<LoanInstallmentEntity>>
+
     @Query("SELECT * FROM loan_installments WHERE loanId = :loanId ORDER BY number")
     fun observeForLoan(loanId: String): Flow<List<LoanInstallmentEntity>>
 

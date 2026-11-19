@@ -44,6 +44,27 @@ class StaffAuthenticationServiceTest {
 
         override suspend fun updateLastLogin(id: String, timestamp: Long) {
             lastLogin = id to timestamp
+            val entry = accounts.entries.firstOrNull { it.value.id == id } ?: return
+            accounts[entry.key] = entry.value.copy(lastLoginAt = timestamp)
+        }
+
+        override suspend fun recordFailedLogin(
+            id: String,
+            now: Long,
+            maxAttempts: Int,
+            lockUntil: Long
+        ) {
+            val entry = accounts.entries.firstOrNull { it.value.id == id } ?: return
+            val attempts = entry.value.failedLoginAttempts + 1
+            accounts[entry.key] = entry.value.copy(
+                failedLoginAttempts = attempts,
+                lockedUntil = if (attempts >= maxAttempts) lockUntil else entry.value.lockedUntil
+            )
+        }
+
+        override suspend fun resetFailedLogins(id: String) {
+            val entry = accounts.entries.firstOrNull { it.value.id == id } ?: return
+            accounts[entry.key] = entry.value.copy(failedLoginAttempts = 0, lockedUntil = null)
         }
 
         override suspend fun setActive(id: String, active: Boolean) {
@@ -322,6 +343,44 @@ class StaffAuthenticationServiceTest {
         service.setStaffAccountActive(admin, cashier.staffId, false)
 
         assertFalse(service.isSessionValid(cashier))
+    }
+
+
+    @Test
+    fun repeatedFailuresTemporarilyLockAccountAndSuccessfulLoginResetsCounter() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        var now = 1_000_000L
+        val service = StaffAuthenticationService(dao) { now }
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+
+        repeat(5) {
+            val (result, session) = service.authenticate(
+                "admin",
+                "ClaveIncorrecta-2026".toCharArray()
+            )
+            assertEquals(AuthenticationResult.INVALID_CREDENTIALS, result)
+            assertNull(session)
+        }
+        assertEquals(5, dao.accounts.getValue("admin").failedLoginAttempts)
+        assertEquals(now + 15 * 60 * 1000L, dao.accounts.getValue("admin").lockedUntil)
+        assertEquals(
+            AuthenticationResult.ACCOUNT_LOCKED,
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).first
+        )
+
+        now += 15 * 60 * 1000L + 1
+        val (success, session) = service.authenticate(
+            "admin",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        assertEquals(AuthenticationResult.AUTHENTICATED, success)
+        assertNotNull(session)
+        assertEquals(0, dao.accounts.getValue("admin").failedLoginAttempts)
+        assertNull(dao.accounts.getValue("admin").lockedUntil)
     }
 
     @Test(expected = IllegalArgumentException::class)

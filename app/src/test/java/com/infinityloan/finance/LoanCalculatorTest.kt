@@ -271,4 +271,20 @@ class LoanCalculatorTest {
             }
         }
     }
+
+    @Test
+    fun allMethodsRejectInvalidScaleBeforeRounding() {
+        val methods: List<(BigDecimal, BigDecimal, Int, Int) -> List<LoanCalculator.Installment>> = listOf(
+            { p, r, n, scale -> LoanCalculator.french(p, r, n, scale) },
+            { p, r, n, scale -> LoanCalculator.italian(p, r, n, scale) },
+            { p, r, n, scale -> LoanCalculator.american(p, r, n, scale) }
+        )
+        methods.forEach { method ->
+            try {
+                method(principal, rate, 12, Int.MIN_VALUE)
+                throw AssertionError("Debe rechazar una escala fuera del rango")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
 }

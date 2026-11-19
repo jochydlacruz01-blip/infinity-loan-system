@@ -75,6 +75,9 @@ object LoanCalculator {
     }
 
     private fun requireInputs(p: BigDecimal, rate: BigDecimal, n: Int, scale: Int) {
+    require(scale in 0..6) {
+        "Escala monetaria no válida"
+    }
     require(p > BigDecimal.ZERO) {
         "El principal debe ser mayor que cero"
     }
@@ -86,9 +89,6 @@ object LoanCalculator {
     }
     require(n in 1..600) {
         "El número de períodos debe estar entre 1 y 600"
-    }
-    require(scale in 0..6) {
-        "Escala monetaria no válida"
     }
 }
 

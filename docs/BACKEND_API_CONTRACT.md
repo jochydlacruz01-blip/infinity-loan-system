@@ -117,3 +117,28 @@ Los mensajes de error no deben revelar datos de otros clientes ni detalles inter
 - Configurar TLS, gestión de secretos, backups y recuperación.
 - Definir sincronización offline, reintentos, conflictos y deduplicación.
 - Realizar pruebas de penetración y revisión de privacidad/regulación.
+
+
+## Sincronización de cartera entre varios dispositivos (requisito aprobado)
+
+La cartera debe ser compartida por dos o más celulares y por los clientes web futuros, bajo la misma sucursal y permisos. No se permite crear carteras independientes por dispositivo.
+
+### Flujo esperado
+
+- Los dispositivos autenticados consultan y sincronizan clientes, préstamos, calendarios, pagos, créditos y estado operativo desde el backend central.
+- El backend mantiene la versión oficial; Room conserva una copia local/cache para lectura y resiliencia temporal.
+- Un pago se registra como una operación idempotente: UUID generado por cliente, clave de idempotencia, usuario, dispositivo, hora de captura, sucursal y estado de sincronización.
+- Una escritura financiera se confirma como contabilizada solo después de la aceptación transaccional del servidor. Offline debe mostrarse claramente como pendiente/no contabilizada hasta sincronizar; nunca debe mostrarse como saldo oficial.
+- La sincronización recupera cambios desde un cursor/versionado y también admite paginación inicial; reintentos con backoff y deduplicación son obligatorios.
+- Los cambios simultáneos de datos no financieros pueden usar control de versión y conflicto explícito. Los movimientos financieros no se sobrescriben: conflictos requieren rechazo, reconciliación o movimiento correctivo auditable.
+- La app debe mostrar última sincronización, estado de conexión, operaciones pendientes y errores de sincronización; permitir reintentar.
+- Revocación de sesión/dispositivo y cambio de permisos invalidan acceso de ese dispositivo; el servidor verifica permisos en cada petición.
+
+### Rutas de sincronización previstas
+
+- `GET /v1/sync/bootstrap` (carga inicial, paginada y filtrada por permisos/sucursal)
+- `GET /v1/sync/changes?cursor={cursor}` (cambios desde el cursor válido)
+- `POST /v1/sync/operations` (envío de operaciones idempotentes; respuesta individual por operación)
+- `GET /v1/devices` y `DELETE /v1/devices/{deviceId}` (gestión/revocación de dispositivos, sujeto a permisos)
+
+Las rutas son propuestas contractuales, no endpoints disponibles aún. Se debe implementar aislamiento por sucursal, TLS, autorización y trazabilidad antes de conectar celulares reales.

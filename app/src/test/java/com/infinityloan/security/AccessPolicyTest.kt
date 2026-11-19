@@ -26,6 +26,12 @@ class AccessPolicyTest {
     }
 
     @Test
+    fun collectorCannotManageCashMovementsButCashierCan() {
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.COLLECTOR), Permission.CASH_MOVEMENT_MANAGE))
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.CASHIER), Permission.CASH_MOVEMENT_MANAGE))
+    }
+
+    @Test
     fun collectorCannotCreateLoansOrManageCashSessionsByDefault() {
         val profile = AccessProfile(StaffRole.COLLECTOR)
 

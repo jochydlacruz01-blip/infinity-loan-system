@@ -77,6 +77,7 @@ private fun InfinityApp(db: InfinityDatabase) {
         StaffAccessGate(
             accountCount = accountCount,
             service = remember(db) { StaffAuthenticationService(db.staffAccounts()) },
+            db = db,
             onAuthenticated = { session = it }
         )
     } else {
@@ -92,6 +93,7 @@ private fun InfinityApp(db: InfinityDatabase) {
 private fun StaffAccessGate(
     accountCount: Int?,
     service: StaffAuthenticationService,
+    db: InfinityDatabase,
     onAuthenticated: (StaffSession) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -166,9 +168,24 @@ private fun StaffAccessGate(
                                     try {
                                         if (firstRun) {
                                             val created = withContext(Dispatchers.IO) {
-                                                service.createInitialAdministrator(
-                                                    username, displayName, submittedPassword.toCharArray()
-                                                )
+                                                db.withTransaction {
+                                                    val result = service.createInitialAdministrator(
+                                                        username, displayName, submittedPassword.toCharArray()
+                                                    )
+                                                    if (result) {
+                                                        db.auditLogs().insert(
+                                                            AuditLogEntity(
+                                                                actorStaffId = null,
+                                                                actorUsername = username.trim().lowercase(Locale.ROOT),
+                                                                action = "INITIAL_ADMIN_CREATED",
+                                                                targetType = "STAFF_ACCOUNT",
+                                                                targetId = null,
+                                                                details = "Configuración inicial del administrador"
+                                                            )
+                                                        )
+                                                    }
+                                                    result
+                                                }
                                             }
                                             if (created) {
                                                 displayedAccountCount = 1

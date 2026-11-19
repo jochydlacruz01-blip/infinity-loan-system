@@ -484,8 +484,9 @@ interface PaymentDao {
                 val charges = Math.addExact(row.paidChargesMinor, applied?.chargesPaidMinor ?: 0L)
                 val interest = Math.addExact(row.paidInterestMinor, applied?.interestPaidMinor ?: 0L)
                 val principal = Math.addExact(row.paidPrincipalMinor, applied?.principalPaidMinor ?: 0L)
-                val isPaid = late == row.paidLateFeeMinor + 0L &&
-                    charges == row.paidChargesMinor + 0L &&
+                // Until contractual late-fee/charge fields exist, those buckets
+                // must remain zero; never mark a row paid based on a prior paid amount.
+                val isPaid = late == 0L && charges == 0L &&
                     interest == row.interestMinor && principal == row.principalMinor
                 val status = when {
                     isPaid -> "PAID"
@@ -508,8 +509,8 @@ interface PaymentDao {
 
         val allPaidAfter = allInstallments.all { original ->
             val updated = updatedRows.firstOrNull { it.number == original.number } ?: original
-            updated.paidLateFeeMinor == 0L + original.paidLateFeeMinor &&
-                updated.paidChargesMinor == 0L + original.paidChargesMinor &&
+            updated.paidLateFeeMinor == 0L &&
+                updated.paidChargesMinor == 0L &&
                 updated.paidInterestMinor == updated.interestMinor &&
                 updated.paidPrincipalMinor == updated.principalMinor
         }

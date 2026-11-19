@@ -20,6 +20,9 @@ class StaffAuthenticationServiceTest {
         override suspend fun findByUsername(username: String): StaffAccountEntity? =
             accounts[username]
 
+        override suspend fun findById(id: String): StaffAccountEntity? =
+            accounts.values.firstOrNull { it.id == id }
+
         override suspend fun count(): Int = accounts.size
 
         override suspend fun getAllSummaries(): List<StaffAccountSummary> =
@@ -289,6 +292,36 @@ class StaffAuthenticationServiceTest {
         } catch (_: IllegalArgumentException) {
             assertTrue(dao.accounts.getValue("admin").isActive)
         }
+    }
+
+
+    @Test
+    fun disabledAccountInvalidatesExistingSession() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "cashier",
+            displayName = "Cajero",
+            role = StaffRole.CASHIER,
+            password = "ClaveCajeroMuySegura-2026".toCharArray()
+        )
+        val cashier = requireNotNull(
+            service.authenticate("cashier", "ClaveCajeroMuySegura-2026".toCharArray()).second
+        )
+        assertTrue(service.isSessionValid(cashier))
+
+        service.setStaffAccountActive(admin, cashier.staffId, false)
+
+        assertFalse(service.isSessionValid(cashier))
     }
 
     @Test(expected = IllegalArgumentException::class)

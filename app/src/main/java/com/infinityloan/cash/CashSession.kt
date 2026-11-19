@@ -72,3 +72,27 @@ data class CashSession(
         return copy(closed = true, countedClosingMinor = countedMinor)
     }
 }
+
+
+/** Consolidated report per currency; closed physical counts are kept separate from expected cash. */
+data class CashCurrencyReport(
+    val currency: String,
+    val sessionCount: Int,
+    val openSessionCount: Int,
+    val closedSessionCount: Int,
+    val expectedCashMinor: Long,
+    val countedCashMinor: Long,
+    val varianceMinor: Long
+)
+
+fun buildCashReport(sessions: List<CashSession>): List<CashCurrencyReport> =
+    sessions.groupBy { it.currency }.toSortedMap().map { (currency, group) ->
+        val expected = group.fold(0L) { total, session -> Math.addExact(total, session.expectedCashMinor) }
+        val counted = group.filter { it.closed }.fold(0L) { total, session ->
+            Math.addExact(total, session.countedClosingMinor ?: 0L)
+        }
+        val variance = group.filter { it.closed }.fold(0L) { total, session ->
+            Math.addExact(total, session.varianceMinor ?: 0L)
+        }
+        CashCurrencyReport(currency, group.size, group.count { !it.closed }, group.count { it.closed }, expected, counted, variance)
+    }

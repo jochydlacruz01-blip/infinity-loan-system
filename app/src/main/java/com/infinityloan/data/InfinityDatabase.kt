@@ -412,6 +412,10 @@ interface CustomerCreditDao {
         reference: String
     ): CustomerCreditResult {
 
+        if (operationId.isBlank()) return CustomerCreditResult.INVALID_OPERATION_ID
+        if (clientId.isBlank() || loanId.isBlank()) return CustomerCreditResult.INVALID_OPERATION_ID
+        if (currency !in setOf("DOP", "USD", "EUR")) return CustomerCreditResult.INVALID_CURRENCY
+        if (reference.isBlank()) return CustomerCreditResult.INVALID_REFERENCE
         if (amountMinor <= 0L) {
             return CustomerCreditResult.INVALID_AMOUNT
         }
@@ -468,6 +472,9 @@ enum class CustomerCreditResult {
     CLIENT_MISMATCH,
     CURRENCY_MISMATCH,
     INSUFFICIENT_CREDIT,
+    INVALID_REFERENCE,
+    INVALID_CURRENCY,
+    INVALID_OPERATION_ID,
     SCHEDULE_NOT_FOUND,
     INVALID_SCHEDULE,
     LEGACY_RECONCILIATION_REQUIRED

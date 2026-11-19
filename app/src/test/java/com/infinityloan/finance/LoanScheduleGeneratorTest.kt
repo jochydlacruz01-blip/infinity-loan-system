@@ -25,6 +25,20 @@ class LoanScheduleGeneratorTest {
     }
 
     @Test
+    fun frenchAliasProducesSameScheduleAsSpanishMethodName() {
+        val spanish = LoanScheduleGenerator.generate(
+            principal, rate, 12, "FRANCES",
+            firstDueDate = firstDueDate
+        )
+        val english = LoanScheduleGenerator.generate(
+            principal, rate, 12, "FRENCH",
+            firstDueDate = firstDueDate
+        )
+
+        assertEquals(spanish, english)
+    }
+
+    @Test
     fun weeklyAndBiweeklyFrequenciesUseSevenAndFourteenDays() {
         val weekly = LoanScheduleGenerator.generate(
             principal, rate, 3, "ITALIANO",

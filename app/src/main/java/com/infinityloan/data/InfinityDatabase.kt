@@ -193,7 +193,9 @@ data class StaffAccountEntity(
     val passwordHashBase64: String,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
-    val lastLoginAt: Long? = null
+    val lastLoginAt: Long? = null,
+    @ColumnInfo(defaultValue = "0") val failedLoginAttempts: Int = 0,
+    @ColumnInfo(defaultValue = "NULL") val lockedUntil: Long? = null
 )
 
 @Entity(
@@ -246,6 +248,29 @@ interface StaffAccountDao {
 
     @Query("UPDATE staff_accounts SET lastLoginAt = :timestamp WHERE id = :id")
     suspend fun updateLastLogin(id: String, timestamp: Long)
+
+    @Query("""
+        UPDATE staff_accounts
+        SET failedLoginAttempts = failedLoginAttempts + 1,
+            lockedUntil = CASE
+                WHEN failedLoginAttempts + 1 >= :maxAttempts THEN :lockUntil
+                ELSE lockedUntil
+            END
+        WHERE id = :id AND (lockedUntil IS NULL OR lockedUntil <= :now)
+    """)
+    suspend fun recordFailedLogin(
+        id: String,
+        now: Long,
+        maxAttempts: Int,
+        lockUntil: Long
+    )
+
+    @Query("""
+        UPDATE staff_accounts
+        SET failedLoginAttempts = 0, lockedUntil = NULL
+        WHERE id = :id
+    """)
+    suspend fun resetFailedLogins(id: String)
 
     @Query("UPDATE staff_accounts SET isActive = :active WHERE id = :id")
     suspend fun setActive(id: String, active: Boolean)
@@ -747,7 +772,7 @@ enum class CreditPaymentResult {
         StaffAccountEntity::class,
         AuditLogEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 
@@ -1026,6 +1051,17 @@ internal val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+internal val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE staff_accounts ADD COLUMN failedLoginAttempts INTEGER NOT NULL DEFAULT 0"
+        )
+        database.execSQL(
+            "ALTER TABLE staff_accounts ADD COLUMN lockedUntil INTEGER DEFAULT NULL"
+        )
+    }
+}
+
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -1033,7 +1069,7 @@ internal val MIGRATION_6_7 = object : Migration(6, 7) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
 .build().also { INSTANCE = it }
             }
     }

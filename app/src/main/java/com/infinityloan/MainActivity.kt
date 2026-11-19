@@ -254,6 +254,7 @@ private fun AuthenticatedInfinityApp(
     val clients by db.clients().observeAll().collectAsState(initial = emptyList())
     val loans by db.loans().observeAll().collectAsState(initial = emptyList())
     val payments by db.payments().observeAll().collectAsState(initial = emptyList())
+    val installments by db.installments().observeAll().collectAsState(initial = emptyList())
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -357,7 +358,7 @@ private fun AuthenticatedInfinityApp(
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(clients, loans, payments)
+                        Screen.HOME -> HomeScreen(clients, loans, payments, installments)
                         Screen.CLIENTS -> ClientsScreen(
     clients = clients,
     onEdit = { client ->
@@ -580,7 +581,8 @@ private fun AuthenticatedInfinityApp(
 private fun HomeScreen(
     clients: List<ClientEntity>,
     loans: List<LoanEntity>,
-    payments: List<PaymentEntity>
+    payments: List<PaymentEntity>,
+    installments: List<LoanInstallmentEntity>
 ) {
     val currencies = listOf("DOP", "USD", "EUR")
 
@@ -623,6 +625,23 @@ private fun HomeScreen(
             }
         }
 
+        item {
+            val today = LocalDate.now().toString()
+            val overdue = installments.filter { row ->
+                row.status != "PAID" && row.dueDate < today &&
+                    (row.totalMinor - row.paidPrincipalMinor - row.paidInterestMinor) > 0L
+            }
+            val overdueLoans = loans.filter { loan -> overdue.any { it.loanId == loan.id } }
+            DataCard(
+                title = "CUOTAS VENCIDAS · ${overdue.size}",
+                detail = "Préstamos con cuotas vencidas: ${overdueLoans.size}\n" +
+                    currencies.joinToString("\\n") { currency ->
+                        val amount = overdue.filter { row -> loans.any { it.id == row.loanId && it.currency == currency } }
+                            .map { it.totalMinor - it.paidPrincipalMinor - it.paidInterestMinor }
+                        "Saldo vencido $currency: ${moneyTotal(amount)} $currency"
+                    }
+            )
+        }
         item {
             Text("RESUMEN EJECUTIVO", color = Gold, fontWeight = FontWeight.Bold)
         }

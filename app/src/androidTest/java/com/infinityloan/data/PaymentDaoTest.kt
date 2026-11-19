@@ -775,4 +775,57 @@ class PaymentDaoTest {
         assertEquals(0L, database.customerCredits().getBalance(client.id, "DOP"))
     }
 
+
+    @Test
+    fun futureInstallmentPaymentIsPreservedAsCustomerCredit() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente pago anticipado",
+            documentNumber = "ADVANCE-PAY-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0.00",
+            periods = 1,
+            method = "FRANCES"
+        )
+        database.loans().insert(loan)
+        database.installments().insertAll(
+            listOf(
+                LoanInstallmentEntity(
+                    loanId = loan.id,
+                    number = 1,
+                    dueDate = LocalDate.now().plusDays(5).toString(),
+                    principalMinor = 10000L,
+                    interestMinor = 0L,
+                    totalMinor = 10000L,
+                    remainingPrincipalMinor = 10000L
+                )
+            )
+        )
+
+        val payment = PaymentEntity(
+            operationId = "ADVANCE-PAYMENT-001",
+            loanId = loan.id,
+            amountMinor = 1500L,
+            reference = "Pago recibido antes del vencimiento"
+        )
+        val result = database.payments().postPayment(payment)
+
+        assertEquals(PaymentPostResult.POSTED, result)
+        assertEquals(payment.operationId, database.payments().findByOperationId(payment.operationId)?.operationId)
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(1500L, database.customerCredits().getBalance(client.id, "DOP"))
+        assertEquals(0, database.paymentAllocations().findForPayment(payment.operationId).size)
+
+        val installment = database.installments().findForLoan(loan.id).single()
+        assertEquals(0L, installment.paidPrincipalMinor)
+        assertEquals("PENDING", installment.status)
+    }
 }

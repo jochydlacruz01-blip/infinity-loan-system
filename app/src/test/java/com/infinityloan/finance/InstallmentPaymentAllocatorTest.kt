@@ -102,6 +102,31 @@ class InstallmentPaymentAllocatorTest {
     }
 
     @Test
+    fun handlesMaximumLongPaymentWithoutOverflowingAllocationTotals() {
+        val result = InstallmentPaymentAllocator.allocate(
+            paymentMinor = Long.MAX_VALUE,
+            installments = listOf(
+                InstallmentPaymentAllocator.DueInstallment(
+                    number = 1,
+                    dueDate = LocalDate.parse("2026-01-01"),
+                    interestDueMinor = 0L,
+                    principalDueMinor = Long.MAX_VALUE
+                ),
+                InstallmentPaymentAllocator.DueInstallment(
+                    number = 2,
+                    dueDate = LocalDate.parse("2026-02-01"),
+                    interestDueMinor = 0L,
+                    principalDueMinor = Long.MAX_VALUE
+                )
+            )
+        )
+
+        assertEquals(Long.MAX_VALUE, result.totalAllocatedMinor)
+        assertEquals(0L, result.unappliedMinor)
+        assertEquals(Long.MAX_VALUE, result.allocations.single().totalPaidMinor)
+    }
+
+    @Test
     fun rejectsZeroOrNegativePayments() {
         assertThrows(IllegalArgumentException::class.java) {
             InstallmentPaymentAllocator.allocate(0L, emptyList())

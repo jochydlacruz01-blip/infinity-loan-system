@@ -45,6 +45,12 @@ data class CashMovementEntity(
 
 @Dao
 interface CashSessionDao {
+    @Query("SELECT * FROM cash_movements ORDER BY createdAt, operationId")
+    suspend fun findAllMovementsForAudit(): List<CashMovementEntity>
+
+    @Query("SELECT payments.operationId AS operationId, payments.amountMinor AS amountMinor, loans.currency AS currency FROM payments INNER JOIN loans ON payments.loanId = loans.id ORDER BY payments.createdAt, payments.operationId")
+    suspend fun findAllPaymentsForCashAudit(): List<PersistedPaymentForReconciliation>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSession(session: CashSessionEntity)
 

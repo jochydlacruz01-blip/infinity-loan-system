@@ -135,4 +135,34 @@ class InstallmentPaymentAllocatorTest {
             InstallmentPaymentAllocator.allocate(-1L, emptyList())
         }
     }
+
+    @Test
+    fun sameDueDateUsesInstallmentNumberAsDeterministicTieBreaker() {
+        val date = LocalDate.parse("2026-03-15")
+        val result = InstallmentPaymentAllocator.allocate(
+            paymentMinor = 150L,
+            installments = listOf(
+                InstallmentPaymentAllocator.DueInstallment(3, date, interestDueMinor = 0L, principalDueMinor = 100L),
+                InstallmentPaymentAllocator.DueInstallment(1, date, interestDueMinor = 0L, principalDueMinor = 100L),
+                InstallmentPaymentAllocator.DueInstallment(2, date, interestDueMinor = 0L, principalDueMinor = 100L)
+            )
+        )
+        assertEquals(listOf(1, 2), result.allocations.map { it.installmentNumber })
+        assertEquals(50L, result.unappliedMinor)
+    }
+
+    @Test
+    fun skipsInstallmentsWithNoOutstandingAmounts() {
+        val result = InstallmentPaymentAllocator.allocate(
+            paymentMinor = 50L,
+            installments = listOf(
+                InstallmentPaymentAllocator.DueInstallment(1, LocalDate.parse("2026-01-01"), interestDueMinor = 0L, principalDueMinor = 0L),
+                InstallmentPaymentAllocator.DueInstallment(2, LocalDate.parse("2026-01-02"), interestDueMinor = 10L, principalDueMinor = 40L)
+            )
+        )
+        assertEquals(1, result.allocations.size)
+        assertEquals(2, result.allocations.single().installmentNumber)
+        assertEquals(50L, result.totalAllocatedMinor)
+        assertEquals(0L, result.unappliedMinor)
+    }
 }

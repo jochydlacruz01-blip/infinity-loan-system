@@ -275,6 +275,9 @@ interface StaffAccountDao {
     @Query("UPDATE staff_accounts SET isActive = :active WHERE id = :id")
     suspend fun setActive(id: String, active: Boolean)
 
+    @Query("UPDATE staff_accounts SET grants = :grants, denials = :denials WHERE id = :id")
+    suspend fun updatePermissions(id: String, grants: String, denials: String)
+
     @Transaction
     suspend fun createInitialAdministrator(account: StaffAccountEntity): Boolean {
         if (count() != 0) return false

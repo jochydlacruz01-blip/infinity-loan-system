@@ -80,6 +80,12 @@ class StaffAuthenticationServiceTest {
             accounts[entry.key] = entry.value.copy(isActive = active)
         }
 
+        override suspend fun setActiveRow(id: String, active: Boolean): Int {
+            val entry = accounts.entries.firstOrNull { it.value.id == id } ?: return 0
+            accounts[entry.key] = entry.value.copy(isActive = active)
+            return 1
+        }
+
         override suspend fun createInitialAdministrator(account: StaffAccountEntity): Boolean {
             if (accounts.isNotEmpty()) return false
             insert(account)

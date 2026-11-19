@@ -194,8 +194,12 @@ interface StaffAccountDao {
     @Query("SELECT COUNT(*) FROM staff_accounts")
     suspend fun count(): Int
 
-    @Query("SELECT * FROM staff_accounts ORDER BY displayName COLLATE NOCASE")
-    suspend fun getAll(): List<StaffAccountEntity>
+    @Query("""
+        SELECT id, username, displayName, role, isActive, createdAt, lastLoginAt
+        FROM staff_accounts
+        ORDER BY displayName COLLATE NOCASE
+    """)
+    suspend fun getAllSummaries(): List<StaffAccountSummary>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(account: StaffAccountEntity)

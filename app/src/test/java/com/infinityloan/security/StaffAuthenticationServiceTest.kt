@@ -565,4 +565,74 @@ class StaffAuthenticationServiceTest {
         }
     }
 
+
+    @Test
+    fun supervisorCannotGrantCollectorPermissionsBeyondSupervisorScope() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin", "Administración", "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(service.authenticate(
+            "admin", "UnaClaveMuySegura-2026".toCharArray()
+        ).second)
+        service.createStaffAccount(
+            admin, "supervisor", "Supervisor", StaffRole.SUPERVISOR,
+            "ClaveSupervisorMuySegura-2026".toCharArray()
+        )
+        val supervisor = requireNotNull(service.authenticate(
+            "supervisor", "ClaveSupervisorMuySegura-2026".toCharArray()
+        ).second)
+        service.createStaffAccount(
+            admin, "collector", "Cobrador", StaffRole.COLLECTOR,
+            "ClaveCobradorMuySegura-2026".toCharArray()
+        )
+        val collector = requireNotNull(dao.findByUsername("collector"))
+
+        try {
+            service.updateStaffPermissions(
+                supervisor, collector.id,
+                grants = setOf(Permission.PAYMENT_REVERSE),
+                denials = emptySet()
+            )
+            throw AssertionError("El supervisor no debe elevar el perfil del cobrador.")
+        } catch (_: IllegalArgumentException) {
+            assertEquals("", requireNotNull(dao.findById(collector.id)).grants)
+            assertEquals("", requireNotNull(dao.findById(collector.id)).denials)
+        }
+    }
+
+    @Test
+    fun supervisorCanNarrowCollectorProfileWithinOwnCapabilities() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin", "Administración", "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(service.authenticate(
+            "admin", "UnaClaveMuySegura-2026".toCharArray()
+        ).second)
+        service.createStaffAccount(
+            admin, "supervisor", "Supervisor", StaffRole.SUPERVISOR,
+            "ClaveSupervisorMuySegura-2026".toCharArray()
+        )
+        val supervisor = requireNotNull(service.authenticate(
+            "supervisor", "ClaveSupervisorMuySegura-2026".toCharArray()
+        ).second)
+        service.createStaffAccount(
+            admin, "collector", "Cobrador", StaffRole.COLLECTOR,
+            "ClaveCobradorMuySegura-2026".toCharArray()
+        )
+        val collector = requireNotNull(dao.findByUsername("collector"))
+
+        service.updateStaffPermissions(
+            supervisor, collector.id,
+            grants = setOf(Permission.CLIENT_UPDATE),
+            denials = setOf(Permission.PAYMENT_REGISTER)
+        )
+        val updated = requireNotNull(dao.findById(collector.id))
+        assertEquals(Permission.CLIENT_UPDATE.name, updated.grants)
+        assertEquals(Permission.PAYMENT_REGISTER.name, updated.denials)
+    }
+
 }

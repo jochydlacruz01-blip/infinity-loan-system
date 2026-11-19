@@ -886,4 +886,63 @@ class PaymentDaoTest {
         )
     }
 
+    @Test
+    fun concurrentCustomerCreditDebitsCannotOverdrawLedger() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente crédito concurrente",
+            documentNumber = "CREDIT-CONCURRENT-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0.00",
+            periods = 1,
+            method = "FRENCH"
+        )
+        database.loans().insert(loan)
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-CONCURRENT-OPENING",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 5000L,
+                reference = "Saldo inicial de prueba"
+            )
+        )
+
+        val results = listOf(
+            async(Dispatchers.IO) {
+                database.customerCredits().applyCredit(
+                    operationId = "CREDIT-CONCURRENT-DEBIT-1",
+                    clientId = client.id,
+                    loanId = loan.id,
+                    currency = "DOP",
+                    amountMinor = 4000L,
+                    reference = "Primer débito concurrente"
+                )
+            },
+            async(Dispatchers.IO) {
+                database.customerCredits().applyCredit(
+                    operationId = "CREDIT-CONCURRENT-DEBIT-2",
+                    clientId = client.id,
+                    loanId = loan.id,
+                    currency = "DOP",
+                    amountMinor = 4000L,
+                    reference = "Segundo débito concurrente"
+                )
+            }
+        ).awaitAll()
+
+        assertEquals(1, results.count { it == CustomerCreditResult.APPLIED })
+        assertEquals(1, results.count { it == CustomerCreditResult.INSUFFICIENT_CREDIT })
+        assertEquals(1000L, database.customerCredits().getBalance(client.id, "DOP"))
+    }
+
 }

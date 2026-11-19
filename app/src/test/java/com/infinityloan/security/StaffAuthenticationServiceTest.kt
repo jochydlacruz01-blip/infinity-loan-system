@@ -534,4 +534,35 @@ class StaffAuthenticationServiceTest {
         assertFalse(service.hasPermission(collector, Permission.LOAN_CREATE))
     }
 
+
+    @Test
+    fun administratorCannotChangeOwnPermissionsDuringActiveSession() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        val original = requireNotNull(dao.findById(admin.staffId))
+
+        try {
+            service.updateStaffPermissions(
+                actor = admin,
+                staffId = admin.staffId,
+                grants = emptySet(),
+                denials = setOf(Permission.PAYMENT_REGISTER, Permission.ROLE_PERMISSION_MANAGE)
+            )
+            throw AssertionError("No debe permitirse cambiar los permisos de la sesión activa.")
+        } catch (_: IllegalArgumentException) {
+            val unchanged = requireNotNull(dao.findById(admin.staffId))
+            assertEquals(original.grants, unchanged.grants)
+            assertEquals(original.denials, unchanged.denials)
+            assertTrue(service.isSessionValid(admin))
+        }
+    }
+
 }

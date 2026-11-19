@@ -268,7 +268,10 @@ private fun InfinityApp(db: InfinityDatabase) {
                     PaymentPostResult.LOAN_NOT_FOUND -> "No se encontró el préstamo."
                     PaymentPostResult.LOAN_NOT_ACTIVE -> "El préstamo no está activo."
                     PaymentPostResult.DUPLICATE -> "Operación duplicada."
-                    else -> "Importe inválido. No se registró el pago."
+                    PaymentPostResult.SCHEDULE_NOT_FOUND -> "El préstamo no tiene calendario de cuotas."
+                    PaymentPostResult.INVALID_SCHEDULE -> "El calendario del préstamo no es válido. No se registró el pago."
+                    PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> "Este préstamo tiene pagos históricos sin distribución por cuotas. Requiere conciliación antes de aceptar nuevos pagos."
+                    PaymentPostResult.INVALID_AMOUNT -> "Importe inválido. No se registró el pago."
                 }
                                if (result == PaymentPostResult.POSTED || result == PaymentPostResult.DUPLICATE) {
                     showPaymentForm = false

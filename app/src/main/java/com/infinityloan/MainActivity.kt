@@ -24,6 +24,8 @@ import com.infinityloan.finance.MinorUnitTotals
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
 import com.infinityloan.security.AuthenticationResult
+import com.infinityloan.security.AccessPolicy
+import com.infinityloan.security.Permission
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,9 +50,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen(val label: String) {
-    HOME("Panel principal"), CLIENTS("Clientes"), LOANS("Préstamos y cuotas"),
-    PAYMENTS("Pagos y caja"), REPORTS("Informes"), SETTINGS("Configuración")
+private enum class Screen(val label: String, val permission: Permission) {
+    HOME("Panel principal", Permission.DASHBOARD_VIEW),
+    CLIENTS("Clientes", Permission.CLIENT_VIEW),
+    LOANS("Préstamos y cuotas", Permission.LOAN_VIEW),
+    PAYMENTS("Pagos y caja", Permission.PAYMENT_VIEW),
+    REPORTS("Informes", Permission.REPORT_VIEW),
+    SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE)
 }
 
 @Composable
@@ -229,6 +235,9 @@ private fun AuthenticatedInfinityApp(
     var showLoanForm by remember { mutableStateOf(false) }
     var showPaymentForm by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    val can: (Permission) -> Boolean = { AccessPolicy.allows(session.profile, it) }
+    val availableScreens = Screen.values().filter { can(it.permission) }
+    if (screen !in availableScreens) screen = availableScreens.firstOrNull() ?: Screen.HOME
 
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Gold, background = Navy, surface = Panel,
@@ -242,7 +251,7 @@ private fun AuthenticatedInfinityApp(
                         fontSize = 20.sp, modifier = Modifier.padding(20.dp))
                     Text("LOAN SYSTEM", color = Color.White,
                         modifier = Modifier.padding(start = 20.dp, bottom = 18.dp))
-                    Screen.values().forEach { item ->
+                    availableScreens.forEach { item ->
                         NavigationDrawerItem(
                             label = { Text(item.label) },
                             selected = screen == item,
@@ -286,7 +295,7 @@ private fun AuthenticatedInfinityApp(
                 },
                 floatingActionButton = {
                     when (screen) {
-                        Screen.CLIENTS -> FloatingActionButton(
+                        Screen.CLIENTS -> if (can(Permission.CLIENT_CREATE)) FloatingActionButton(
     onClick = {
         selectedClient = null
         showClientForm = true

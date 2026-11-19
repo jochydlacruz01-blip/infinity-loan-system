@@ -3,6 +3,7 @@ package com.infinityloan
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.room.withTransaction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.infinityloan.data.*
+import com.infinityloan.finance.LoanScheduleGenerator
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -24,6 +26,7 @@ import java.util.UUID
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.time.LocalDate
 
 private val Navy = Color(0xFF0B1730)
 private val Panel = Color(0xFF142746)
@@ -194,20 +197,49 @@ private fun InfinityApp(db: InfinityDatabase) {
     if (showLoanForm) LoanForm(
         clients = clients,
         onDismiss = { showLoanForm = false },
-        onSave = { clientId, amount, rate, periods, currency, method ->
+        onSave = { clientId, amount, rate, periods, currency, method, frequency, firstDueDateText ->
             scope.launch {
                 try {
                     val principal = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP)
                     val minor = principal.movePointRight(2).longValueExact()
                     val rateValue = BigDecimal(rate).divide(BigDecimal("100"))
-                    require(minor > 0 && periods > 0 && rateValue >= BigDecimal.ZERO)
-                    db.loans().insert(LoanEntity(
+                    val firstDueDate = LocalDate.parse(firstDueDateText)
+                    val schedule = LoanScheduleGenerator.generate(
+                        principal = principal,
+                        periodicRate = rateValue,
+                        periods = periods,
+                        method = method,
+                        frequency = LoanScheduleGenerator.Frequency.valueOf(frequency),
+                        firstDueDate = firstDueDate
+                    )
+                    val loan = LoanEntity(
                         clientId = clientId, principalMinor = minor, balanceMinor = minor,
                         currency = currency, periodicRate = rateValue.toPlainString(),
-                        periods = periods, method = method
-                    ))
-                    message = "Préstamo registrado. El saldo inicial quedó pendiente de calendario contractual."
-                } catch (_: Exception) { message = "No se pudo registrar el préstamo. Revisa los valores." }
+                        periods = periods, method = method,
+                        frequency = frequency, firstDueDate = firstDueDate.toString()
+                    )
+                    val rows = schedule.map { item ->
+                        LoanInstallmentEntity(
+                            loanId = loan.id,
+                            number = item.number,
+                            dueDate = item.dueDate.toString(),
+                            principalMinor = item.principal.movePointRight(2).longValueExact(),
+                            interestMinor = item.interest.movePointRight(2).longValueExact(),
+                            totalMinor = item.total.movePointRight(2).longValueExact(),
+                            remainingPrincipalMinor = item.remainingPrincipal.movePointRight(2).longValueExact()
+                        )
+                    }
+                    require(rows.sumOf { it.principalMinor } == minor) {
+                        "El calendario no reconcilia el capital del préstamo."
+                    }
+                    db.withTransaction {
+                        db.loans().insert(loan)
+                        db.installments().insertAll(rows)
+                    }
+                    message = "Préstamo y ${rows.size} cuotas contractuales registrados correctamente."
+                } catch (_: Exception) {
+                    message = "No se pudo registrar. Revisa el monto, la tasa, el plazo y la fecha (AAAA-MM-DD)."
+                }
                 showLoanForm = false
             }
         }
@@ -736,13 +768,19 @@ var address by remember(initialClient) { mutableStateOf(initialClient?.address.o
 @Composable
 private fun LoanForm(
     clients: List<ClientEntity>, onDismiss: () -> Unit,
-    onSave: (String, String, String, Int, String, String) -> Unit
+    onSave: (String, String, String, Int, String, String, String, String) -> Unit
 ) {
     var selected by remember(clients) { mutableStateOf(clients.firstOrNull()?.id.orEmpty()) }
-    var amount by remember { mutableStateOf("") }; var rate by remember { mutableStateOf("") }
-    
-    var periods by remember { mutableStateOf("12") }; var currency by remember { mutableStateOf("DOP") }
+    var amount by remember { mutableStateOf("") }
+    var rate by remember { mutableStateOf("") }
+    var periods by remember { mutableStateOf("12") }
+    var currency by remember { mutableStateOf("DOP") }
     var method by remember { mutableStateOf("FRANCES") }
+    var frequency by remember { mutableStateOf("MONTHLY") }
+    var firstDueDate by remember { mutableStateOf(LocalDate.now().plusDays(30).toString()) }
+    val validDate = remember(firstDueDate) {
+        runCatching { LocalDate.parse(firstDueDate) }.isSuccess
+    }
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Nuevo préstamo") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (clients.isEmpty()) Text("Primero debes registrar un cliente.")
@@ -757,11 +795,34 @@ private fun LoanForm(
             }
             OutlinedTextField(amount, { amount = it }, label = { Text("Capital (ej. 50000.00)") }, singleLine = true)
             OutlinedTextField(rate, { rate = it }, label = { Text("Tasa por período (%)") }, singleLine = true)
-            OutlinedTextField(periods, { periods = it }, label = { Text("Cantidad de períodos") }, singleLine = true)
+            OutlinedTextField(periods, { periods = it }, label = { Text("Cantidad de cuotas") }, singleLine = true)
+            Text("Frecuencia de pago", color = Gold)
+            Row {
+                listOf("WEEKLY" to "Semanal", "BIWEEKLY" to "Quincenal", "MONTHLY" to "Mensual").forEach { (value, label) ->
+                    TextButton(onClick = { frequency = value }) {
+                        Text(if (frequency == value) "[$label]" else label)
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = firstDueDate,
+                onValueChange = { firstDueDate = it },
+                label = { Text("Primer vencimiento (AAAA-MM-DD)") },
+                singleLine = true,
+                isError = !validDate
+            )
             Row { listOf("DOP", "USD", "EUR").forEach { TextButton(onClick = { currency = it }) { Text(if (currency == it) "[$it]" else it) } } }
             Row { listOf("FRANCES", "ITALIANO", "AMERICANO").forEach { TextButton(onClick = { method = it }) { Text(if (method == it) "[$it]" else it) } } }
         } },
-        confirmButton = { TextButton(enabled = clients.isNotEmpty() && amount.toBigDecimalOrNull() != null && rate.toBigDecimalOrNull() != null && periods.toIntOrNull() != null, onClick = { onSave(selected, amount, rate, periods.toInt(), currency, method) }) { Text("Guardar") } },
+        confirmButton = {
+            TextButton(
+                enabled = clients.isNotEmpty() &&
+                    amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true &&
+                    rate.toBigDecimalOrNull()?.let { it >= BigDecimal.ZERO } == true &&
+                    periods.toIntOrNull()?.let { it in 1..600 } == true && validDate,
+                onClick = { onSave(selected, amount, rate, periods.toInt(), currency, method, frequency, firstDueDate) }
+            ) { Text("Guardar") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
 }
 

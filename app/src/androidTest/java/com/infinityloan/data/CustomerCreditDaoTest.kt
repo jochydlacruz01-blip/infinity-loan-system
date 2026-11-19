@@ -260,5 +260,6 @@ class CustomerCreditDaoTest {
         )
 
         database.customerCredits().getBalance(client.id, "DOP")
+        Unit
     }
 }

@@ -218,6 +218,46 @@ class StaffAuthenticationServiceTest {
         assertNull(dao.accounts["intruso"])
     }
 
+
+    @Test
+    fun supervisorCannotCreateRoleWithPermissionsBeyondOwnProfile() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "supervisor",
+            displayName = "Supervisor",
+            role = StaffRole.SUPERVISOR,
+            password = "ClaveSupervisorMuySegura-2026".toCharArray()
+        )
+        val supervisor = requireNotNull(
+            service.authenticate("supervisor", "ClaveSupervisorMuySegura-2026".toCharArray()).second
+        )
+        val password = "ClaveCajeroMuySegura-2026".toCharArray()
+
+        try {
+            service.createStaffAccount(
+                actor = supervisor,
+                username = "cashier",
+                displayName = "Cajero",
+                role = StaffRole.CASHIER,
+                password = password
+            )
+            throw AssertionError("No debe permitirse elevar privilegios.")
+        } catch (_: IllegalArgumentException) {
+            assertTrue(password.all { it.code == 0 })
+        }
+        assertNull(dao.accounts["cashier"])
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun requiresStrongInitialPassword() {
         runBlocking {

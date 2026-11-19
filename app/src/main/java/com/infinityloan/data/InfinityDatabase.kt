@@ -166,6 +166,16 @@ data class CustomerCreditMovementEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+data class StaffAccountSummary(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val role: String,
+    val isActive: Boolean,
+    val createdAt: Long,
+    val lastLoginAt: Long?
+)
+
 @Entity(
     tableName = "staff_accounts",
     indices = [Index(value = ["username"], unique = true)]

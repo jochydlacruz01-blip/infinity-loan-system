@@ -4,18 +4,21 @@
 
 Esta documentación distingue los cimientos ya implementados de los controles que todavía no existen en la aplicación.
 
-### Cimientos en el código
+### Cimientos implementados
 
 - `StaffRole` define administrador, supervisor, cajero y cobrador.
-- `Permission` define capacidades individuales, en vez de depender únicamente de nombres de pantallas.
-- `AccessProfile` permite conceder o denegar permisos individuales.
-- `AccessPolicy` aplica denegaciones explícitas antes de concesiones y permisos predeterminados.
-- `PasswordHasher` implementa hashes versionados PBKDF2-HMAC-SHA256, sal aleatoria de 16 bytes y comparación de hash en tiempo constante.
-- Pruebas unitarias cubren los límites de permisos y la verificación de contraseñas.
+- `Permission` define capacidades individuales y `AccessPolicy` aplica denegaciones explícitas antes de concesiones y permisos predeterminados.
+- `PasswordHasher` implementa hashes versionados PBKDF2-HMAC-SHA256, sal aleatoria de 16 bytes y comparación en tiempo constante.
+- Room v7 persiste cuentas de empleados; el primer inicio permite crear el administrador sin contraseña predeterminada.
+- La interfaz Android exige autenticación antes de abrir el panel y mantiene la sesión en memoria.
+- La navegación y las acciones principales de clientes, préstamos y pagos se filtran por permisos; los manejadores de escritura vuelven a comprobar la autorización.
+- Existe administración local de empleados, con restricciones para evitar escalamiento de privilegios y desactivar el último administrador.
+- Room v7 incorpora un registro de auditoría de solo inserción. La interfaz muestra los últimos 200 eventos a perfiles autorizados.
+- Se registran altas y modificaciones de clientes, creación de préstamos, pagos y cambios de cuentas de empleados.
 
 ### Límites actuales
 
-Estos componentes son primitives de dominio y todavía no equivalen a un sistema de inicio de sesión completo. La interfaz Android aún no exige credenciales, los perfiles no se guardan en Room y los casos de uso no están protegidos por una sesión autenticada. No deben usarse para autorizar operaciones reales hasta completar la integración.
+La autenticación y la auditoría son locales a este dispositivo. Todavía no hay backend compartido, sesiones de servidor, sincronización multi-dispositivo, limitación persistente de intentos ni bloqueo progresivo. La pantalla de personal asigna perfiles predeterminados; la edición granular de permisos aún no está integrada en la interfaz. La auditoría actual cubre eventos principales, no todos los accesos y cambios posibles. No se considera una autorización de producción hasta completar backend, revisión de seguridad y pruebas de extremo a extremo.
 
 ## Reglas obligatorias para la integración
 
@@ -41,7 +44,7 @@ Los permisos predeterminados son una base conservadora, no una política final a
 ## Puertas antes de producción
 
 - Integrar autenticación real y sesiones.
-- Persistir cuentas, perfiles y permisos con migración de Room y sincronización backend.
-- Crear el primer administrador mediante un proceso de enrolamiento seguro, no una contraseña predeterminada.
+- Migrar la identidad local a un proveedor de identidad/backend compartido, con sesiones revocables y autorización del lado servidor.
+- Añadir limitación de intentos, bloqueo progresivo, recuperación segura y controles de enrolamiento del administrador.
 - Añadir autorización en todos los endpoints y pruebas de seguridad.
 - Revisar privacidad, protección de datos y requisitos regulatorios aplicables.

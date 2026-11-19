@@ -130,4 +130,60 @@ class CashPaymentIntegrationTest {
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
         assertEquals(0, database.cashSessions().findMovements("CASH-SESSION-USD").size)
     }
+
+    @Test
+    fun duplicateCashMovementRollsBackTheLoanPayment() = runBlocking {
+        val loan = createDueLoan()
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = "CASH-SESSION-ROLLBACK",
+                staffId = "CASHIER-ROLLBACK",
+                currency = "DOP",
+                openingMinor = 0L,
+                openedAt = 1L
+            )
+        )
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = "CASH-SESSION-OTHER",
+                staffId = "CASHIER-OTHER",
+                currency = "DOP",
+                openingMinor = 0L,
+                openedAt = 2L
+            )
+        )
+        val payment = PaymentEntity(
+            operationId = "CASH-PAYMENT-ROLLBACK",
+            loanId = loan.id,
+            amountMinor = 2500L,
+            reference = "Prueba de reversión",
+            createdAt = 3L
+        )
+        database.cashSessions().insertMovement(
+            CashMovementEntity(
+                operationId = "CASH-PAY-CASH-PAYMENT-ROLLBACK",
+                sessionId = "CASH-SESSION-OTHER",
+                type = "CASH_IN",
+                amountMinor = 2500L,
+                reason = "Identificador ocupado para probar rollback",
+                createdAt = 2L
+            )
+        )
+
+        var rolledBack = false
+        try {
+            database.postCashLoanPayment(payment, "CASH-SESSION-ROLLBACK")
+        } catch (_: IllegalStateException) {
+            rolledBack = true
+        }
+
+        assertEquals(true, rolledBack)
+        assertNull(database.payments().findByOperationId(payment.operationId))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(0, database.cashSessions().findMovements("CASH-SESSION-ROLLBACK").size)
+        assertEquals(
+            "CASH-PAY-CASH-PAYMENT-ROLLBACK",
+            database.cashSessions().findMovementByOperation("CASH-PAY-CASH-PAYMENT-ROLLBACK")?.operationId
+        )
+    }
 }

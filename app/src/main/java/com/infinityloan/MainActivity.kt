@@ -229,6 +229,7 @@ private fun AuthenticatedInfinityApp(
     session: StaffSession,
     onLogout: () -> Unit
 ) {
+    val authenticationService = remember(db) { StaffAuthenticationService(db.staffAccounts()) }
     val clients by db.clients().observeAll().collectAsState(initial = emptyList())
     val loans by db.loans().observeAll().collectAsState(initial = emptyList())
     val payments by db.payments().observeAll().collectAsState(initial = emptyList())
@@ -376,6 +377,9 @@ private fun AuthenticatedInfinityApp(
 
         scope.launch {
             try {
+                require(withContext(Dispatchers.IO) {
+                    authenticationService.isSessionValid(session)
+                }) { "La sesión ha caducado. Inicia sesión nuevamente." }
                 require(
                     if (clientToEdit == null) can(Permission.CLIENT_CREATE)
                     else can(Permission.CLIENT_UPDATE)
@@ -442,6 +446,9 @@ private fun AuthenticatedInfinityApp(
         onSave = { clientId, amount, rate, periods, currency, method, frequency, firstDueDateText ->
             scope.launch {
                 try {
+                    require(withContext(Dispatchers.IO) {
+                        authenticationService.isSessionValid(session)
+                    }) { "La sesión ha caducado. Inicia sesión nuevamente." }
                     require(can(Permission.LOAN_CREATE)) { "No tienes permiso para crear préstamos." }
                     val principal = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP)
                     val minor = principal.movePointRight(2).longValueExact()
@@ -502,6 +509,9 @@ private fun AuthenticatedInfinityApp(
         onSave = { operationId, loanId, amount, reference ->
             scope.launch {
                 val result = try {
+                    require(withContext(Dispatchers.IO) {
+                        authenticationService.isSessionValid(session)
+                    }) { "La sesión ha caducado. Inicia sesión nuevamente." }
                     require(can(Permission.PAYMENT_REGISTER)) { "No tienes permiso para registrar pagos." }
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
                     val postResult = db.payments().postPayment(

@@ -249,4 +249,75 @@ class CashPaymentIntegrationTest {
         assertEquals(1, database.cashSessions().findMovements("CASH-SESSION-MANUAL").size)
     }
 
+
+
+    @Test
+    fun closingCashSessionPersistsPhysicalCountAndVarianceInputs() = runBlocking {
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = "CASH-SESSION-CLOSE-AUDIT",
+                staffId = "CASHIER-CLOSE",
+                currency = "DOP",
+                openingMinor = 5000L,
+                openedAt = 10L
+            )
+        )
+        database.postCashMovement(
+            CashMovementEntity(
+                operationId = "CASH-CLOSE-IN-001",
+                sessionId = "CASH-SESSION-CLOSE-AUDIT",
+                type = "CASH_IN",
+                amountMinor = 1500L,
+                reason = "Cobro de prueba",
+                createdAt = 11L
+            )
+        )
+
+        database.closeCashSession(
+            sessionId = "CASH-SESSION-CLOSE-AUDIT",
+            countedMinor = 6300L,
+            closedAt = 12L
+        )
+
+        val closed = database.cashSessions().findSession("CASH-SESSION-CLOSE-AUDIT")
+        assertEquals(12L, closed?.closedAt)
+        assertEquals(6300L, closed?.countedClosingMinor)
+        assertEquals(1, database.cashSessions().findMovements("CASH-SESSION-CLOSE-AUDIT").size)
+    }
+
+    @Test
+    fun employeeCannotOpenTwoCashSessionsForSameCurrency() = runBlocking {
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = "CASH-SESSION-UNIQUE-1",
+                staffId = "CASHIER-UNIQUE",
+                currency = "USD",
+                openingMinor = 1000L,
+                openedAt = 20L
+            )
+        )
+
+        var rejected = false
+        try {
+            database.openCashSession(
+                CashSessionEntity(
+                    sessionId = "CASH-SESSION-UNIQUE-2",
+                    staffId = "CASHIER-UNIQUE",
+                    currency = "USD",
+                    openingMinor = 500L,
+                    openedAt = 21L
+                )
+            )
+        } catch (_: IllegalStateException) {
+            rejected = true
+        }
+
+        assertEquals(true, rejected)
+        assertNull(database.cashSessions().findSession("CASH-SESSION-UNIQUE-2"))
+        assertEquals(
+            "CASH-SESSION-UNIQUE-1",
+            database.cashSessions().findOpenSession("CASHIER-UNIQUE", "USD")?.sessionId
+        )
+    }
+
 }

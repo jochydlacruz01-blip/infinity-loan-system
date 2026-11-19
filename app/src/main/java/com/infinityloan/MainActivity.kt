@@ -516,6 +516,7 @@ private fun AuthenticatedInfinityApp(
                     }) { "La sesión ha caducado. Inicia sesión nuevamente." }
                     require(can(Permission.PAYMENT_REGISTER)) { "No tienes permiso para registrar pagos." }
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
+                    db.withTransaction {
                     val postResult = db.payments().postPayment(
                         PaymentEntity(
                             operationId = operationId,
@@ -1224,8 +1225,9 @@ private fun StaffManagementScreen(
                                 scope.launch {
                                     try {
                                         withContext(Dispatchers.IO) {
-                                            service.setStaffAccountActive(session, account.id, !account.isActive)
-                                            db.auditLogs().insert(
+                                            db.withTransaction {
+                                                service.setStaffAccountActive(session, account.id, !account.isActive)
+                                                db.auditLogs().insert(
                                                 AuditLogEntity(
                                                     actorStaffId = session.staffId,
                                                     actorUsername = session.username,
@@ -1235,6 +1237,7 @@ private fun StaffManagementScreen(
                                                     details = "username=${account.username}"
                                                 )
                                             )
+                                            }
                                         }
                                         refreshKey++
                                         onMessage(if (account.isActive) "Cuenta desactivada." else "Cuenta reactivada.")
@@ -1298,6 +1301,7 @@ private fun StaffManagementScreen(
                         scope.launch {
                             try {
                                 withContext(Dispatchers.IO) {
+                                    db.withTransaction {
                                     service.createStaffAccount(
                                         actor = session,
                                         username = username,
@@ -1315,6 +1319,7 @@ private fun StaffManagementScreen(
                                             details = "username=${username.trim().lowercase(Locale.ROOT)};role=${selectedRole.name}"
                                         )
                                     )
+                                    }
                                 }
                                 refreshKey++
                                 showCreate = false

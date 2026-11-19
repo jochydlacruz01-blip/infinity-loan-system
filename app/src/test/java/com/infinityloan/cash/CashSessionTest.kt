@@ -151,3 +151,31 @@ class CashReportTest {
         assertEquals(6_000L, report.expectedCashMinor)
     }
 }
+
+
+class CashStaffReportTest {
+    @Test fun reportSeparatesEmployeesAndCurrenciesAndOnlyCountsClosedVariances() {
+        val staffAClosed = CashSession("a1", "staff-a", "DOP", 1_000L).close(900L)
+        val staffAOpen = CashSession("a2", "staff-a", "DOP", 500L)
+        val staffBClosed = CashSession("b1", "staff-b", "DOP", 2_000L).close(2_250L)
+        val staffAEuro = CashSession("a3", "staff-a", "EUR", 700L).close(650L)
+        val report = buildCashStaffReport(listOf(staffAClosed, staffAOpen, staffBClosed, staffAEuro))
+        val aDop = report.first { it.staffId == "staff-a" && it.currency == "DOP" }
+        assertEquals(2, aDop.sessionCount)
+        assertEquals(1, aDop.openSessionCount)
+        assertEquals(1, aDop.closedSessionCount)
+        assertEquals(1_500L, aDop.expectedCashMinor)
+        assertEquals(900L, aDop.countedCashMinor)
+        assertEquals(-100L, aDop.varianceMinor)
+        assertEquals(250L, report.first { it.staffId == "staff-b" }.varianceMinor)
+        assertEquals("EUR", report.last().currency)
+    }
+
+    @Test fun emptyStaffReportIsEmpty() { assertTrue(buildCashStaffReport(emptyList()).isEmpty()) }
+
+    @Test fun staffReportUsesExactArithmetic() {
+        val first = CashSession("one", "staff", "USD", Long.MAX_VALUE)
+        val second = CashSession("two", "staff", "USD", 1L)
+        assertThrows(ArithmeticException::class.java) { buildCashStaffReport(listOf(first, second)) }
+    }
+}

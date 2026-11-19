@@ -116,6 +116,34 @@ class StaffAuthenticationService(
         }
     }
 
+    suspend fun setStaffAccountActive(
+        actor: StaffSession,
+        staffId: String,
+        active: Boolean
+    ) {
+        require(AccessPolicy.allows(actor.profile, Permission.STAFF_MANAGE)) {
+            "No tienes permiso para administrar empleados."
+        }
+        require(active || actor.staffId != staffId) {
+            "No puedes desactivar tu propia cuenta."
+        }
+        val target = staffAccounts.getAll().firstOrNull { it.id == staffId }
+            ?: throw IllegalArgumentException("La cuenta seleccionada no existe.")
+        require(
+            target.role != StaffRole.ADMINISTRATOR.name ||
+                actor.profile.role == StaffRole.ADMINISTRATOR
+        ) { "Solo un administrador puede modificar otra cuenta administradora." }
+        if (!active && target.role == StaffRole.ADMINISTRATOR.name && target.isActive) {
+            val activeAdministrators = staffAccounts.getAll().count {
+                it.role == StaffRole.ADMINISTRATOR.name && it.isActive
+            }
+            require(activeAdministrators > 1) {
+                "No puedes desactivar el último administrador activo."
+            }
+        }
+        staffAccounts.setActive(staffId, active)
+    }
+
     suspend fun authenticate(
         username: String,
         password: CharArray

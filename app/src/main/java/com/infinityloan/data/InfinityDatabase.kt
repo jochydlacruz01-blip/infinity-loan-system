@@ -564,7 +564,9 @@ enum class CreditPaymentResult {
     LOAN_NOT_FOUND,
     LOAN_NOT_ACTIVE,
     EXCEEDS_BALANCE,
-    INSUFFICIENT_CREDIT
+    INSUFFICIENT_CREDIT,
+    SCHEDULE_NOT_FOUND,
+    INVALID_SCHEDULE
 }
 @Database(
     entities = [

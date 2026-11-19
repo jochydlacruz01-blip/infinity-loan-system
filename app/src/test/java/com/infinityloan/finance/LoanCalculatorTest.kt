@@ -156,5 +156,28 @@ class LoanCalculatorTest {
             }
         }
     }
-}
+    @Test
+    fun allAmortizationMethodsReconcileSmallPrincipalAtZeroRate() {
+        val smallPrincipal = BigDecimal("0.05")
+        val zeroRate = BigDecimal.ZERO
+        val schedules = listOf(
+            LoanCalculator.french(smallPrincipal, zeroRate, 3),
+            LoanCalculator.italian(smallPrincipal, zeroRate, 3),
+            LoanCalculator.american(smallPrincipal, zeroRate, 3)
+        )
 
+        schedules.forEach { rows ->
+            assertEquals(3, rows.size)
+            val repaid = rows.fold(BigDecimal.ZERO) { sum, row ->
+                sum.add(row.principal)
+            }
+            assertEquals(0, repaid.compareTo(smallPrincipal))
+            assertTrue(rows.all { row ->
+                row.principal >= BigDecimal.ZERO &&
+                    row.interest.compareTo(BigDecimal.ZERO) == 0 &&
+                    row.total.compareTo(row.principal) == 0
+            })
+        }
+    }
+
+}

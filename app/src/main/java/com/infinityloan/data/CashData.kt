@@ -23,6 +23,7 @@ data class PersistedCashSessionForAudit(
 )
 
 data class PersistedCashMovementForReconciliation(
+    val sessionId: String,
     val operationId: String,
     val type: String,
     val amountMinor: Long,
@@ -64,7 +65,7 @@ interface CashSessionDao {
     @Query("SELECT sessionId, staffId, currency, openingMinor, closedAt, countedClosingMinor FROM cash_sessions ORDER BY openedAt, sessionId")
     suspend fun findAllSessionsForAudit(): List<PersistedCashSessionForAudit>
 
-    @Query("SELECT cash_movements.operationId AS operationId, cash_movements.type AS type, cash_movements.amountMinor AS amountMinor, cash_sessions.currency AS sessionCurrency FROM cash_movements INNER JOIN cash_sessions ON cash_movements.sessionId = cash_sessions.sessionId ORDER BY cash_movements.createdAt, cash_movements.operationId")
+    @Query("SELECT cash_movements.sessionId AS sessionId, cash_movements.operationId AS operationId, cash_movements.type AS type, cash_movements.amountMinor AS amountMinor, cash_sessions.currency AS sessionCurrency FROM cash_movements INNER JOIN cash_sessions ON cash_movements.sessionId = cash_sessions.sessionId ORDER BY cash_movements.createdAt, cash_movements.operationId")
     suspend fun findAllMovementsForAudit(): List<PersistedCashMovementForReconciliation>
 
     @Query("SELECT payments.operationId AS operationId, payments.amountMinor AS amountMinor, loans.currency AS currency FROM payments INNER JOIN loans ON payments.loanId = loans.id ORDER BY payments.createdAt, payments.operationId")

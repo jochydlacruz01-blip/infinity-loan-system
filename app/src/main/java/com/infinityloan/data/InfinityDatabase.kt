@@ -166,6 +166,51 @@ data class CustomerCreditMovementEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Entity(
+    tableName = "staff_accounts",
+    indices = [Index(value = ["username"], unique = true)]
+)
+data class StaffAccountEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val username: String,
+    val displayName: String,
+    val role: String,
+    val grants: String = "",
+    val denials: String = "",
+    val passwordAlgorithm: String,
+    val passwordIterations: Int,
+    val passwordSaltBase64: String,
+    val passwordHashBase64: String,
+    val isActive: Boolean = true,
+    val createdAt: Long = System.currentTimeMillis(),
+    val lastLoginAt: Long? = null
+)
+
+@Dao
+interface StaffAccountDao {
+    @Query("SELECT * FROM staff_accounts WHERE username = :username LIMIT 1")
+    suspend fun findByUsername(username: String): StaffAccountEntity?
+
+    @Query("SELECT COUNT(*) FROM staff_accounts")
+    suspend fun count(): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(account: StaffAccountEntity)
+
+    @Query("UPDATE staff_accounts SET lastLoginAt = :timestamp WHERE id = :id")
+    suspend fun updateLastLogin(id: String, timestamp: Long)
+
+    @Query("UPDATE staff_accounts SET isActive = :active WHERE id = :id")
+    suspend fun setActive(id: String, active: Boolean)
+
+    @Transaction
+    suspend fun createInitialAdministrator(account: StaffAccountEntity): Boolean {
+        if (count() != 0) return false
+        insert(account)
+        return true
+    }
+}
+
 @Dao
 interface CustomerCreditDao {
 
@@ -651,9 +696,10 @@ enum class CreditPaymentResult {
         PaymentEntity::class,
         CustomerCreditMovementEntity::class,
         LoanInstallmentEntity::class,
-        PaymentAllocationEntity::class
+        PaymentAllocationEntity::class,
+        StaffAccountEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 
@@ -707,6 +753,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun customerCredits(): CustomerCreditDao
     abstract fun installments(): LoanInstallmentDao
     abstract fun paymentAllocations(): PaymentAllocationDao
+    abstract fun staffAccounts(): StaffAccountDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -882,6 +929,31 @@ internal val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+internal val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS staff_accounts (
+                id TEXT NOT NULL PRIMARY KEY,
+                username TEXT NOT NULL,
+                displayName TEXT NOT NULL,
+                role TEXT NOT NULL,
+                grants TEXT NOT NULL,
+                denials TEXT NOT NULL,
+                passwordAlgorithm TEXT NOT NULL,
+                passwordIterations INTEGER NOT NULL,
+                passwordSaltBase64 TEXT NOT NULL,
+                passwordHashBase64 TEXT NOT NULL,
+                isActive INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL,
+                lastLoginAt INTEGER
+            )
+        """.trimIndent())
+        database.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_staff_accounts_username ON staff_accounts(username)"
+        )
+    }
+}
+
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -889,7 +961,7 @@ internal val MIGRATION_4_5 = object : Migration(4, 5) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 .build().also { INSTANCE = it }
             }
     }

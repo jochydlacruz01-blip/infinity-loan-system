@@ -166,6 +166,33 @@ data class CustomerCreditMovementEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Entity(
+    tableName = "payment_reversals",
+    foreignKeys = [
+        ForeignKey(entity = PaymentEntity::class, parentColumns = ["operationId"], childColumns = ["originalOperationId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = LoanEntity::class, parentColumns = ["id"], childColumns = ["loanId"], onDelete = ForeignKey.RESTRICT)
+    ],
+    indices = [Index(value = ["originalOperationId"], unique = true), Index("loanId")]
+)
+data class PaymentReversalEntity(
+    @PrimaryKey val reversalId: String,
+    val originalOperationId: String,
+    val loanId: String,
+    val amountMinor: Long,
+    val reason: String,
+    val actorStaffId: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface PaymentReversalDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(reversal: PaymentReversalEntity)
+
+    @Query("SELECT * FROM payment_reversals WHERE originalOperationId = :operationId LIMIT 1")
+    suspend fun findByOriginalOperationId(operationId: String): PaymentReversalEntity?
+}
+
 data class StaffAccountSummary(
     val id: String,
     val username: String,
@@ -552,6 +579,13 @@ interface PaymentDao {
     @Query("SELECT COUNT(*) FROM payments WHERE loanId = :loanId")
     suspend fun countPaymentsForLoan(loanId: String): Int
 
+    @Query("""
+        SELECT COUNT(*) FROM payments
+        WHERE loanId = :loanId AND operationId != :operationId AND createdAt >= :createdAt
+    """)
+    suspend fun countPaymentsAtOrAfter(loanId: String, operationId: String, createdAt: Long): Int
+
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertLegacyInstallments(rows: List<LoanInstallmentEntity>)
 
@@ -783,6 +817,13 @@ interface PaymentDao {
     }
 }
 
+enum class PaymentReversalResult {
+    REVERSED, ALREADY_REVERSED, PAYMENT_NOT_FOUND, LOAN_NOT_FOUND, INVALID_AMOUNT,
+    INVALID_ACTOR, INVALID_REASON, INVALID_CREDIT_LEDGER, LATER_PAYMENT_EXISTS,
+    GENERATED_CREDIT_ALREADY_USED, ORIGINAL_CASH_SESSION_NOT_OPEN, INVALID_CASH_LEDGER,
+    INVALID_ALLOCATION
+}
+
 enum class PaymentPostResult {
     POSTED, DUPLICATE, INVALID_AMOUNT, LOAN_NOT_FOUND, LOAN_NOT_ACTIVE, EXCEEDS_BALANCE,
     SCHEDULE_NOT_FOUND, INVALID_SCHEDULE, LEGACY_RECONCILIATION_REQUIRED
@@ -810,9 +851,10 @@ enum class CreditPaymentResult {
         StaffAccountEntity::class,
         AuditLogEntity::class,
         CashSessionEntity::class,
-        CashMovementEntity::class
+        CashMovementEntity::class,
+        PaymentReversalEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 
@@ -859,6 +901,216 @@ abstract class InfinityDatabase : RoomDatabase() {
             check(debitInserted != -1L) { "No se pudo descontar el crédito aplicado." }
             CreditPaymentResult.POSTED
         }
+
+
+    suspend fun reversePayment(
+        operationId: String,
+        actorStaffId: String,
+        actorUsername: String,
+        reason: String,
+        reversedAt: Long = System.currentTimeMillis()
+    ): PaymentReversalResult = withTransaction {
+        if (actorStaffId.isBlank() || actorUsername.isBlank()) return@withTransaction PaymentReversalResult.INVALID_ACTOR
+        if (reason.isBlank() || reason.trim().length > 500) return@withTransaction PaymentReversalResult.INVALID_REASON
+        if (paymentReversals().findByOriginalOperationId(operationId) != null) {
+            return@withTransaction PaymentReversalResult.ALREADY_REVERSED
+        }
+        val payment = payments().findByOperationId(operationId)
+            ?: return@withTransaction PaymentReversalResult.PAYMENT_NOT_FOUND
+        val loan = loans().findById(payment.loanId)
+            ?: return@withTransaction PaymentReversalResult.LOAN_NOT_FOUND
+        if (payments().countPaymentsAtOrAfter(loan.id, operationId, payment.createdAt) > 0) {
+            return@withTransaction PaymentReversalResult.LATER_PAYMENT_EXISTS
+        }
+
+        val allocations = paymentAllocations().findForPayment(operationId)
+        val generatedCredit = customerCredits().findMovement("PAYMENT-EXCESS-" + operationId)
+        val appliedCredit = customerCredits().findMovement("PAYMENT-CREDIT-" + operationId)
+        if (generatedCredit != null && (generatedCredit.amountMinor <= 0L ||
+            generatedCredit.clientId != loan.clientId || generatedCredit.loanId != loan.id ||
+            generatedCredit.currency != loan.currency)) {
+            return@withTransaction PaymentReversalResult.INVALID_CREDIT_LEDGER
+        }
+        if (appliedCredit != null && (appliedCredit.amountMinor >= 0L ||
+            appliedCredit.clientId != loan.clientId || appliedCredit.loanId != loan.id ||
+            appliedCredit.currency != loan.currency)) {
+            return@withTransaction PaymentReversalResult.INVALID_CREDIT_LEDGER
+        }
+        val generatedCreditMinor = generatedCredit?.amountMinor ?: 0L
+        val availableCredit = try {
+            customerCredits().getBalance(loan.clientId, loan.currency)
+        } catch (_: ArithmeticException) {
+            return@withTransaction PaymentReversalResult.INVALID_CREDIT_LEDGER
+        }
+
+        val cashReceipt = cashSessions().findMovementByOperation("CASH-PAY-" + operationId)
+        val cashSession = cashReceipt?.let { cashSessions().findSession(it.sessionId) }
+        val policy = PaymentReversalPolicy.evaluate(
+            PaymentReversalPolicy.Request(
+                paymentAmountMinor = payment.amountMinor,
+                actorStaffId = actorStaffId,
+                reason = reason,
+                hasLaterPaymentsForLoan = false,
+                generatedCreditMinor = generatedCreditMinor,
+                availableCustomerCreditMinor = availableCredit,
+                hasOriginalCashReceipt = cashReceipt != null,
+                originalCashSessionIsOpen = cashSession != null && cashSession.closedAt == null &&
+                    cashSessions().findOpenSession(cashSession.staffId, cashSession.currency)?.sessionId == cashSession.sessionId
+            )
+        )
+        when (policy) {
+            PaymentReversalPolicy.Result.ELIGIBLE -> Unit
+            PaymentReversalPolicy.Result.INVALID_PAYMENT_AMOUNT -> return@withTransaction PaymentReversalResult.INVALID_AMOUNT
+            PaymentReversalPolicy.Result.INVALID_ACTOR -> return@withTransaction PaymentReversalResult.INVALID_ACTOR
+            PaymentReversalPolicy.Result.INVALID_REASON -> return@withTransaction PaymentReversalResult.INVALID_REASON
+            PaymentReversalPolicy.Result.INVALID_CREDIT_LEDGER -> return@withTransaction PaymentReversalResult.INVALID_CREDIT_LEDGER
+            PaymentReversalPolicy.Result.LATER_PAYMENT_EXISTS -> return@withTransaction PaymentReversalResult.LATER_PAYMENT_EXISTS
+            PaymentReversalPolicy.Result.GENERATED_CREDIT_ALREADY_USED -> return@withTransaction PaymentReversalResult.GENERATED_CREDIT_ALREADY_USED
+            PaymentReversalPolicy.Result.ORIGINAL_CASH_SESSION_NOT_OPEN -> return@withTransaction PaymentReversalResult.ORIGINAL_CASH_SESSION_NOT_OPEN
+        }
+        if (cashReceipt != null && (cashReceipt.type != "CASH_IN" ||
+            cashReceipt.amountMinor != payment.amountMinor || cashSession == null ||
+            cashSession.currency != loan.currency)) {
+            return@withTransaction PaymentReversalResult.INVALID_CASH_LEDGER
+        }
+
+        val rows = installments().findForLoan(loan.id).associateBy { it.number }
+        var principalToRestore = 0L
+        var allocatedTotal = 0L
+        try {
+            for (allocation in allocations) {
+                if (allocation.loanId != loan.id || allocation.lateFeePaidMinor < 0L ||
+                    allocation.chargesPaidMinor < 0L || allocation.interestPaidMinor < 0L ||
+                    allocation.principalPaidMinor < 0L) {
+                    return@withTransaction PaymentReversalResult.INVALID_ALLOCATION
+                }
+                val row = rows[allocation.installmentNumber]
+                    ?: return@withTransaction PaymentReversalResult.INVALID_ALLOCATION
+                if (row.paidLateFeeMinor < allocation.lateFeePaidMinor ||
+                    row.paidChargesMinor < allocation.chargesPaidMinor ||
+                    row.paidInterestMinor < allocation.interestPaidMinor ||
+                    row.paidPrincipalMinor < allocation.principalPaidMinor) {
+                    return@withTransaction PaymentReversalResult.INVALID_ALLOCATION
+                }
+                val buckets = Math.addExact(
+                    Math.addExact(allocation.lateFeePaidMinor, allocation.chargesPaidMinor),
+                    Math.addExact(allocation.interestPaidMinor, allocation.principalPaidMinor)
+                )
+                allocatedTotal = Math.addExact(allocatedTotal, buckets)
+                principalToRestore = Math.addExact(principalToRestore, allocation.principalPaidMinor)
+            }
+            if (Math.addExact(allocatedTotal, generatedCreditMinor) != payment.amountMinor) {
+                return@withTransaction PaymentReversalResult.INVALID_ALLOCATION
+            }
+        } catch (_: ArithmeticException) {
+            return@withTransaction PaymentReversalResult.INVALID_ALLOCATION
+        }
+        val restoredBalance = try {
+            Math.addExact(loan.balanceMinor, principalToRestore)
+        } catch (_: ArithmeticException) {
+            return@withTransaction PaymentReversalResult.INVALID_ALLOCATION
+        }
+        if (restoredBalance < 0L || restoredBalance > loan.principalMinor) {
+            return@withTransaction PaymentReversalResult.INVALID_ALLOCATION
+        }
+
+        for (allocation in allocations) {
+            val row = rows.getValue(allocation.installmentNumber)
+            val late = row.paidLateFeeMinor - allocation.lateFeePaidMinor
+            val charges = row.paidChargesMinor - allocation.chargesPaidMinor
+            val interest = row.paidInterestMinor - allocation.interestPaidMinor
+            val principal = row.paidPrincipalMinor - allocation.principalPaidMinor
+            val status = when {
+                late == 0L && charges == 0L && interest == row.interestMinor && principal == row.principalMinor -> "PAID"
+                late > 0L || charges > 0L || interest > 0L || principal > 0L -> "PARTIAL"
+                else -> "PENDING"
+            }
+            payments().updateInstallmentPaid(loan.id, row.number, late, charges, interest, principal, status)
+        }
+
+        if (generatedCreditMinor > 0L) {
+            val inserted = customerCredits().insertIfAbsent(
+                CustomerCreditMovementEntity(
+                    operationId = "PAYMENT-REVERSAL-CREDIT-" + operationId,
+                    clientId = loan.clientId,
+                    loanId = loan.id,
+                    currency = loan.currency,
+                    amountMinor = -generatedCreditMinor,
+                    reference = "Reverso del excedente del pago " + operationId,
+                    createdAt = reversedAt
+                )
+            )
+            check(inserted != -1L) { "No se pudo compensar el crédito excedente." }
+        }
+        if (appliedCredit != null) {
+            val inserted = customerCredits().insertIfAbsent(
+                CustomerCreditMovementEntity(
+                    operationId = "PAYMENT-REVERSAL-RESTORE-" + operationId,
+                    clientId = loan.clientId,
+                    loanId = loan.id,
+                    currency = loan.currency,
+                    amountMinor = Math.negateExact(appliedCredit.amountMinor),
+                    reference = "Restitución del crédito usado en el pago " + operationId,
+                    createdAt = reversedAt
+                )
+            )
+            check(inserted != -1L) { "No se pudo restituir el crédito aplicado." }
+        }
+
+        if (cashReceipt != null && cashSession != null) {
+            val existing = cashSessions().findMovements(cashSession.sessionId).map { movement ->
+                com.infinityloan.cash.CashMovement(
+                    movement.operationId, com.infinityloan.cash.CashMovementType.valueOf(movement.type),
+                    movement.amountMinor, movement.reason, movement.createdAt
+                )
+            }
+            val cashOutId = "CASH-REVERSAL-" + operationId
+            val cashReason = "Reverso de cobro " + operationId + ": " + reason.trim()
+            val next = com.infinityloan.cash.CashSession(
+                cashSession.sessionId, cashSession.staffId, cashSession.currency,
+                cashSession.openingMinor, movements = existing
+            ).addMovement(
+                com.infinityloan.cash.CashMovement(
+                    cashOutId, com.infinityloan.cash.CashMovementType.CASH_OUT,
+                    payment.amountMinor, cashReason, reversedAt
+                )
+            )
+            check(next.expectedCashMinor >= 0L)
+            cashSessions().insertMovement(
+                CashMovementEntity(cashOutId, cashSession.sessionId, "CASH_OUT", payment.amountMinor, cashReason, reversedAt)
+            )
+        }
+
+        val afterRows = installments().findForLoan(loan.id)
+        val allPaid = afterRows.all { row ->
+            row.paidLateFeeMinor == 0L && row.paidChargesMinor == 0L &&
+                row.paidInterestMinor == row.interestMinor && row.paidPrincipalMinor == row.principalMinor
+        }
+        payments().updateLoanBalance(loan.id, restoredBalance, if (restoredBalance == 0L && allPaid) "PAID" else "ACTIVE")
+        paymentReversals().insert(
+            PaymentReversalEntity(
+                reversalId = "REVERSAL-" + operationId,
+                originalOperationId = operationId,
+                loanId = loan.id,
+                amountMinor = payment.amountMinor,
+                reason = reason.trim(),
+                actorStaffId = actorStaffId,
+                createdAt = reversedAt
+            )
+        )
+        auditLogs().insert(
+            AuditLogEntity(
+                actorStaffId = actorStaffId,
+                actorUsername = actorUsername,
+                action = "PAYMENT_REVERSED",
+                targetType = "PAYMENT",
+                targetId = operationId,
+                details = "Monto=" + payment.amountMinor + "; moneda=" + loan.currency + "; motivo=" + reason.trim(),
+                createdAt = reversedAt
+            )
+        )
+        PaymentReversalResult.REVERSED
+    }
 
     /**
      * Cash operations are serialized inside Room transactions and validated by the domain model.
@@ -975,6 +1227,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun staffAccounts(): StaffAccountDao
     abstract fun auditLogs(): AuditLogDao
     abstract fun cashSessions(): CashSessionDao
+    abstract fun paymentReversals(): PaymentReversalDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -1209,6 +1462,28 @@ internal val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+internal val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS payment_reversals (
+                reversalId TEXT NOT NULL PRIMARY KEY,
+                originalOperationId TEXT NOT NULL,
+                loanId TEXT NOT NULL,
+                amountMinor INTEGER NOT NULL,
+                reason TEXT NOT NULL,
+                actorStaffId TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(originalOperationId) REFERENCES payments(operationId)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(loanId) REFERENCES loans(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_payment_reversals_originalOperationId ON payment_reversals(originalOperationId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_payment_reversals_loanId ON payment_reversals(loanId)")
+    }
+}
+
 internal val MIGRATION_8_9 = object : Migration(8, 9) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("""
@@ -1248,7 +1523,7 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
 .build().also { INSTANCE = it }
             }
     }

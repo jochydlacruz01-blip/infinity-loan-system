@@ -23,13 +23,22 @@ Este documento describe los controles que existen en la aplicación Android con 
 
 Los resultados anteriores prueban los casos automatizados del repositorio en esos commits; no sustituyen auditoría independiente ni pruebas en producción.
 
-## Reversos — primera etapa de control
+## Reversos — contabilización local implementada
 
-Se añadió `PaymentReversalPolicy`, un control de elegibilidad puro (sin escrituras contables) con pruebas unitarias. Rechaza importes inválidos, actor o motivo vacíos, libros de crédito inconsistentes, pagos posteriores en el mismo préstamo, crédito excedente ya consumido y reversos de cobros en efectivo cuando la caja original ya está cerrada.
+La política pura `PaymentReversalPolicy` se integra ahora con una operación Room transaccional y append-only. Se añadió la entidad `payment_reversals` (Room v10) con índice único por pago original y migración `9→10`. El pago y sus asignaciones originales no se borran ni se reescriben.
 
-El catálogo de permisos incluye PAYMENT_REVERSE: por defecto solo el administrador lo recibe; los demás perfiles requieren una concesión explícita. Las denegaciones explícitas siguen prevaleciendo.
+La operación `reversePayment`:
+- exige actor, usuario y motivo no vacío (máximo 500 caracteres);
+- rechaza un segundo reverso, pagos posteriores o simultáneos del mismo préstamo y asignaciones inconsistentes;
+- restaura exactamente los buckets de cuotas y el principal asignado, recalculando el estado del préstamo;
+- compensa el excedente de crédito solo si el saldo disponible cubre el crédito generado;
+- restaura el crédito utilizado para financiar el pago mediante un movimiento compensatorio;
+- si existió un recibo de efectivo, exige que la sesión original siga abierta y contabiliza una salida de caja por el mismo importe;
+- inserta el registro de reverso y el evento de auditoría dentro de la misma transacción, de modo que cualquier conflicto revierte todos los cambios.
 
-**Límite importante:** esto todavía no contabiliza reversos ni modifica pagos, cuotas, principal, crédito, caja o auditoría. La siguiente etapa debe implementar una operación Room atómica y append-only, exigir sesión/permisos vigentes y registrar el reverso y la auditoría sin borrar el pago original. La política exige que el llamador suministre hechos verificados desde la base de datos; no debe confiar en valores proporcionados por la interfaz.
+La puerta de aplicación `PaymentReversalService` vuelve a validar la sesión persistida y `PAYMENT_REVERSE` inmediatamente antes de invocar la operación. Por defecto, solo el administrador dispone de ese permiso; otros perfiles requieren concesión explícita y las denegaciones prevalecen.
+
+**Alcance:** contabilización local Android/Room. No es todavía un flujo central multi-dispositivo, no publica reversos en un backend y no sustituye una política de aprobación de supervisor ni la conciliación contable independiente. Los cobros de caja de sesiones ya cerradas se bloquean y deben resolverse mediante un ajuste separado autorizado.
 
 ## Conciliaciones adicionales requeridas antes de producción
 

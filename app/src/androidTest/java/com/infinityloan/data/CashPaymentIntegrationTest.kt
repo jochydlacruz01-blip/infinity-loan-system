@@ -372,4 +372,65 @@ class CashPaymentIntegrationTest {
         assertEquals(0L, database.loans().findById(loan.id)?.balanceMinor)
     }
 
+    @Test
+    fun cashPaymentCanBeReversedAtomicallyAndOnlyOnce() = runBlocking {
+        val loan = createDueLoan()
+        val sessionId = "CASH-SESSION-REVERSAL"
+        database.openCashSession(CashSessionEntity(sessionId, "CASHIER-REVERSAL", "DOP", 5000L, 1L))
+        val payment = PaymentEntity("CASH-PAYMENT-REVERSAL", loan.id, 3000L, "Pago reversible", 2L)
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
+        assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin", "Registro duplicado", 3L))
+        assertEquals(PaymentReversalResult.ALREADY_REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin", "Segundo intento", 4L))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        val movements = database.cashSessions().findMovements(sessionId)
+        assertEquals(2, movements.size)
+        assertEquals("CASH_IN", movements[0].type)
+        assertEquals("CASH_OUT", movements[1].type)
+        assertEquals(3000L, movements[1].amountMinor)
+        assertEquals("PAYMENT_REVERSED", database.auditLogs().findByActor("ADMIN-001", 5).first().action)
+    }
+
+    @Test
+    fun reversalRemovesUnusedGeneratedCreditAndRestoresInstallments() = runBlocking {
+        val loan = createDueLoan()
+        val payment = PaymentEntity("PAYMENT-EXCESS-REVERSAL", loan.id, 12500L, "Pago con excedente", 10L)
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+        assertEquals(2500L, database.customerCredits().getBalance(loan.clientId, "DOP"))
+        assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-002", "admin", "Cobro aplicado por error", 11L))
+        assertEquals(0L, database.customerCredits().getBalance(loan.clientId, "DOP"))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        val installment = database.installments().findForLoan(loan.id).single()
+        assertEquals(0L, installment.paidPrincipalMinor)
+        assertEquals("PENDING", installment.status)
+        assertEquals(12500L, database.paymentReversals().findByOriginalOperationId(payment.operationId)?.amountMinor)
+    }
+
+    @Test
+    fun reversalIsBlockedWhenGeneratedCreditWasConsumed() = runBlocking {
+        val loan = createDueLoan()
+        val payment = PaymentEntity("PAYMENT-CREDIT-CONSUMED", loan.id, 12500L, "Pago con crédito generado", 20L)
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+        database.customerCredits().insert(CustomerCreditMovementEntity(
+            "CONSUME-GENERATED-CREDIT", loan.clientId, loan.id, loan.currency, -2500L,
+            "Consumo posterior de crédito", 21L
+        ))
+        assertEquals(PaymentReversalResult.GENERATED_CREDIT_ALREADY_USED, database.reversePayment(payment.operationId, "ADMIN-003", "admin", "Reverso bloqueado", 22L))
+        assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
+        assertEquals(0L, database.loans().findById(loan.id)?.balanceMinor)
+    }
+
+    @Test
+    fun reversalIsBlockedAfterOriginalCashSessionCloses() = runBlocking {
+        val loan = createDueLoan()
+        val sessionId = "CASH-SESSION-CLOSED-REVERSAL"
+        database.openCashSession(CashSessionEntity(sessionId, "CASHIER-CLOSED", "DOP", 0L, 30L))
+        val payment = PaymentEntity("CASH-PAYMENT-CLOSED-REVERSAL", loan.id, 1000L, "Cobro para cierre", 31L)
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
+        database.closeCashSession(sessionId, countedMinor = 1000L, closedAt = 32L)
+        assertEquals(PaymentReversalResult.ORIGINAL_CASH_SESSION_NOT_OPEN, database.reversePayment(payment.operationId, "ADMIN-004", "admin", "Intento tras cierre", 33L))
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
+    }
+
+
 }

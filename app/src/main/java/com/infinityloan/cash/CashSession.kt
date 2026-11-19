@@ -81,6 +81,8 @@ data class CashCurrencyReport(
     val openSessionCount: Int,
     val closedSessionCount: Int,
     val expectedCashMinor: Long,
+    val expectedOpenCashMinor: Long,
+    val expectedClosedCashMinor: Long,
     val countedCashMinor: Long,
     val varianceMinor: Long
 )
@@ -88,11 +90,17 @@ data class CashCurrencyReport(
 fun buildCashReport(sessions: List<CashSession>): List<CashCurrencyReport> =
     sessions.groupBy { it.currency }.toSortedMap().map { (currency, group) ->
         val expected = group.fold(0L) { total, session -> Math.addExact(total, session.expectedCashMinor) }
+        val openExpected = group.filter { !it.closed }.fold(0L) { total, session ->
+            Math.addExact(total, session.expectedCashMinor)
+        }
+        val closedExpected = group.filter { it.closed }.fold(0L) { total, session ->
+            Math.addExact(total, session.expectedCashMinor)
+        }
         val counted = group.filter { it.closed }.fold(0L) { total, session ->
             Math.addExact(total, session.countedClosingMinor ?: 0L)
         }
         val variance = group.filter { it.closed }.fold(0L) { total, session ->
             Math.addExact(total, session.varianceMinor ?: 0L)
         }
-        CashCurrencyReport(currency, group.size, group.count { !it.closed }, group.count { it.closed }, expected, counted, variance)
+        CashCurrencyReport(currency, group.size, group.count { !it.closed }, group.count { it.closed }, expected, openExpected, closedExpected, counted, variance)
     }

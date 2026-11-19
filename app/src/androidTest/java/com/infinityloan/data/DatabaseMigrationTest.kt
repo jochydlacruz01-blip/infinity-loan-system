@@ -51,7 +51,7 @@ class DatabaseMigrationTest {
 
         try {
             val db = helper.writableDatabase
-            MIGRATION_4_5.migrate(db)
+            InfinityDatabase.MIGRATION_4_5.migrate(db)
 
             db.query("""
                 SELECT principalMinor, paidLateFeeMinor, paidChargesMinor,

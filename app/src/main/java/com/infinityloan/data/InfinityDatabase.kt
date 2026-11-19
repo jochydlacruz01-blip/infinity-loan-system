@@ -285,7 +285,8 @@ enum class CustomerCreditResult {
     CURRENCY_MISMATCH,
     INSUFFICIENT_CREDIT,
     SCHEDULE_NOT_FOUND,
-    INVALID_SCHEDULE
+    INVALID_SCHEDULE,
+    LEGACY_RECONCILIATION_REQUIRED
 }
 @Dao
 interface ClientDao {
@@ -398,6 +399,9 @@ interface PaymentDao {
     @Query("SELECT COUNT(*) FROM payments WHERE loanId = :loanId")
     suspend fun countPaymentsForLoan(loanId: String): Int
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertLegacyInstallments(rows: List<LoanInstallmentEntity>)
+
     /**
      * Safely reconstructs only untouched legacy loans. Historical payments cannot
      * be allocated retroactively without a verified accounting reconciliation.
@@ -442,7 +446,7 @@ interface PaymentDao {
             if (rows.size != loan.periods || scheduledPrincipal != loan.principalMinor) {
                 return PaymentPostResult.INVALID_SCHEDULE
             }
-            installments().insertAll(rows)
+            insertLegacyInstallments(rows)
             null
         } catch (_: Exception) {
             PaymentPostResult.INVALID_SCHEDULE
@@ -615,7 +619,8 @@ interface PaymentDao {
 }
 
 enum class PaymentPostResult {
-    POSTED, DUPLICATE, INVALID_AMOUNT, LOAN_NOT_FOUND, LOAN_NOT_ACTIVE, EXCEEDS_BALANCE, SCHEDULE_NOT_FOUND, INVALID_SCHEDULE
+    POSTED, DUPLICATE, INVALID_AMOUNT, LOAN_NOT_FOUND, LOAN_NOT_ACTIVE, EXCEEDS_BALANCE,
+    SCHEDULE_NOT_FOUND, INVALID_SCHEDULE, LEGACY_RECONCILIATION_REQUIRED
 }
 enum class CreditPaymentResult {
     POSTED,
@@ -667,6 +672,7 @@ abstract class InfinityDatabase : RoomDatabase() {
                     PaymentPostResult.EXCEEDS_BALANCE -> CreditPaymentResult.EXCEEDS_BALANCE
                     PaymentPostResult.SCHEDULE_NOT_FOUND -> CreditPaymentResult.SCHEDULE_NOT_FOUND
                     PaymentPostResult.INVALID_SCHEDULE -> CreditPaymentResult.INVALID_SCHEDULE
+                    PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> CreditPaymentResult.LEGACY_RECONCILIATION_REQUIRED
                     PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED -> CreditPaymentResult.LEGACY_RECONCILIATION_REQUIRED
                     PaymentPostResult.POSTED -> CreditPaymentResult.POSTED
                 }

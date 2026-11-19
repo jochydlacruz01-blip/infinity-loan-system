@@ -688,7 +688,7 @@ private fun ReportsSummaryScreen(
                 for (currency in currencies) {
                     val matching = rows.filter { it.currency == currency }
                     val closed = matching.filter { it.closedAt != null }
-                    val expectedBySession = mutableMapOf<Long, Long>()
+                    val expectedBySession = mutableMapOf<String, Long>()
                     for (row in matching) {
                         val movements = db.cashSessions().findMovements(row.sessionId)
                         var balance = row.openingMinor

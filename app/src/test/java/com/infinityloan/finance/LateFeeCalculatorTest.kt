@@ -2,6 +2,7 @@ package com.infinityloan.finance
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.Assert.assertThrows
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -27,4 +28,31 @@ class LateFeeCalculatorTest {
         assertEquals(0L,LateFeeCalculator.calculate(LateFeePolicy(true,dailyRate=BigDecimal("0.1")), due, due, 10000).feeMinor)
         assertEquals(0L,LateFeeCalculator.calculate(LateFeePolicy(true,dailyRate=BigDecimal("0.1")), due, due.plusDays(3), 0).feeMinor)
     }
+    @Test fun invalidPolicyValuesAreRejected() {
+        assertThrows(IllegalArgumentException::class.java) {
+            LateFeePolicy(true, graceDays = -1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            LateFeePolicy(true, dailyRate = BigDecimal("-0.01"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            LateFeePolicy(true, fixedFeeMinor = -1)
+        }
+    }
+
+    @Test fun negativeUnpaidBalanceIsRejected() {
+        assertThrows(IllegalArgumentException::class.java) {
+            LateFeeCalculator.calculate(LateFeePolicy(true), due, due.plusDays(2), -1)
+        }
+    }
+
+    @Test fun integerOverflowIsRejectedRatherThanWrapped() {
+        assertThrows(ArithmeticException::class.java) {
+            LateFeeCalculator.calculate(
+                LateFeePolicy(true, dailyRate = BigDecimal("100000000000000000000")),
+                due, due.plusDays(100), Long.MAX_VALUE
+            )
+        }
+    }
+
 }

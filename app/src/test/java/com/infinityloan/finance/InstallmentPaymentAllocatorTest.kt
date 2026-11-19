@@ -165,4 +165,30 @@ class InstallmentPaymentAllocatorTest {
         assertEquals(50L, result.totalAllocatedMinor)
         assertEquals(0L, result.unappliedMinor)
     }
+    @Test
+    fun conservesPaymentAcrossDeterministicManyInstallmentCases() {
+        repeat(120) { seed ->
+            val installments = (1..8).map { n ->
+                InstallmentPaymentAllocator.DueInstallment(
+                    number = n,
+                    dueDate = LocalDate.parse("2026-01-01").plusDays(((seed * 13 + n * 7) % 31).toLong()),
+                    lateFeeDueMinor = ((seed + n * 3) % 17).toLong(),
+                    chargesDueMinor = ((seed * 2 + n) % 23).toLong(),
+                    interestDueMinor = ((seed * 5 + n * 2) % 41).toLong(),
+                    principalDueMinor = ((seed * 7 + n * 11) % 101).toLong()
+                )
+            }
+            val payment = (seed * 19 + 1).toLong()
+            val result = InstallmentPaymentAllocator.allocate(payment, installments)
+            assertEquals(payment, Math.addExact(result.totalAllocatedMinor, result.unappliedMinor))
+            assertTrue(result.unappliedMinor >= 0L)
+            assertTrue(result.allocations.all { allocation ->
+                allocation.lateFeePaidMinor >= 0L &&
+                    allocation.chargesPaidMinor >= 0L &&
+                    allocation.interestPaidMinor >= 0L &&
+                    allocation.principalPaidMinor >= 0L
+            })
+        }
+    }
+
 }

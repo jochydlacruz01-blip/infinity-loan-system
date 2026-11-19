@@ -26,15 +26,16 @@ object LoanCalculator {
         scale: Int = 2
     ): List<Installment> {
         requireInputs(principal, periodicRate, periods, scale)
+        val roundedPrincipal = principal.setScale(scale, RoundingMode.HALF_UP)
         val payment = if (periodicRate.compareTo(BigDecimal.ZERO) == 0) {
-            principal.divide(BigDecimal(periods), MC)
+            roundedPrincipal.divide(BigDecimal(periods), MC)
         } else {
             val factor = BigDecimal.ONE.add(periodicRate, MC).pow(periods, MC)
-            principal.multiply(periodicRate, MC)
+            roundedPrincipal.multiply(periodicRate, MC)
                 .multiply(factor, MC)
                 .divide(factor.subtract(BigDecimal.ONE, MC), MC)
         }
-        return buildSchedule(principal, periods, scale) { balance, _ ->
+        return buildSchedule(roundedPrincipal, periods, scale) { balance, _ ->
             val interest = balance.multiply(periodicRate, MC).setScale(scale, RoundingMode.HALF_UP)
             val regularPrincipal = payment.setScale(scale, RoundingMode.HALF_UP)
                 .subtract(interest).setScale(scale, RoundingMode.HALF_UP)
@@ -49,8 +50,9 @@ object LoanCalculator {
         scale: Int = 2
     ): List<Installment> {
         requireInputs(principal, periodicRate, periods, scale)
-        val principalPart = principal.divide(BigDecimal(periods), MC)
-        return buildSchedule(principal, periods, scale) { balance, index ->
+        val roundedPrincipal = principal.setScale(scale, RoundingMode.HALF_UP)
+        val principalPart = roundedPrincipal.divide(BigDecimal(periods), MC)
+        return buildSchedule(roundedPrincipal, periods, scale) { balance, index ->
             val interest = balance.multiply(periodicRate, MC).setScale(scale, RoundingMode.HALF_UP)
             val part = if (index == periods - 1) balance else principalPart.setScale(scale, RoundingMode.HALF_UP)
             part to interest
@@ -64,8 +66,9 @@ object LoanCalculator {
         scale: Int = 2
     ): List<Installment> {
         requireInputs(principal, periodicRate, periods, scale)
-        return buildSchedule(principal, periods, scale) { balance, index ->
-            val interest = principal.multiply(periodicRate, MC).setScale(scale, RoundingMode.HALF_UP)
+        val roundedPrincipal = principal.setScale(scale, RoundingMode.HALF_UP)
+        return buildSchedule(roundedPrincipal, periods, scale) { balance, index ->
+            val interest = roundedPrincipal.multiply(periodicRate, MC).setScale(scale, RoundingMode.HALF_UP)
             val part = if (index == periods - 1) balance else BigDecimal.ZERO.setScale(scale)
             part to interest
         }

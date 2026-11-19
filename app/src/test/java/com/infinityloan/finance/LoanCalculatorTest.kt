@@ -237,4 +237,22 @@ class LoanCalculatorTest {
         }
     }
 
+
+    @Test
+    fun allMethodsCalculateFromPrincipalRoundedToCurrencyScale() {
+        val rawPrincipal = BigDecimal("123.456")
+        val roundedPrincipal = BigDecimal("123.46")
+        val schedules = listOf(
+            LoanCalculator.french(rawPrincipal, BigDecimal("0.075"), 4),
+            LoanCalculator.italian(rawPrincipal, BigDecimal("0.075"), 4),
+            LoanCalculator.american(rawPrincipal, BigDecimal("0.075"), 4)
+        )
+        val expected = listOf(
+            LoanCalculator.french(roundedPrincipal, BigDecimal("0.075"), 4),
+            LoanCalculator.italian(roundedPrincipal, BigDecimal("0.075"), 4),
+            LoanCalculator.american(roundedPrincipal, BigDecimal("0.075"), 4)
+        )
+        assertEquals(expected, schedules)
+    }
+
 }

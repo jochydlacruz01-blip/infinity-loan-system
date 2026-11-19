@@ -255,4 +255,20 @@ class LoanCalculatorTest {
         assertEquals(expected, schedules)
     }
 
+
+    @Test
+    fun allMethodsRejectPrincipalThatRoundsToZero() {
+        val methods: List<(BigDecimal, BigDecimal, Int, Int) -> List<LoanCalculator.Installment>> = listOf(
+            { p, r, n, s -> LoanCalculator.french(p, r, n, s) },
+            { p, r, n, s -> LoanCalculator.italian(p, r, n, s) },
+            { p, r, n, s -> LoanCalculator.american(p, r, n, s) }
+        )
+        methods.forEach { method ->
+            try {
+                method(BigDecimal("0.001"), BigDecimal.ZERO, 3, 2)
+                throw AssertionError("Debe rechazar un principal que se redondea a cero")
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
 }

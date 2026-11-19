@@ -78,6 +78,9 @@ object LoanCalculator {
     require(p > BigDecimal.ZERO) {
         "El principal debe ser mayor que cero"
     }
+    require(p.setScale(scale, RoundingMode.HALF_UP) > BigDecimal.ZERO) {
+        "El principal no puede redondearse a cero con la escala seleccionada"
+    }
     require(rate >= BigDecimal.ZERO) {
         "La tasa no puede ser negativa"
     }

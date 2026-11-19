@@ -27,14 +27,12 @@ suspend fun InfinityDatabase.reconcilePersistedCashPayments(): PersistedCashReco
     val payments = eligiblePayments.map { row ->
         ReconciliationPayment(row.operationId, row.amountMinor, row.currency)
     }
-    val movements = mutableListOf<ReconciliationCashMovement>()
-    for (row in receiptRows) {
-        val session = cashSessions().findSession(row.sessionId)
-        movements += ReconciliationCashMovement(
+    val movements = receiptRows.map { row ->
+        ReconciliationCashMovement(
             operationId = row.operationId,
             linkedPaymentOperationId = row.operationId.removePrefix("CASH-PAY-"),
             amountMinor = row.amountMinor,
-            currency = session?.currency.orEmpty(),
+            currency = row.sessionCurrency,
             type = row.type
         )
     }

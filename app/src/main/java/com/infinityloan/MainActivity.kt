@@ -91,12 +91,13 @@ private fun StaffAccessGate(
     onAuthenticated: (StaffSession) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    var displayedAccountCount by remember(accountCount) { mutableStateOf(accountCount) }
     var username by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    val firstRun = accountCount == 0
+    val firstRun = displayedAccountCount == 0
 
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Gold, background = Navy, surface = Panel,
@@ -118,12 +119,12 @@ private fun StaffAccessGate(
                     Text("INFINITY", color = Gold, fontWeight = FontWeight.Bold, fontSize = 27.sp)
                     Text("LOAN SYSTEM", color = Color.White, fontWeight = FontWeight.SemiBold)
                     Text(
-                        if (accountCount == null) "Preparando acceso seguro…"
+                        if (displayedAccountCount == null) "Preparando acceso seguro…"
                         else if (firstRun) "Configuración inicial · Administrador principal"
                         else "Acceso del personal",
                         color = Muted
                     )
-                    if (accountCount != null) {
+                    if (displayedAccountCount != null) {
                         OutlinedTextField(
                             value = username,
                             onValueChange = { username = it },
@@ -166,10 +167,10 @@ private fun StaffAccessGate(
                                                 )
                                             }
                                             if (created) {
-                                                accountCount = 1
+                                                displayedAccountCount = 1
                                                 message = "Administrador creado. Inicia sesión con tus credenciales."
                                             } else {
-                                                accountCount = 1
+                                                displayedAccountCount = 1
                                                 message = "La configuración inicial ya fue completada. Inicia sesión."
                                             }
                                         } else {

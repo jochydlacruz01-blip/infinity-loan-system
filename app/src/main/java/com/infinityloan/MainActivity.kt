@@ -609,7 +609,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                         db.withTransaction {
                             val newSession = CashSessionEntity(UUID.randomUUID().toString(), session.staffId, currency, startMinor, System.currentTimeMillis())
                             db.openCashSession(newSession)
-                            db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_OPENED", "CASH_SESSION", newSession.sessionId, "currency=$currency;openingMinor=$startMinor"))
+                            db.auditLogs().insert(AuditLogEntity(actorStaffId = session.staffId, actorUsername = session.username, action = "CASH_OPENED", targetType = "CASH_SESSION", targetId = newSession.sessionId, details = "currency=$currency;openingMinor=$startMinor"))
                         }
                         opening=""; onMessage("Caja abierta ($currency).")
                     } catch(e:Exception) { onMessage(e.message ?: "No se pudo abrir la caja.") } }
@@ -627,7 +627,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                             db.withTransaction {
                                 val m = CashMovementEntity(UUID.randomUUID().toString(), own.sessionId, "CASH_IN", value, reason.trim(), System.currentTimeMillis())
                                 db.postCashMovement(m)
-                                db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_IN_RECORDED", "CASH_MOVEMENT", m.operationId, "amountMinor=$value;currency=$currency"))
+                                db.auditLogs().insert(AuditLogEntity(actorStaffId = session.staffId, actorUsername = session.username, action = "CASH_IN_RECORDED", targetType = "CASH_MOVEMENT", targetId = m.operationId, details = "amountMinor=$value;currency=$currency"))
                             }
                             amount=""; reason=""; onMessage("Entrada registrada.")
                         } catch(e:Exception) { onMessage(e.message ?: "No se pudo registrar.") } }
@@ -638,7 +638,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                             db.withTransaction {
                                 val m = CashMovementEntity(UUID.randomUUID().toString(), own.sessionId, "CASH_OUT", value, reason.trim(), System.currentTimeMillis())
                                 db.postCashMovement(m)
-                                db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_OUT_RECORDED", "CASH_MOVEMENT", m.operationId, "amountMinor=$value;currency=$currency"))
+                                db.auditLogs().insert(AuditLogEntity(actorStaffId = session.staffId, actorUsername = session.username, action = "CASH_OUT_RECORDED", targetType = "CASH_MOVEMENT", targetId = m.operationId, details = "amountMinor=$value;currency=$currency"))
                             }
                             amount=""; reason=""; onMessage("Salida registrada.")
                         } catch(e:Exception) { onMessage(e.message ?: "No se pudo registrar.") } }
@@ -652,7 +652,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                         val count = minor(counted); require(count >= 0L)
                         db.withTransaction {
                             db.closeCashSession(own.sessionId, count)
-                            db.auditLogs().insert(AuditLogEntity(session.staffId, session.username, "CASH_CLOSED", "CASH_SESSION", own.sessionId, "countedMinor=$count;expectedMinor=$expected;varianceMinor=${Math.subtractExact(count,expected)}"))
+                            db.auditLogs().insert(AuditLogEntity(actorStaffId = session.staffId, actorUsername = session.username, action = "CASH_CLOSED", targetType = "CASH_SESSION", targetId = own.sessionId, details = "countedMinor=$count;expectedMinor=$expected;varianceMinor=${Math.subtractExact(count,expected)}"))
                         }
                         counted=""; onMessage("Caja cerrada. Diferencia: " + display(Math.subtractExact(count,expected)) + " $currency")
                     } catch(e:Exception) { onMessage(e.message ?: "No se pudo cerrar.") } }

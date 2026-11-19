@@ -645,7 +645,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                     }) { Text("Salida") }
                 }
                 Text("Movimientos de la sesión", color = Gold, fontWeight = FontWeight.SemiBold)
-                items(ownMovements) { m -> DataCard(if(m.type=="CASH_IN") "Entrada" else "Salida", m.reason + "\n" + display(m.amountMinor) + " $currency") }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { ownMovements.forEach { m -> DataCard(if(m.type=="CASH_IN") "Entrada" else "Salida", m.reason + "\n" + display(m.amountMinor) + " $currency") } }
                 OutlinedTextField(value = counted, onValueChange = { counted = it }, label = { Text("Conteo físico al cierre ($currency)") }, modifier = Modifier.fillMaxWidth())
                 Button(enabled = can(Permission.CASH_SESSION_CLOSE) && counted.isNotBlank(), onClick = {
                     scope.launch { try {

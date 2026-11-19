@@ -24,7 +24,9 @@ enum class CashReconciliationIssueType {
     CURRENCY_MISMATCH,
     DUPLICATE_CASH_MOVEMENT,
     ORPHAN_CASH_MOVEMENT,
-    INVALID_PAYMENT
+    INVALID_PAYMENT,
+    DUPLICATE_PAYMENT_OPERATION,
+    INVALID_CASH_MOVEMENT
 }
 
 data class CashReconciliationIssue(
@@ -44,6 +46,23 @@ object CashPaymentReconciliation {
     ): List<CashReconciliationIssue> {
         val issues = mutableListOf<CashReconciliationIssue>()
         val paymentById = payments.associateBy { it.operationId }
+        payments.groupBy { it.operationId }.filter { it.value.size > 1 }
+            .toSortedMap().forEach { (operationId, duplicates) ->
+                issues += CashReconciliationIssue(
+                    CashReconciliationIssueType.DUPLICATE_PAYMENT_OPERATION, operationId,
+                    null, duplicates.first().amountMinor, null,
+                    "Multiple payment records share the same operation id."
+                )
+            }
+        movements.filter { it.operationId.isBlank() || it.amountMinor <= 0L ||
+            it.currency.isBlank() || it.type.isBlank()
+        }.sortedBy { it.operationId }.forEach { movement ->
+            issues += CashReconciliationIssue(
+                CashReconciliationIssueType.INVALID_CASH_MOVEMENT,
+                movement.linkedPaymentOperationId, movement.operationId,
+                null, movement.amountMinor, "Cash movement has invalid operation id, amount, currency, or type."
+            )
+        }
         val linked = movements.filter { it.linkedPaymentOperationId != null }
             .groupBy { it.linkedPaymentOperationId!! }
 

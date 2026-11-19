@@ -388,23 +388,42 @@ private fun AuthenticatedInfinityApp(
                 require(cleanName.isNotBlank() && cleanDoc.isNotBlank())
 
                 if (clientToEdit == null) {
-                    db.clients().insert(
-                        ClientEntity(
-                            fullName = cleanName,
-                            documentNumber = cleanDoc,
-                            phone = cleanPhone,
-                            address = cleanAddress
-                        )
-                    )
-                    message = "Cliente registrado correctamente."
-                } else {
-                    db.clients().updateClient(
-                        id = clientToEdit.id,
+                    val newClient = ClientEntity(
                         fullName = cleanName,
                         documentNumber = cleanDoc,
                         phone = cleanPhone,
                         address = cleanAddress
                     )
+                    db.withTransaction {
+                        db.clients().insert(newClient)
+                        db.auditLogs().insert(AuditLogEntity(
+                            actorStaffId = session.staffId,
+                            actorUsername = session.username,
+                            action = "CLIENT_CREATED",
+                            targetType = "CLIENT",
+                            targetId = newClient.id,
+                            details = "Registro de cliente"
+                        ))
+                    }
+                    message = "Cliente registrado correctamente."
+                } else {
+                    db.withTransaction {
+                        db.clients().updateClient(
+                            id = clientToEdit.id,
+                            fullName = cleanName,
+                            documentNumber = cleanDoc,
+                            phone = cleanPhone,
+                            address = cleanAddress
+                        )
+                        db.auditLogs().insert(AuditLogEntity(
+                            actorStaffId = session.staffId,
+                            actorUsername = session.username,
+                            action = "CLIENT_UPDATED",
+                            targetType = "CLIENT",
+                            targetId = clientToEdit.id,
+                            details = "Actualización de datos del cliente"
+                        ))
+                    }
                     message = "Cliente actualizado correctamente."
                 }
             } catch (_: Exception) {
@@ -459,6 +478,14 @@ private fun AuthenticatedInfinityApp(
                     db.withTransaction {
                         db.loans().insert(loan)
                         db.installments().insertAll(rows)
+                        db.auditLogs().insert(AuditLogEntity(
+                            actorStaffId = session.staffId,
+                            actorUsername = session.username,
+                            action = "LOAN_CREATED",
+                            targetType = "LOAN",
+                            targetId = loan.id,
+                            details = "currency=$currency;principalMinor=$minor;installments=" + rows.size
+                        ))
                     }
                     message = "Préstamo y ${rows.size} cuotas contractuales registrados correctamente."
                 } catch (_: Exception) {
@@ -477,14 +504,25 @@ private fun AuthenticatedInfinityApp(
                 val result = try {
                     require(can(Permission.PAYMENT_REGISTER)) { "No tienes permiso para registrar pagos." }
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
-                    db.payments().postPayment(
-    PaymentEntity(
-        operationId = operationId,
-        loanId = loanId,
-        amountMinor = minor,
-        reference = reference.trim()
-    )
-)
+                    val postResult = db.payments().postPayment(
+                        PaymentEntity(
+                            operationId = operationId,
+                            loanId = loanId,
+                            amountMinor = minor,
+                            reference = reference.trim()
+                        )
+                    )
+                    if (postResult == PaymentPostResult.POSTED) {
+                        db.auditLogs().insert(AuditLogEntity(
+                            actorStaffId = session.staffId,
+                            actorUsername = session.username,
+                            action = "PAYMENT_REGISTERED",
+                            targetType = "PAYMENT",
+                            targetId = operationId,
+                            details = "loanId=$loanId;amountMinor=$minor"
+                        ))
+                    }
+                    postResult
    
                 } catch (_: Exception) { PaymentPostResult.INVALID_AMOUNT }
                 message = when (result) {

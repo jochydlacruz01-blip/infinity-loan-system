@@ -140,7 +140,7 @@ class InstallmentPaymentAllocatorTest {
     fun sameDueDateUsesInstallmentNumberAsDeterministicTieBreaker() {
         val date = LocalDate.parse("2026-03-15")
         val result = InstallmentPaymentAllocator.allocate(
-            paymentMinor = 150L,
+            paymentMinor = 250L,
             installments = listOf(
                 InstallmentPaymentAllocator.DueInstallment(3, date, interestDueMinor = 0L, principalDueMinor = 100L),
                 InstallmentPaymentAllocator.DueInstallment(1, date, interestDueMinor = 0L, principalDueMinor = 100L),

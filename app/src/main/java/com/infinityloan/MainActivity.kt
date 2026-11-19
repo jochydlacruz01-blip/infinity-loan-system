@@ -627,10 +627,10 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                 OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Monto") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = reason, onValueChange = { reason = it }, label = { Text("Motivo / descripción") }, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(enabled = can(Permission.PAYMENT_REGISTER) && amount.isNotBlank() && reason.isNotBlank(), onClick = {
+                    Button(enabled = can(Permission.CASH_MOVEMENT_MANAGE) && amount.isNotBlank() && reason.isNotBlank(), onClick = {
                         scope.launch { try {
                             require(withContext(Dispatchers.IO) { authenticationService.isSessionValid(session) }) { "La sesión ha caducado." }
-                            require(can(Permission.PAYMENT_REGISTER)) { "No tienes permiso para registrar entradas." }
+                            require(can(Permission.CASH_MOVEMENT_MANAGE)) { "No tienes permiso para registrar movimientos de caja." }
                             val value = minor(amount); require(value > 0)
                             db.withTransaction {
                                 val m = CashMovementEntity(UUID.randomUUID().toString(), own.sessionId, "CASH_IN", value, reason.trim(), System.currentTimeMillis())

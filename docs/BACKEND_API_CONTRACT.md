@@ -158,3 +158,16 @@ La sincronización entre varios celulares y cobradores será una función optati
 - El modo y las asignaciones deben reflejarse en web y Android. Deben probarse casos de compartir, limitar, revocar y desactivar.
 
 El ajuste de compartición es un requisito de diseño, no una función disponible hasta que el backend, configuración, autorización y sincronización estén implementados y validados.
+
+## Zona horaria contractual y fecha de contabilización
+
+Las fechas de vencimiento se almacenan como fechas civiles (`YYYY-MM-DD`), pero la determinación de si una cuota está vencida no debe depender de la zona horaria ni del reloj local del celular.
+
+- Cada empresa/sucursal debe tener una zona horaria IANA configurada (por ejemplo, `America/Santo_Domingo` para una operación en República Dominicana).
+- El servidor calcula la fecha operativa vigente usando esa zona horaria y la hora del servidor; el cliente no decide qué cuotas están vencidas.
+- Las operaciones conservan `occurredAt`/`receivedAt` en UTC ISO-8601 y registran la zona horaria y fecha operativa utilizadas para la decisión financiera.
+- La política de corte debe definir explícitamente cuándo un pago del mismo día se considera puntual y cómo se tratan pagos recibidos fuera del horario operativo.
+- En modo local sin backend, la app debe identificar que la fecha de vencimiento se evalúa con la fecha local del dispositivo y no presentar ese resultado como una decisión central sincronizada.
+- Las pruebas deben cubrir cambio de zona horaria del dispositivo, cambio de horario, medianoche local y pagos cercanos al corte.
+
+Esta sección es un requisito arquitectónico pendiente; no implica que el backend o la contabilización por zona horaria estén implementados.

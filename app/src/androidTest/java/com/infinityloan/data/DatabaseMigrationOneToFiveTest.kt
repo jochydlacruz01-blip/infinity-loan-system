@@ -8,7 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class DatabaseMigrationOneToSevenTest {
+class DatabaseMigrationOneToEightTest {
 
     @Test
     fun completeMigrationPathPreservesLegacyCreditAndBuildsPaymentLedger() {
@@ -73,6 +73,7 @@ class DatabaseMigrationOneToSevenTest {
             InfinityDatabase.MIGRATION_4_5.migrate(db)
             InfinityDatabase.MIGRATION_5_6.migrate(db)
             InfinityDatabase.MIGRATION_6_7.migrate(db)
+            InfinityDatabase.MIGRATION_7_8.migrate(db)
 
             db.query("""
                 SELECT clientId, loanId, currency, amountMinor
@@ -111,6 +112,13 @@ class DatabaseMigrationOneToSevenTest {
             db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'audit_logs'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(1L, cursor.getLong(0))
+            }
+
+            db.query("PRAGMA table_info(staff_accounts)").use { cursor ->
+                val columns = mutableSetOf<String>()
+                while (cursor.moveToNext()) columns += cursor.getString(1)
+                assertTrue(columns.contains("failedLoginAttempts"))
+                assertTrue(columns.contains("lockedUntil"))
             }
 
             db.query("PRAGMA foreign_key_check").use { cursor ->

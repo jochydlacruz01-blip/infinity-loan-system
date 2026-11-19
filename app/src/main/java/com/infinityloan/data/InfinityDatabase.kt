@@ -828,6 +828,85 @@ abstract class InfinityDatabase : RoomDatabase() {
             CreditPaymentResult.POSTED
         }
 
+    /**
+     * Cash operations are serialized inside Room transactions and validated by the domain model.
+     * Amounts are stored in minor units (integer cents/centavos).
+     */
+    suspend fun openCashSession(session: CashSessionEntity) = withTransaction {
+        require(session.sessionId.isNotBlank() && session.staffId.isNotBlank())
+        require(session.currency in setOf("DOP", "USD", "EUR"))
+        require(session.openingMinor >= 0L)
+        require(session.closedAt == null && session.countedClosingMinor == null)
+        check(cashSessions().findOpenSession(session.staffId, session.currency) == null) {
+            "Ya existe una caja abierta para este empleado y moneda."
+        }
+        cashSessions().insertSession(session)
+    }
+
+    suspend fun postCashMovement(movement: CashMovementEntity) = withTransaction {
+        require(movement.amountMinor > 0L && movement.reason.isNotBlank())
+        require(movement.type in setOf("CASH_IN", "CASH_OUT"))
+        val sessionRow = cashSessions().findSession(movement.sessionId)
+            ?: error("La sesión de caja no existe.")
+        check(sessionRow.closedAt == null) { "La caja está cerrada." }
+        check(cashSessions().findMovementByOperation(movement.operationId) == null) {
+            "La operación ya fue registrada."
+        }
+        val existing = cashSessions().findMovements(sessionRow.sessionId).map { row ->
+            com.infinityloan.cash.CashMovement(
+                operationId = row.operationId,
+                type = com.infinityloan.cash.CashMovementType.valueOf(row.type),
+                amountMinor = row.amountMinor,
+                reason = row.reason,
+                createdAt = row.createdAt
+            )
+        }
+        val domainSession = com.infinityloan.cash.CashSession(
+            sessionId = sessionRow.sessionId,
+            staffId = sessionRow.staffId,
+            currency = sessionRow.currency,
+            openingMinor = sessionRow.openingMinor,
+            movements = existing
+        )
+        val next = domainSession.addMovement(
+            com.infinityloan.cash.CashMovement(
+                operationId = movement.operationId,
+                type = com.infinityloan.cash.CashMovementType.valueOf(movement.type),
+                amountMinor = movement.amountMinor,
+                reason = movement.reason,
+                createdAt = movement.createdAt
+            )
+        )
+        check(next.expectedCashMinor >= 0L)
+        cashSessions().insertMovement(movement)
+    }
+
+    suspend fun closeCashSession(sessionId: String, countedMinor: Long, closedAt: Long = System.currentTimeMillis()) = withTransaction {
+        require(countedMinor >= 0L)
+        val row = cashSessions().findSession(sessionId) ?: error("La sesión de caja no existe.")
+        check(row.closedAt == null) { "La sesión ya está cerrada." }
+        val existing = cashSessions().findMovements(sessionId).map { movement ->
+            com.infinityloan.cash.CashMovement(
+                operationId = movement.operationId,
+                type = com.infinityloan.cash.CashMovementType.valueOf(movement.type),
+                amountMinor = movement.amountMinor,
+                reason = movement.reason,
+                createdAt = movement.createdAt
+            )
+        }
+        val domain = com.infinityloan.cash.CashSession(
+            sessionId = row.sessionId,
+            staffId = row.staffId,
+            currency = row.currency,
+            openingMinor = row.openingMinor,
+            movements = existing
+        ).close(countedMinor)
+        check(domain.expectedCashMinor >= 0L)
+        check(cashSessions().closeSession(sessionId, closedAt, countedMinor) == 1) {
+            "No se pudo cerrar la sesión de forma segura."
+        }
+    }
+
     abstract fun clients(): ClientDao
     abstract fun loans(): LoanDao
     abstract fun payments(): PaymentDao

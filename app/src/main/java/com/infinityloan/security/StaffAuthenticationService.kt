@@ -108,7 +108,7 @@ class StaffAuthenticationService(
             )
             return true
         } finally {
-            password.fill('\\u0000')
+            password.fill('\u0000')
         }
     }
 

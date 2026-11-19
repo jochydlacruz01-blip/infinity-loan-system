@@ -684,8 +684,7 @@ private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, ca
                     }) { Text("Entrada") }
                     Button(enabled = can(Permission.CASH_MOVEMENT_MANAGE) && amount.isNotBlank() && reason.isNotBlank(), onClick = {
                         scope.launch { try {
-                            require(withContext(Dispatchers.IO) { authenticationService.isSessionValid(session) }) { "La sesión ha caducado." }
-                            require(can(Permission.CASH_MOVEMENT_MANAGE)) { "No tienes permiso para registrar movimientos de caja." }
+                            require(withContext(Dispatchers.IO) { authenticationService.hasPermission(session, Permission.CASH_MOVEMENT_MANAGE) }) { "La sesión caducó o no tienes permiso para registrar movimientos de caja." }
                             val value = minor(amount); require(value > 0)
                             db.withTransaction {
                                 val m = CashMovementEntity(UUID.randomUUID().toString(), own.sessionId, "CASH_OUT", value, reason.trim(), System.currentTimeMillis())

@@ -26,6 +26,8 @@ import com.infinityloan.security.StaffSession
 import com.infinityloan.security.AuthenticationResult
 import com.infinityloan.security.AccessPolicy
 import com.infinityloan.security.Permission
+import com.infinityloan.security.StaffRole
+import com.infinityloan.security.AccessProfile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -56,7 +58,8 @@ private enum class Screen(val label: String, val permission: Permission) {
     LOANS("Préstamos y cuotas", Permission.LOAN_VIEW),
     PAYMENTS("Pagos y caja", Permission.PAYMENT_VIEW),
     REPORTS("Informes", Permission.REPORT_VIEW),
-    SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE)
+    SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE),
+    STAFF("Personal", Permission.STAFF_VIEW)
 }
 
 @Composable
@@ -344,7 +347,12 @@ private fun AuthenticatedInfinityApp(
                         Screen.LOANS -> LoansScreen(loans, clients)
                         Screen.PAYMENTS -> PaymentsScreen(payments, loans, clients)
                         Screen.REPORTS -> InfoScreen("Informes", "Los informes se habilitarán cuando existan operaciones registradas. Los datos actuales se guardan localmente en este dispositivo.")
-                        Screen.SETTINGS -> InfoScreen("Configuración", "Base local activa. La conexión al servidor, usuarios, permisos y copias de seguridad se integrarán en fases posteriores.")
+                        Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")
+                        Screen.STAFF -> StaffManagementScreen(
+                            db = db,
+                            session = session,
+                            onMessage = { message = it }
+                        )
                     }
                     message?.let {
                         Spacer(Modifier.height(8.dp))
@@ -1083,4 +1091,174 @@ private fun formatDate(timestamp: Long): String {
         "dd/MM/yyyy HH:mm",
         Locale.getDefault()
     ).format(Date(timestamp))
+}
+
+
+@Composable
+private fun StaffManagementScreen(
+    db: InfinityDatabase,
+    session: StaffSession,
+    onMessage: (String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val service = remember(db) { StaffAuthenticationService(db.staffAccounts()) }
+    var accounts by remember { mutableStateOf(emptyList<StaffAccountEntity>()) }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    var showCreate by remember { mutableStateOf(false) }
+    var username by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    val canManage = AccessPolicy.allows(session.profile, Permission.STAFF_MANAGE)
+    val assignableRoles = StaffRole.values().filter { role ->
+        (role != StaffRole.ADMINISTRATOR || session.profile.role == StaffRole.ADMINISTRATOR) &&
+            AccessPolicy.effectivePermissions(AccessProfile(role)).all {
+                AccessPolicy.allows(session.profile, it)
+            }
+    }
+    var selectedRole by remember { mutableStateOf(assignableRoles.firstOrNull() ?: StaffRole.COLLECTOR) }
+
+    LaunchedEffect(db, refreshKey) {
+        accounts = withContext(Dispatchers.IO) { db.staffAccounts().getAll() }
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Personal y accesos", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text("${accounts.size} cuentas registradas", color = Muted, fontSize = 12.sp)
+                }
+                if (canManage && assignableRoles.isNotEmpty()) {
+                    Button(
+                        onClick = { showCreate = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Navy)
+                    ) { Text("Nuevo empleado") }
+                }
+            }
+        }
+        items(accounts, key = { it.id }) { account ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(account.displayName, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("@${account.username} · ${account.role}", color = Muted, fontSize = 12.sp)
+                        Text(
+                            if (account.isActive) "Activo" else "Desactivado",
+                            color = if (account.isActive) Gold else Muted,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (canManage && account.id != session.staffId &&
+                        (account.role != StaffRole.ADMINISTRATOR.name ||
+                            session.profile.role == StaffRole.ADMINISTRATOR)
+                    ) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        withContext(Dispatchers.IO) {
+                                            service.setStaffAccountActive(session, account.id, !account.isActive)
+                                        }
+                                        refreshKey++
+                                        onMessage(if (account.isActive) "Cuenta desactivada." else "Cuenta reactivada.")
+                                    } catch (error: Exception) {
+                                        onMessage(error.message ?: "No se pudo actualizar la cuenta.")
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(if (account.isActive) "Desactivar" else "Activar", color = Gold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCreate) {
+        AlertDialog(
+            onDismissRequest = { showCreate = false },
+            title = { Text("Crear cuenta de empleado") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = displayName,
+                        onValueChange = { displayName = it },
+                        label = { Text("Nombre completo") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        label = { Text("Nombre de usuario") },
+                        singleLine = true
+                    )
+                    Text("Perfil de acceso", fontWeight = FontWeight.SemiBold)
+                    assignableRoles.forEach { role ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = selectedRole == role,
+                                onClick = { selectedRole = role }
+                            )
+                            Text(role.name, color = Color.White)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Contraseña (mínimo 12 caracteres)") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = displayName.isNotBlank() && username.isNotBlank() && password.length >= 12,
+                    onClick = {
+                        val submittedPassword = password
+                        password = ""
+                        scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    service.createStaffAccount(
+                                        actor = session,
+                                        username = username,
+                                        displayName = displayName,
+                                        role = selectedRole,
+                                        password = submittedPassword.toCharArray()
+                                    )
+                                }
+                                refreshKey++
+                                showCreate = false
+                                username = ""
+                                displayName = ""
+                                onMessage("Cuenta de empleado creada correctamente.")
+                            } catch (error: Exception) {
+                                onMessage(error.message ?: "No se pudo crear la cuenta.")
+                            }
+                        }
+                    }
+                ) { Text("Crear", color = Gold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreate = false }) { Text("Cancelar") }
+            }
+        )
+    }
 }

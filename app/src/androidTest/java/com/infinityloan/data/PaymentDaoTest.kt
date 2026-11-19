@@ -945,4 +945,73 @@ class PaymentDaoTest {
         assertEquals(1000L, database.customerCredits().getBalance(client.id, "DOP"))
     }
 
+
+    @Test
+    fun validPaymentReversalRestoresLoanAndInstallmentExactlyOnce() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente reverso",
+            documentNumber = "TEST-REVERSAL-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0",
+            periods = 1,
+            method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+
+        val admin = StaffAccountEntity(
+            id = "REVERSAL-ADMIN-001",
+            username = "reversal-admin",
+            displayName = "Administrador de prueba",
+            role = "ADMINISTRATOR",
+            passwordAlgorithm = "PBKDF2_SHA256_V1",
+            passwordIterations = 210000,
+            passwordSaltBase64 = "c2FsdA==",
+            passwordHashBase64 = "aGFzaA=="
+        )
+        database.staffAccounts().insert(admin)
+
+        val payment = PaymentEntity(
+            operationId = "PAYMENT-REVERSAL-INTEGRATION-001",
+            loanId = loan.id,
+            amountMinor = 1000L,
+            reference = "Pago de prueba para reverso"
+        )
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+
+        assertEquals(
+            PaymentReversalResult.REVERSED,
+            database.reversePayment(
+                operationId = payment.operationId,
+                actorStaffId = admin.id,
+                actorUsername = admin.username,
+                reason = "Prueba de reverso integrado"
+            )
+        )
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+
+        val installment = database.installments().findForLoan(loan.id).single()
+        assertEquals(0L, installment.paidPrincipalMinor)
+        assertEquals(0L, installment.paidInterestMinor)
+        assertEquals("PENDING", installment.status)
+
+        assertEquals(
+            PaymentReversalResult.ALREADY_REVERSED,
+            database.reversePayment(
+                operationId = payment.operationId,
+                actorStaffId = admin.id,
+                actorUsername = admin.username,
+                reason = "Intento duplicado"
+            )
+        )
+    }
 }

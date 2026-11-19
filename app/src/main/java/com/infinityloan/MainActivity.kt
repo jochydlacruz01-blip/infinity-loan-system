@@ -786,7 +786,7 @@ private fun ReportsSummaryScreen(
             }
             DataCard(
                 title = "Informe · $currency",
-                detail = "Préstamos: ${currencyLoans.size}\nCapital inicial: ${moneyTotal(currencyLoans.map { it.principalMinor })} $currency\nCapital pendiente: ${moneyTotal(currencyLoans.map { it.balanceMinor })} $currency\nPagos registrados: ${currencyPayments.size}\nTotal de pagos: ${moneyTotal(currencyPayments.map { it.amountMinor })} $currency\nCuotas vencidas: ${overdueRows.size}\nSaldo contractual vencido: ${moneyTotal(overdueRows.map { it.totalMinor - it.paidPrincipalMinor - it.paidInterestMinor })} $currency"
+                detail = "Préstamos: ${currencyLoans.size}\nCapital inicial: ${moneyTotal(currencyLoans.map { it.principalMinor })} $currency\nCapital pendiente: ${moneyTotal(currencyLoans.map { it.balanceMinor })} $currency\nPagos registrados: ${currencyPayments.size}\nTotal de pagos: ${moneyTotal(currencyPayments.map { it.amountMinor })} $currency\nCuotas vencidas: ${overdueRows.size}\nSaldo contractual vencido: ${moneyTotal(overdueRows.map { OverdueBalance.remainingMinor(it.totalMinor, it.paidPrincipalMinor, it.paidInterestMinor) })} $currency"
             )
         }
         item {
@@ -847,7 +847,7 @@ private fun HomeScreen(
             val today = LocalDate.now().toString()
             val overdue = installments.filter { row ->
                 row.status != "PAID" && row.dueDate < today &&
-                    (row.totalMinor - row.paidPrincipalMinor - row.paidInterestMinor) > 0L
+                    OverdueBalance.remainingMinor(row.totalMinor, row.paidPrincipalMinor, row.paidInterestMinor) > 0L
             }
             val overdueLoans = loans.filter { loan -> overdue.any { it.loanId == loan.id } }
             DataCard(

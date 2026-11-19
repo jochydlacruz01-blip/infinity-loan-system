@@ -370,7 +370,7 @@ private fun AuthenticatedInfinityApp(
 )
                         Screen.LOANS -> LoansScreen(loans, clients)
                         Screen.PAYMENTS -> PaymentsScreen(payments, loans, clients)
-                        Screen.REPORTS -> InfoScreen("Informes", "Los informes se habilitarán cuando existan operaciones registradas. Los datos actuales se guardan localmente en este dispositivo.")
+                        Screen.REPORTS -> ReportsSummaryScreen(clients, loans, payments, installments)
                         Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")
                         Screen.STAFF -> StaffManagementScreen(
                             db = db,
@@ -575,6 +575,45 @@ private fun AuthenticatedInfinityApp(
             }
         }
     )
+}
+
+@Composable
+private fun ReportsSummaryScreen(
+    clients: List<ClientEntity>,
+    loans: List<LoanEntity>,
+    payments: List<PaymentEntity>,
+    installments: List<LoanInstallmentEntity>
+) {
+    val currencies = listOf("DOP", "USD", "EUR")
+    val today = LocalDate.now().toString()
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("INFORMES DE CARTERA", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Resumen local · datos de este dispositivo", color = Muted, fontSize = 12.sp)
+        }
+        item {
+            DataCard("Resumen general", "Clientes registrados: ${clients.size}\nPréstamos: ${loans.size}\nActivos: ${loans.count { it.status == "ACTIVE" }}\nPagos registrados: ${payments.size}")
+        }
+        items(currencies) { currency ->
+            val currencyLoans = loans.filter { it.currency == currency }
+            val currencyPayments = payments.filter { p -> currencyLoans.any { it.id == p.loanId } }
+            val overdueRows = installments.filter { row ->
+                row.dueDate < today && row.status != "PAID" &&
+                    loans.any { it.id == row.loanId && it.currency == currency } &&
+                    row.totalMinor - row.paidPrincipalMinor - row.paidInterestMinor > 0L
+            }
+            DataCard(
+                title = "Informe · $currency",
+                detail = "Préstamos: ${currencyLoans.size}\nCapital inicial: ${moneyTotal(currencyLoans.map { it.principalMinor })} $currency\nCapital pendiente: ${moneyTotal(currencyLoans.map { it.balanceMinor })} $currency\nPagos registrados: ${currencyPayments.size}\nTotal de pagos: ${moneyTotal(currencyPayments.map { it.amountMinor })} $currency\nCuotas vencidas: ${overdueRows.size}\nSaldo contractual vencido: ${moneyTotal(overdueRows.map { it.totalMinor - it.paidPrincipalMinor - it.paidInterestMinor })} $currency"
+            )
+        }
+        item {
+            DataCard("Limitación del informe", "Este resumen utiliza los registros locales disponibles. No equivale a un cierre de caja ni a conciliación contable; esas funciones requieren el módulo de caja y los controles de conciliación.")
+        }
+    }
 }
 
 @Composable

@@ -24,6 +24,7 @@ import com.infinityloan.data.*
 import com.infinityloan.finance.LoanScheduleGenerator
 import com.infinityloan.finance.MinorUnitTotals
 import com.infinityloan.finance.OverdueBalance
+import com.infinityloan.finance.PaymentReporting
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
 import com.infinityloan.security.AuthenticationResult
@@ -362,7 +363,7 @@ private fun AuthenticatedInfinityApp(
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(clients, loans, payments, installments)
+                        Screen.HOME -> HomeScreen(clients, loans, PaymentReporting.effectivePayments(payments, reversedPaymentIds.toSet()), installments)
                         Screen.CLIENTS -> ClientsScreen(
     clients = clients,
     onEdit = { client ->
@@ -408,7 +409,7 @@ private fun AuthenticatedInfinityApp(
                             }
                         )
                         Screen.CASH -> CashManagementScreen(db, session, can, onMessage = { message = it })
-                        Screen.REPORTS -> ReportsSummaryScreen(db, clients, loans, payments, installments)
+                        Screen.REPORTS -> ReportsSummaryScreen(db, clients, loans, PaymentReporting.effectivePayments(payments, reversedPaymentIds.toSet()), installments)
                         Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")
                         Screen.STAFF -> StaffManagementScreen(
                             db = db,

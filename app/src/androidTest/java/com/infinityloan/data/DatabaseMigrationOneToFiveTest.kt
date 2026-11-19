@@ -8,7 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class DatabaseMigrationOneToEightTest {
+class DatabaseMigrationOneToNineTest {
 
     @Test
     fun completeMigrationPathPreservesLegacyCreditAndBuildsPaymentLedger() {
@@ -74,6 +74,7 @@ class DatabaseMigrationOneToEightTest {
             InfinityDatabase.MIGRATION_5_6.migrate(db)
             InfinityDatabase.MIGRATION_6_7.migrate(db)
             InfinityDatabase.MIGRATION_7_8.migrate(db)
+            InfinityDatabase.MIGRATION_8_9.migrate(db)
 
             db.query("""
                 SELECT clientId, loanId, currency, amountMinor
@@ -119,6 +120,31 @@ class DatabaseMigrationOneToEightTest {
                 while (cursor.moveToNext()) columns += cursor.getString(1)
                 assertTrue(columns.contains("failedLoginAttempts"))
                 assertTrue(columns.contains("lockedUntil"))
+            }
+
+            db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'cash_sessions'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1L, cursor.getLong(0))
+            }
+
+            db.query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'cash_movements'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1L, cursor.getLong(0))
+            }
+
+            db.execSQL("""
+                INSERT INTO cash_sessions (
+                    sessionId, staffId, currency, openingMinor, openedAt, closedAt, countedClosingMinor
+                ) VALUES ('cash-session-1', 'staff-1', 'DOP', 5000, 10, NULL, NULL)
+            """.trimIndent())
+            db.execSQL("""
+                INSERT INTO cash_movements (
+                    operationId, sessionId, type, amountMinor, reason, createdAt
+                ) VALUES ('cash-movement-1', 'cash-session-1', 'CASH_IN', 1000, 'Prueba migración', 11)
+            """.trimIndent())
+            db.query("SELECT amountMinor FROM cash_movements WHERE operationId = 'cash-movement-1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1000L, cursor.getLong(0))
             }
 
             db.query("PRAGMA foreign_key_check").use { cursor ->

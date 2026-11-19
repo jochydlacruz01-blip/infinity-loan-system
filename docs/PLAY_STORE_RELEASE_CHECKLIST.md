@@ -11,7 +11,8 @@
 - [x] Payment reversal has a dedicated permission, policy, Room transaction, audit record and compensating cash/credit handling.
 - [x] CI workflow runs lint, unit tests, debug APK build, release AAB build and Android emulator instrumented tests.
 - [x] CI is configured to upload a debug APK and an unsigned release AAB after all preceding steps succeed.
-- [ ] Latest CI run for commit b51845d has completed successfully. (Pending at time of this checklist update.)
+- [x] CI run #335 for commit b51845d completed successfully, including Android instrumented tests and artifact upload.
+- [ ] CI run #336 for commit 59156e2 is validating the expanded v1→v10 migration test; do not mark it complete until the run succeeds.
 
 ## Release configuration currently observed
 

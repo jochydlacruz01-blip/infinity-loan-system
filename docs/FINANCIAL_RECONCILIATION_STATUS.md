@@ -57,3 +57,9 @@ No calcular ni cobrar mora o cargos contractuales hasta que se aprueben y persis
 ## Regla de publicación
 
 No anunciar reversos, conciliación central, autoridad de fecha del servidor, mora/cargos automáticos ni sincronización como funciones disponibles hasta que su implementación y pruebas puedan verificarse.
+
+## Modelo preliminar de hallazgos de conciliación (Android)
+
+Se añadió `CashPaymentReconciliation`, un modelo determinista de entradas normalizadas, sin escrituras ni cambios en los ledgers. El modelo informa las siguientes categorías: pago inválido, movimiento de caja faltante, importe diferente, moneda diferente, movimiento duplicado y movimiento huérfano (referencia a pago ausente). Las pruebas unitarias cubren escenarios básicos de hallazgo, resultado limpio y determinismo.
+
+**Limitaciones de la fase:** el modelo todavía no consulta automáticamente Room, no incluye movimientos sin referencia de pago en todas las fuentes, no clasifica reversos/ajustes de caja, no genera pantalla de informe ni bloquea contabilizaciones. Antes de conectarlo a datos reales se debe definir el conjunto de movimientos elegibles (incluidos reversos), la regla de unicidad por operación, y cómo tratar las sesiones cerradas y ajustes autorizados. Los resultados son diagnósticos; no reparan ni modifican saldos.

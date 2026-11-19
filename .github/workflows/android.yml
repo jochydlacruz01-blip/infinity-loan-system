@@ -3,9 +3,32 @@ name: Android build and tests
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "*.gradle"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - "settings.gradle"
+      - "settings.gradle.kts"
+      - ".github/workflows/android.yml"
   pull_request:
     branches: [ "main" ]
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "*.gradle"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - "settings.gradle"
+      - "settings.gradle.kts"
+      - ".github/workflows/android.yml"
   workflow_dispatch:
+
+# Preserve queued/running validations rather than canceling them after a newer push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:

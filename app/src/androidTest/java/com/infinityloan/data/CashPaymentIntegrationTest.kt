@@ -24,13 +24,27 @@ class CashPaymentIntegrationTest {
             .allowMainThreadQueries()
             .build()
 
-        listOf("ADMIN-001", "ADMIN-002", "ADMIN-003", "ADMIN-004").forEachIndexed { index, id ->
+        runBlocking {
+            listOf("ADMIN-001", "ADMIN-002", "ADMIN-003", "ADMIN-004").forEachIndexed { index, id ->
+                database.staffAccounts().insert(
+                    StaffAccountEntity(
+                        id = id,
+                        username = "admin" + index,
+                        displayName = "Administrador de prueba",
+                        role = "ADMINISTRATOR",
+                        passwordAlgorithm = "TEST",
+                        passwordIterations = 1,
+                        passwordSaltBase64 = "",
+                        passwordHashBase64 = ""
+                    )
+                )
+            }
             database.staffAccounts().insert(
                 StaffAccountEntity(
-                    id = id,
-                    username = "admin" + index,
-                    displayName = "Administrador de prueba",
-                    role = "ADMINISTRATOR",
+                    id = "CASHIER-TEST",
+                    username = "cashier",
+                    displayName = "Cajero de prueba",
+                    role = "CASHIER",
                     passwordAlgorithm = "TEST",
                     passwordIterations = 1,
                     passwordSaltBase64 = "",
@@ -38,18 +52,6 @@ class CashPaymentIntegrationTest {
                 )
             )
         }
-        database.staffAccounts().insert(
-            StaffAccountEntity(
-                id = "CASHIER-TEST",
-                username = "cashier",
-                displayName = "Cajero de prueba",
-                role = "CASHIER",
-                passwordAlgorithm = "TEST",
-                passwordIterations = 1,
-                passwordSaltBase64 = "",
-                passwordHashBase64 = ""
-            )
-        )
     }
 
     @After

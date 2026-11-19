@@ -6,6 +6,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitAll
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -261,5 +264,56 @@ class CustomerCreditDaoTest {
 
         database.customerCredits().getBalance(client.id, "DOP")
         Unit
+    }
+
+    @Test
+    fun concurrentCreditApplicationsCannotOverdrawCustomerBalance() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente crédito concurrente",
+            documentNumber = "CREDIT-CONCURRENT-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            id = "LOAN-CREDIT-CONCURRENT-001",
+            clientId = client.id,
+            principalMinor = 200000L,
+            balanceMinor = 200000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 10,
+            method = "FRENCH"
+        )
+        database.loans().insert(loan)
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-CONCURRENT-INITIAL",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 100000L,
+                reference = "Crédito disponible"
+            )
+        )
+
+        val results = listOf(
+            async(Dispatchers.IO) {
+                database.customerCredits().applyCredit(
+                    "CREDIT-CONCURRENT-USE-1", client.id, loan.id, "DOP",
+                    70000L, "Aplicación concurrente 1"
+                )
+            },
+            async(Dispatchers.IO) {
+                database.customerCredits().applyCredit(
+                    "CREDIT-CONCURRENT-USE-2", client.id, loan.id, "DOP",
+                    70000L, "Aplicación concurrente 2"
+                )
+            }
+        ).awaitAll()
+
+        assertEquals(1, results.count { it == CustomerCreditResult.APPLIED })
+        assertEquals(1, results.count { it == CustomerCreditResult.INSUFFICIENT_CREDIT })
+        assertEquals(30000L, database.customerCredits().getBalance(client.id, "DOP"))
     }
 }

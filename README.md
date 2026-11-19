@@ -9,7 +9,7 @@ Aplicación Android nativa en desarrollo para gestión de préstamos. El proyect
 - Android nativo: Kotlin + Jetpack Compose.
 - Android Gradle Plugin 8.7.3, Kotlin 2.0.21, Gradle 8.9 y JDK 17.
 - `compileSdk 35`, `targetSdk 35`, `minSdk 26`.
-- Persistencia local Room, esquema versión 8, con cuentas de empleados, auditoría local, bloqueo temporal tras cinco intentos fallidos y migraciones 1→8.
+- Persistencia local Room, esquema versión 9, con cuentas de empleados, auditoría local, bloqueo temporal tras cinco intentos fallidos y migraciones 1→9.
 - Diseño corporativo azul marino y dorado.
 - Monedas modeladas: DOP, USD y EUR.
 - Motor financiero con amortización francesa, italiana y americana.
@@ -41,7 +41,7 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 - Backend central compartido entre la aplicación Android y la plataforma web, con compartición de cartera entre varios celulares/cobradores opcional por empresa (y restricciones por sucursal, permisos y asignación); sincronización de cambios, cola offline, idempotencia, resolución de conflictos y revocación de dispositivos aún por implementar.
 - Completar autorización en cada caso de uso/operación sensible; migrar la identidad local a sesiones seguras y autenticación centralizada en backend para varios dispositivos.
 - Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
-- Caja, cierres, arqueos, contabilidad y conciliación.
+- Caja local: sesiones persistidas, movimientos de entrada/salida, validación de saldo disponible y cierre con arqueo físico; aún pendiente de integración completa con pagos, pantalla, permisos, auditoría y conciliación.
 - Mora, cargos, recibos, reversos, refinanciamientos y reglas completas de pagos anticipados, con políticas de negocio aprobadas.
 - GPS y visitas de cobradores con permisos, controles de privacidad y auditoría.
 - Portal del cliente y pasarela de pagos digitales.

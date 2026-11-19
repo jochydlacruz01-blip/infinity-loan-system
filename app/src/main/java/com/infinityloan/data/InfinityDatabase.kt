@@ -275,6 +275,26 @@ interface StaffAccountDao {
     @Query("UPDATE staff_accounts SET isActive = :active WHERE id = :id")
     suspend fun setActive(id: String, active: Boolean)
 
+    @Query("SELECT COUNT(*) FROM staff_accounts WHERE role = 'ADMINISTRATOR' AND isActive = 1")
+    suspend fun countActiveAdministrators(): Int
+
+    /**
+     * Atomically protects the last active administrator from concurrent deactivation.
+     * Returns -1 when the sole active administrator would be disabled, 0 if missing,
+     * or the number of rows updated otherwise.
+     */
+    @Transaction
+    suspend fun setActiveSafely(id: String, active: Boolean): Int {
+        val target = findById(id) ?: return 0
+        if (!active && target.role == "ADMINISTRATOR" && target.isActive &&
+            countActiveAdministrators() <= 1
+        ) return -1
+        return setActiveRow(id, active)
+    }
+
+    @Query("UPDATE staff_accounts SET isActive = :active WHERE id = :id")
+    suspend fun setActiveRow(id: String, active: Boolean): Int
+
     @Query("UPDATE staff_accounts SET grants = :grants, denials = :denials WHERE id = :id")
     suspend fun updatePermissions(id: String, grants: String, denials: String)
 

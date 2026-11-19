@@ -67,6 +67,11 @@ class StaffAuthenticationServiceTest {
             accounts[entry.key] = entry.value.copy(failedLoginAttempts = 0, lockedUntil = null)
         }
 
+        override suspend fun updatePermissions(id: String, grants: String, denials: String) {
+            val entry = accounts.entries.firstOrNull { it.value.id == id } ?: return
+            accounts[entry.key] = entry.value.copy(grants = grants, denials = denials)
+        }
+
         override suspend fun setActive(id: String, active: Boolean) {
             val entry = accounts.entries.firstOrNull { it.value.id == id } ?: return
             accounts[entry.key] = entry.value.copy(isActive = active)
@@ -315,6 +320,83 @@ class StaffAuthenticationServiceTest {
         }
     }
 
+
+    @Test
+    fun administratorCanCustomizePermissionsAndChangeInvalidatesOldSession() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "collector",
+            displayName = "Cobrador",
+            role = StaffRole.COLLECTOR,
+            password = "ClaveCobradorMuySegura-2026".toCharArray()
+        )
+        val collector = requireNotNull(
+            service.authenticate("collector", "ClaveCobradorMuySegura-2026".toCharArray()).second
+        )
+        assertTrue(service.isSessionValid(collector))
+
+        service.updateStaffPermissions(
+            actor = admin,
+            staffId = collector.staffId,
+            grants = setOf(Permission.CLIENT_UPDATE),
+            denials = setOf(Permission.PAYMENT_REGISTER)
+        )
+
+        val stored = requireNotNull(dao.findById(collector.staffId))
+        assertEquals(Permission.CLIENT_UPDATE.name, stored.grants)
+        assertEquals(Permission.PAYMENT_REGISTER.name, stored.denials)
+        assertFalse("La sesión anterior debe invalidarse", service.isSessionValid(collector))
+        val refreshed = requireNotNull(
+            service.authenticate("collector", "ClaveCobradorMuySegura-2026".toCharArray()).second
+        )
+        assertTrue(AccessPolicy.allows(refreshed.profile, Permission.CLIENT_UPDATE))
+        assertFalse(AccessPolicy.allows(refreshed.profile, Permission.PAYMENT_REGISTER))
+    }
+
+    @Test
+    fun cashierCannotCustomizeStaffPermissions() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "cashier",
+            displayName = "Cajero",
+            role = StaffRole.CASHIER,
+            password = "ClaveCajeroMuySegura-2026".toCharArray()
+        )
+        val cashier = requireNotNull(
+            service.authenticate("cashier", "ClaveCajeroMuySegura-2026".toCharArray()).second
+        )
+        try {
+            service.updateStaffPermissions(
+                actor = cashier,
+                staffId = admin.staffId,
+                grants = emptySet(),
+                denials = emptySet()
+            )
+            throw AssertionError("El cajero no puede cambiar permisos.")
+        } catch (_: IllegalArgumentException) {
+            assertTrue(dao.findById(admin.staffId) != null)
+        }
+    }
 
     @Test
     fun disabledAccountInvalidatesExistingSession() = runBlocking {

@@ -88,9 +88,9 @@ class CashSessionTest {
         }
     }
 
-    @Test fun varianceUsesCheckedArithmetic() {
+    @Test fun varianceHandlesExtremeButRepresentableBalances() {
         val closed = CashSession("S", "staff", "DOP", Long.MAX_VALUE).close(0L)
-        assertThrows(ArithmeticException::class.java) { closed.varianceMinor }
+        assertEquals(-Long.MAX_VALUE, closed.varianceMinor)
     }
 
     @Test fun cashOutExactlyAvailableBalanceIsAllowed() {

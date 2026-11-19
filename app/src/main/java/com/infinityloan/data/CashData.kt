@@ -13,6 +13,13 @@ import kotlinx.coroutines.flow.Flow
 /** Read-only projection used to audit persisted loan payments against cash receipts. */
 data class PersistedPaymentForReconciliation(val operationId: String, val amountMinor: Long, val currency: String)
 
+data class PersistedCashMovementForReconciliation(
+    val operationId: String,
+    val type: String,
+    val amountMinor: Long,
+    val sessionCurrency: String
+)
+
 @Entity(tableName = "cash_sessions", indices = [Index("staffId"), Index("openedAt")])
 data class CashSessionEntity(
     @PrimaryKey val sessionId: String,
@@ -45,8 +52,8 @@ data class CashMovementEntity(
 
 @Dao
 interface CashSessionDao {
-    @Query("SELECT * FROM cash_movements ORDER BY createdAt, operationId")
-    suspend fun findAllMovementsForAudit(): List<CashMovementEntity>
+    @Query("SELECT cash_movements.operationId AS operationId, cash_movements.type AS type, cash_movements.amountMinor AS amountMinor, cash_sessions.currency AS sessionCurrency FROM cash_movements INNER JOIN cash_sessions ON cash_movements.sessionId = cash_sessions.sessionId ORDER BY cash_movements.createdAt, cash_movements.operationId")
+    suspend fun findAllMovementsForAudit(): List<PersistedCashMovementForReconciliation>
 
     @Query("SELECT payments.operationId AS operationId, payments.amountMinor AS amountMinor, loans.currency AS currency FROM payments INNER JOIN loans ON payments.loanId = loans.id ORDER BY payments.createdAt, payments.operationId")
     suspend fun findAllPaymentsForCashAudit(): List<PersistedPaymentForReconciliation>

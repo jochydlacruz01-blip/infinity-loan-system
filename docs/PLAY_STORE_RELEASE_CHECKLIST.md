@@ -11,7 +11,7 @@ This checklist separates verified engineering work from release blockers. A succ
 - [x] Payment allocation ledger and customer-credit movements.
 - [x] Unit and emulator-based instrumentation tests in GitHub Actions.
 - [x] Debug APK artifact in CI.
-- [ ] Release AAB build verified in CI (workflow added; run #157 pending at time of this checklist).
+- [x] Release AAB build verified in CI (runs #157 and #158 completed successfully; artifact is unsigned).
 - [ ] Signed release AAB.
 
 ## Product completion blockers
@@ -35,7 +35,7 @@ This checklist separates verified engineering work from release blockers. A succ
 - [ ] Production backend authorization tests; never rely only on hidden UI controls.
 - [ ] Encrypted transport and secure storage for credentials/tokens.
 - [ ] Backup, restore, retention and disaster-recovery procedures.
-- [ ] Database migration tests across every supported historical schema.
+- [ ] Database migration tests across every supported historical schema (coverage for 1→3 and 3→5 is being expanded; complete end-to-end upgrade path remains to be verified).
 - [ ] Financial invariants and ledger reconciliation tests.
 - [ ] Accessibility, localization, low-memory, lifecycle and supported-device testing.
 - [ ] Crash reporting and privacy-reviewed diagnostics.

@@ -2,9 +2,10 @@
 
 ## Estado de validación
 - Rama: `main`.
-- Workflow #315 (run `44558466803`, commit `d84eea332343afe0bfcbbcc6d14946040fdf24d1`) completó con éxito.
+- Workflow #320 (run `44563482018`, commit `067e5d624f915b6d2d9ebcd791b2c4e595912dcd`) completó con **success** el 19-11-2026.
 - Lint, pruebas unitarias, compilación APK/AAB y pruebas instrumentadas en emulador Android: **exitosas** en esa ejecución.
-- Los artefactos debug APK y release AAB unsigned se generaron y cargaron en Actions.
+- Actions confirmó la carga de los artefactos `infinity-loan-system-debug` y `infinity-loan-system-release-aab-unsigned` (sin expirar al momento de la revisión).
+- Workflow #321 (run `44563835207`) estaba pendiente/encolado al momento de la última consulta; no se declara como exitoso.
 - El AAB de release es **sin firma**; no es una publicación lista para Play Store.
 
 ## Funciones implementadas localmente

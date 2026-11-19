@@ -364,6 +364,10 @@ private fun AuthenticatedInfinityApp(
 
         scope.launch {
             try {
+                require(
+                    if (clientToEdit == null) can(Permission.CLIENT_CREATE)
+                    else can(Permission.CLIENT_UPDATE)
+                ) { "No tienes permiso para esta operación." }
                 val cleanName = name.trim()
                 val cleanDoc = doc.trim()
                 val cleanPhone = phone.trim()
@@ -407,6 +411,7 @@ private fun AuthenticatedInfinityApp(
         onSave = { clientId, amount, rate, periods, currency, method, frequency, firstDueDateText ->
             scope.launch {
                 try {
+                    require(can(Permission.LOAN_CREATE)) { "No tienes permiso para crear préstamos." }
                     val principal = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP)
                     val minor = principal.movePointRight(2).longValueExact()
                     val rateValue = BigDecimal(rate).divide(BigDecimal("100"))
@@ -458,6 +463,7 @@ private fun AuthenticatedInfinityApp(
         onSave = { operationId, loanId, amount, reference ->
             scope.launch {
                 val result = try {
+                    require(can(Permission.PAYMENT_REGISTER)) { "No tienes permiso para registrar pagos." }
                     val minor = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
                     db.payments().postPayment(
     PaymentEntity(

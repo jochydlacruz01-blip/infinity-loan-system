@@ -42,4 +42,16 @@ class CashPaymentReconciliationTest {
         assertEquals(first, second)
         assertEquals(CashReconciliationIssueType.INVALID_PAYMENT, first.single().type)
     }
+    @Test fun detectsDuplicatePaymentIdsAndInvalidMovementRecords() {
+        val issues = CashPaymentReconciliation.reconcile(
+            listOf(
+                ReconciliationPayment("p-1", 1000, "DOP"),
+                ReconciliationPayment("p-1", 1000, "DOP")
+            ),
+            listOf(ReconciliationCashMovement(" ", "p-1", 0, "", ""))
+        )
+        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.DUPLICATE_PAYMENT_OPERATION })
+        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.INVALID_CASH_MOVEMENT })
+    }
+
 }

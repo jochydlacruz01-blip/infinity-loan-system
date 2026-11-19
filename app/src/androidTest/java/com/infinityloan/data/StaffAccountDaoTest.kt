@@ -54,6 +54,24 @@ class StaffAccountDaoTest {
     }
 
     @Test
+    fun safelyDeactivatesAdministratorOnlyWhenAnotherActiveAdminExists() = runBlocking {
+        val first = StaffAccountEntity(
+            username = "admin1", displayName = "Admin 1", role = "ADMINISTRATOR",
+            passwordAlgorithm = "PBKDF2_SHA256_V1", passwordIterations = 210000,
+            passwordSaltBase64 = "c2FsdA==", passwordHashBase64 = "aGFzaA=="
+        )
+        database.staffAccounts().insert(first)
+        assertEquals(-1, database.staffAccounts().setActiveSafely(first.id, false))
+        assertEquals(true, database.staffAccounts().findById(first.id)?.isActive)
+
+        val second = first.copy(id = "admin2-id", username = "admin2", displayName = "Admin 2")
+        database.staffAccounts().insert(second)
+        assertEquals(1, database.staffAccounts().setActiveSafely(first.id, false))
+        assertEquals(false, database.staffAccounts().findById(first.id)?.isActive)
+        assertEquals(true, database.staffAccounts().findById(second.id)?.isActive)
+    }
+
+    @Test
     fun failedLoginCounterLocksAccountAndCanBeReset() = runBlocking {
         val account = StaffAccountEntity(
             username = "admin",

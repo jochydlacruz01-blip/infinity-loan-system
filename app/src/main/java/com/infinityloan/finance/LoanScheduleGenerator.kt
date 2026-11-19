@@ -38,6 +38,13 @@ object LoanScheduleGenerator {
             "La fecha del primer vencimiento no es válida"
         }
 
+        require(scale in 0..6) { "Escala monetaria no válida" }
+        require(principal > BigDecimal.ZERO) { "El principal debe ser mayor que cero" }
+        require(principal.setScale(scale, java.math.RoundingMode.HALF_UP) > BigDecimal.ZERO) {
+            "El principal no puede redondearse a cero con la escala seleccionada"
+        }
+        require(periodicRate >= BigDecimal.ZERO) { "La tasa no puede ser negativa" }
+
         val installments = when (method.uppercase()) {
             "FRANCES", "FRENCH" -> LoanCalculator.french(principal, periodicRate, periods, scale)
             "ITALIANO" -> LoanCalculator.italian(principal, periodicRate, periods, scale)

@@ -708,8 +708,13 @@ private fun ReportsSummaryScreen(
                         }
                         expectedBySession[row.sessionId] = balance
                     }
-                    var expected = 0L
-                    for (row in matching) expected = Math.addExact(expected, expectedBySession[row.sessionId] ?: row.openingMinor)
+                    var expectedOpen = 0L
+                    var expectedClosed = 0L
+                    for (row in matching) {
+                        val balance = expectedBySession[row.sessionId] ?: row.openingMinor
+                        if (row.closedAt == null) expectedOpen = Math.addExact(expectedOpen, balance)
+                        else expectedClosed = Math.addExact(expectedClosed, balance)
+                    }
                     var counted = 0L
                     var variance = 0L
                     for (row in closed) {
@@ -719,7 +724,7 @@ private fun ReportsSummaryScreen(
                     }
                     summaries.add(
                         currency + " · sesiones: " + matching.size + " (abiertas " + matching.count { it.closedAt == null } + ", cerradas " + closed.size + ")" +
-                            "\nEfectivo esperado: " + money(expected) + "\nConteo físico acumulado (cerradas): " + money(counted) +
+                            "\nEsperado en cajas abiertas: " + money(expectedOpen) + "\nEsperado de cajas cerradas: " + money(expectedClosed) + "\nConteo físico (cerradas): " + money(counted) +
                             "\nDiferencia acumulada (cerradas): " + money(variance)
                     )
                 }

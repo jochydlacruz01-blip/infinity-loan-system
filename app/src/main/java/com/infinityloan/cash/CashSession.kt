@@ -39,10 +39,13 @@ data class CashSession(
         require(movements.map { it.operationId }.distinct().size == movements.size) {
             "No se permiten movimientos duplicados en la sesión."
         }
-        require(!closed || countedClosingMinor != null) { "El cierre requiere efectivo contado." }
+        require(closed == (countedClosingMinor != null)) {
+            "El conteo físico y el estado de cierre deben coincidir."
+        }
         require(countedClosingMinor == null || countedClosingMinor >= 0L) {
             "El efectivo contado no puede ser negativo."
         }
+        require(expectedCashMinor >= 0L) { "El saldo esperado no puede ser negativo." }
     }
 
     val expectedCashMinor: Long
@@ -58,7 +61,9 @@ data class CashSession(
         require(movements.none { it.operationId == movement.operationId }) {
             "Movimiento duplicado."
         }
-        return copy(movements = movements + movement)
+        val updated = copy(movements = movements + movement)
+        require(updated.expectedCashMinor >= 0L) { "El egreso supera el efectivo disponible." }
+        return updated
     }
 
     fun close(countedMinor: Long): CashSession {

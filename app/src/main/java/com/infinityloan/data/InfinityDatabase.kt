@@ -228,6 +228,9 @@ interface StaffAccountDao {
     @Query("SELECT * FROM staff_accounts WHERE username = :username LIMIT 1")
     suspend fun findByUsername(username: String): StaffAccountEntity?
 
+    @Query("SELECT * FROM staff_accounts WHERE id = :id LIMIT 1")
+    suspend fun findById(id: String): StaffAccountEntity?
+
     @Query("SELECT COUNT(*) FROM staff_accounts")
     suspend fun count(): Int
 

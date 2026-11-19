@@ -634,8 +634,84 @@ class PaymentDaoTest {
         assertEquals(3000L, creditBalance)
         assertEquals(payment.operationId, database.payments().findByOperationId(payment.operationId)?.operationId)
     }
+    @Test
+    fun untouchedLegacyLoanRebuildsItsScheduleBeforePosting() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente legado nuevo",
+            documentNumber = "LEGACY-NEW-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0.00",
+            periods = 2,
+            method = "FRANCES",
+            frequency = "MONTHLY",
+            firstDueDate = LocalDate.now().minusDays(1).toString()
+        )
+        database.loans().insert(loan)
+
+        val result = database.payments().postPayment(
+            PaymentEntity(
+                operationId = "LEGACY-NEW-PAY-001",
+                loanId = loan.id,
+                amountMinor = 1000L,
+                reference = "Primer pago tras reconstrucción"
+            )
+        )
+
+        assertEquals(PaymentPostResult.POSTED, result)
+        assertEquals(2, database.installments().findForLoan(loan.id).size)
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+    }
+
+    @Test
+    fun legacyLoanWithHistoricalPaymentsRequiresReconciliation() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente legado histórico",
+            documentNumber = "LEGACY-HISTORY-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 9000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 12,
+            method = "FRANCES",
+            firstDueDate = LocalDate.now().minusDays(1).toString()
+        )
+        database.loans().insert(loan)
+        database.payments().insert(
+            PaymentEntity(
+                operationId = "LEGACY-HISTORY-OLD-001",
+                loanId = loan.id,
+                amountMinor = 1000L,
+                reference = "Pago histórico sin distribución"
+            )
+        )
+
+        val result = database.payments().postPayment(
+            PaymentEntity(
+                operationId = "LEGACY-HISTORY-NEW-001",
+                loanId = loan.id,
+                amountMinor = 500L,
+                reference = "Nuevo intento"
+            )
+        )
+
+        assertEquals(PaymentPostResult.LEGACY_RECONCILIATION_REQUIRED, result)
+        assertEquals(0, database.installments().findForLoan(loan.id).size)
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.payments().findByOperationId("LEGACY-HISTORY-NEW-001"))
+    }
+
 }
-
-
-
-

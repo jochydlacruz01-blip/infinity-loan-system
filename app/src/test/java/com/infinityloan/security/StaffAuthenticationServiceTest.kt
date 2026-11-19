@@ -112,6 +112,41 @@ class StaffAuthenticationServiceTest {
         assertNull(disabledSession)
     }
 
+
+    @Test
+    fun clearsPasswordBuffersAfterAdministratorProvisioningAndLogin() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        val initialPassword = "UnaClaveMuySegura-2026".toCharArray()
+
+        assertTrue(
+            service.createInitialAdministrator(
+                "admin",
+                "Administración",
+                initialPassword
+            )
+        )
+        assertTrue(initialPassword.all { it == '\\u0000' })
+
+        val loginPassword = "UnaClaveMuySegura-2026".toCharArray()
+        val (result, _) = service.authenticate("admin", loginPassword)
+        assertEquals(AuthenticationResult.AUTHENTICATED, result)
+        assertTrue(loginPassword.all { it == '\\u0000' })
+    }
+
+    @Test
+    fun rejectsBlankUsernameWithoutLookingUpAnAccountAndClearsPassword() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val password = "UnaClaveMuySegura-2026".toCharArray()
+
+        val (result, session) = StaffAuthenticationService(dao)
+            .authenticate("   ", password)
+
+        assertEquals(AuthenticationResult.INVALID_CREDENTIALS, result)
+        assertNull(session)
+        assertTrue(password.all { it == '\\u0000' })
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun requiresStrongInitialPassword() {
         runBlocking {

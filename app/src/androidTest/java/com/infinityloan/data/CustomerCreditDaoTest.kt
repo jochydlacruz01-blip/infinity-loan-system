@@ -220,6 +220,46 @@ class CustomerCreditDaoTest {
         )
     }
 
+    @Test
+    fun applyCreditRejectsBlankReferenceAndUnsupportedCurrencyAndOperationId() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente validación",
+            documentNumber = "CREDIT-VALIDATION-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            id = "LOAN-VALIDATION-001",
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0",
+            periods = 1,
+            method = "FRENCH"
+        )
+        database.loans().insert(loan)
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "VALIDATION-CREDIT-001",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 1000L,
+                reference = "Saldo disponible"
+            )
+        )
+
+        assertEquals(CustomerCreditResult.INVALID_REFERENCE,
+            database.customerCredits().applyCredit("VALID-1", client.id, loan.id, "DOP", 100L, "  "))
+        assertEquals(CustomerCreditResult.INVALID_CURRENCY,
+            database.customerCredits().applyCredit("VALID-2", client.id, loan.id, "MXN", 100L, "Referencia"))
+        assertEquals(CustomerCreditResult.INVALID_OPERATION_ID,
+            database.customerCredits().applyCredit(" ", client.id, loan.id, "DOP", 100L, "Referencia"))
+        assertEquals(1000L, database.customerCredits().getBalance(client.id, "DOP"))
+    }
+
     @Test(expected = ArithmeticException::class)
     fun customerCreditBalanceRejectsLongOverflow() = runBlocking {
         val client = ClientEntity(

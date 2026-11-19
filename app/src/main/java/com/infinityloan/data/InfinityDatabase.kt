@@ -196,6 +196,33 @@ data class StaffAccountEntity(
     val lastLoginAt: Long? = null
 )
 
+@Entity(
+    tableName = "audit_logs",
+    indices = [Index(value = ["createdAt"]), Index(value = ["actorStaffId"])]
+)
+data class AuditLogEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val actorStaffId: String?,
+    val actorUsername: String,
+    val action: String,
+    val targetType: String,
+    val targetId: String?,
+    val details: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface AuditLogDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(entry: AuditLogEntity)
+
+    @Query("SELECT * FROM audit_logs ORDER BY createdAt DESC, id DESC LIMIT :limit")
+    fun observeRecent(limit: Int): Flow<List<AuditLogEntity>>
+
+    @Query("SELECT * FROM audit_logs WHERE actorStaffId = :staffId ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun findByActor(staffId: String, limit: Int): List<AuditLogEntity>
+}
+
 @Dao
 interface StaffAccountDao {
     @Query("SELECT * FROM staff_accounts WHERE username = :username LIMIT 1")
@@ -714,9 +741,10 @@ enum class CreditPaymentResult {
         CustomerCreditMovementEntity::class,
         LoanInstallmentEntity::class,
         PaymentAllocationEntity::class,
-        StaffAccountEntity::class
+        StaffAccountEntity::class,
+        AuditLogEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 
@@ -771,6 +799,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun installments(): LoanInstallmentDao
     abstract fun paymentAllocations(): PaymentAllocationDao
     abstract fun staffAccounts(): StaffAccountDao
+    abstract fun auditLogs(): AuditLogDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -971,6 +1000,29 @@ internal val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+internal val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id TEXT NOT NULL PRIMARY KEY,
+                actorStaffId TEXT,
+                actorUsername TEXT NOT NULL,
+                action TEXT NOT NULL,
+                targetType TEXT NOT NULL,
+                targetId TEXT,
+                details TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_audit_logs_createdAt ON audit_logs(createdAt)"
+        )
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_audit_logs_actorStaffId ON audit_logs(actorStaffId)"
+        )
+    }
+}
+
         fun get(context: Context): InfinityDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -978,7 +1030,7 @@ internal val MIGRATION_5_6 = object : Migration(5, 6) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 .build().also { INSTANCE = it }
             }
     }

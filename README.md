@@ -18,6 +18,8 @@ Aplicación Android nativa en desarrollo para gestión de préstamos. El proyect
 - Registro local de clientes, préstamos, cuotas y pagos.
 - Distribución de pagos por antigüedad de cuotas; excedentes registrados como movimientos de crédito del cliente.
 - Auditoría de asignaciones de pago y protección transaccional en operaciones de pago.
+- Sumas de importes en el panel y saldos de crédito con aritmética comprobada para evitar desbordamientos.
+- Cimientos de seguridad en desarrollo: política RBAC por capacidades y hash PBKDF2 versionado. Todavía no están integrados en un inicio de sesión ni en autorización efectiva de operaciones.
 
 ## Validación automatizada
 
@@ -37,7 +39,7 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 ## Funciones pendientes antes de producción
 
 - Backend central compartido entre la aplicación Android y la plataforma web.
-- Autenticación segura y autorización real por roles (administrador, supervisor, cajero y cobrador).
+- Integración completa de autenticación, sesiones y autorización real por roles (los cimientos de RBAC y hash de contraseñas están implementados, pero todavía no protegen la interfaz ni las operaciones).
 - Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
 - Caja, cierres, arqueos, contabilidad y conciliación.
 - Mora, cargos, recibos, reversos, refinanciamientos y reglas completas de pagos anticipados, con políticas de negocio aprobadas.
@@ -63,4 +65,9 @@ El repositorio y la rama de trabajo son:
 
 Los cambios se realizan directamente en GitHub y se validan mediante Actions. No se deben guardar contraseñas, tokens, claves privadas ni archivos de firma en el repositorio.
 
-Consulta [la lista de control de publicación en Google Play](docs/PLAY_STORE_RELEASE_CHECKLIST.md) para ver las puertas de seguridad, producto y publicación que faltan.
+Consulta:
+- [Lista de control de publicación en Google Play](docs/PLAY_STORE_RELEASE_CHECKLIST.md).
+- [Requisitos de seguridad y control de acceso](docs/SECURITY_AND_ACCESS_CONTROL.md).
+- [Contrato inicial del backend compartido](docs/BACKEND_API_CONTRACT.md).
+
+Estos documentos describen trabajo pendiente; no significan que el backend, autenticación o publicación estén completados.

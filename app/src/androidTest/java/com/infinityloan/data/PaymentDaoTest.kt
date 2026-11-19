@@ -714,4 +714,65 @@ class PaymentDaoTest {
         assertEquals(null, database.payments().findByOperationId("LEGACY-HISTORY-NEW-001"))
     }
 
+    @Test
+    fun paymentAllocationAuditsOldestInstallmentAndInterestBeforePrincipal() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente auditoría de cuotas",
+            documentNumber = "AUDIT-ALLOC-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 1600L,
+            balanceMinor = 1600L,
+            currency = "DOP",
+            periodicRate = "0.00",
+            periods = 2,
+            method = "FRANCES"
+        )
+        database.loans().insert(loan)
+        database.installments().insertAll(
+            listOf(
+                LoanInstallmentEntity(
+                    loanId = loan.id, number = 1,
+                    dueDate = LocalDate.now().minusDays(2).toString(),
+                    principalMinor = 800L, interestMinor = 200L,
+                    totalMinor = 1000L, remainingPrincipalMinor = 800L
+                ),
+                LoanInstallmentEntity(
+                    loanId = loan.id, number = 2,
+                    dueDate = LocalDate.now().minusDays(1).toString(),
+                    principalMinor = 800L, interestMinor = 200L,
+                    totalMinor = 1000L, remainingPrincipalMinor = 0L
+                )
+            )
+        )
+
+        val payment = PaymentEntity(
+            operationId = "AUDIT-ALLOC-PAY-001",
+            loanId = loan.id,
+            amountMinor = 1200L,
+            reference = "Pago parcial para auditoría"
+        )
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+
+        val allocations = database.paymentAllocations().findForPayment(payment.operationId)
+        val installments = database.installments().findForLoan(loan.id)
+        val updatedLoan = database.loans().findById(loan.id)
+
+        assertEquals(2, allocations.size)
+        assertEquals(1, allocations[0].installmentNumber)
+        assertEquals(200L, allocations[0].interestPaidMinor)
+        assertEquals(800L, allocations[0].principalPaidMinor)
+        assertEquals(2, allocations[1].installmentNumber)
+        assertEquals(200L, allocations[1].interestPaidMinor)
+        assertEquals(0L, allocations[1].principalPaidMinor)
+        assertEquals("PAID", installments[0].status)
+        assertEquals("PARTIAL", installments[1].status)
+        assertEquals(800L, updatedLoan?.balanceMinor)
+        assertEquals(0L, database.customerCredits().getBalance(client.id, "DOP"))
+    }
+
 }

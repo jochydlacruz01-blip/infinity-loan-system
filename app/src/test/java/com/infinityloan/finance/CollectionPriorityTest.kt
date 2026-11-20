@@ -66,4 +66,25 @@ class CollectionPriorityTest {
             CollectionPriority.build(listOf(CollectionPriorityRecord("l"," ","DOP",same,1)),today)
         }
     }
+    @Test fun amountBreaksTiesOnlyAfterDaysAndCurrenciesRemainIndependent() {
+        val date = today.minusDays(40)
+        val rows = listOf(
+            CollectionPriorityRecord("small","client","DOP",date,50),
+            CollectionPriorityRecord("large","client","DOP",date,500),
+            CollectionPriorityRecord("usd","client","USD",date,999)
+        )
+        assertEquals(listOf("large","small","usd"), CollectionPriority.build(rows,today).map { it.loanId })
+    }
+
+    @Test fun acceptsZeroBalanceButStillValidatesItsMetadata() {
+        val rows = listOf(
+            CollectionPriorityRecord("paid","client","DOP",today.minusDays(80),0),
+            CollectionPriorityRecord("valid","client","EUR",today.minusDays(2),1)
+        )
+        assertEquals(listOf("valid"), CollectionPriority.build(rows,today).map { it.loanId })
+        assertThrows(IllegalArgumentException::class.java) {
+            CollectionPriority.build(listOf(CollectionPriorityRecord("paid","client","GBP",today.minusDays(80),0)),today)
+        }
+    }
+
 }

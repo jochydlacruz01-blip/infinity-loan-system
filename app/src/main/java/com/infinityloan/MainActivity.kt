@@ -21,7 +21,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.infinityloan.data.*
-import com.infinityloan.finance.AgingBucket\nimport com.infinityloan.finance.LoanScheduleGenerator
+import com.infinityloan.finance.AgingBucket
+import com.infinityloan.finance.LoanScheduleGenerator
 import com.infinityloan.finance.MinorUnitTotals
 import com.infinityloan.finance.OverdueBalance
 import com.infinityloan.finance.PaymentReporting
@@ -749,6 +750,9 @@ private fun ReportsSummaryScreen(
     val portfolioSummary by remember(db, businessDate) {
         PortfolioSummaryRepository(db.loans(), db.installments()).observe(businessDate)
     }.collectAsState(initial = emptyList())
+    val agingSummary by remember(db, businessDate) {
+        PortfolioAgingRepository(db.loans(), db.installments()).observe(businessDate)
+    }.collectAsState(initial = emptyList())
     var cashSummary by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(db) {
         db.cashSessions().observeSessions().collect { rows ->
@@ -816,7 +820,17 @@ private fun ReportsSummaryScreen(
                 )
             }
         }
-        item { Text("ANTIGÜEDAD DE CUOTAS VENCIDAS", color = Gold, fontWeight = FontWeight.Bold) }\n        items(agingSummary, key = { "aging-" + it.currency }) { aging ->\n            val bucketLines = aging.buckets.joinToString("\\n") { bucket ->\n                bucket.bucket.label + ": " + bucket.installmentCount + " cuotas · " + money(bucket.unpaidMinor) + " " + aging.currency\n            }\n            DataCard("Vencimiento · " + aging.currency, bucketLines + "\\nTotal vencido: " + money(aging.totalOverdueMinor) + " " + aging.currency)\n        }\n        item { Text("CONCILIACIÓN CONSOLIDADA DE CAJA", color = Gold, fontWeight = FontWeight.Bold) }
+        item { Text("ANTIGÜEDAD DE CUOTAS VENCIDAS", color = Gold, fontWeight = FontWeight.Bold) }
+        if (agingSummary.isEmpty()) {
+            item { DataCard("Morosidad", "No hay cuotas vencidas pendientes en este corte.") }
+        } else {
+            items(agingSummary, key = { "aging-" + it.currency }) { aging ->
+                val bucketLines = aging.buckets.joinToString("\n") { bucket ->
+                    bucket.bucket.label + ": " + bucket.installmentCount + " cuotas · " + money(bucket.unpaidMinor) + " " + aging.currency
+                }
+                DataCard("Vencimiento · " + aging.currency, bucketLines + "\nTotal vencido: " + money(aging.totalOverdueMinor) + " " + aging.currency)
+            }
+        }\n        item { Text("CONCILIACIÓN CONSOLIDADA DE CAJA", color = Gold, fontWeight = FontWeight.Bold) }
         items(cashSummary) { summary -> DataCard("Caja por moneda", summary) }
         items(currencies) { currency ->
             val currencyLoans = loans.filter { it.currency == currency }

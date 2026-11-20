@@ -57,7 +57,8 @@ class CollectionPriorityTest {
             CollectionPriorityRecord("a","c","DOP",same,100),
             CollectionPriorityRecord("b","b","USD",same,100)
         )
-        assertEquals(listOf("b","a","z"), CollectionPriority.build(rows,today).map { it.loanId })
+        // Currency alphabetically (DOP before USD), then client ID and loan ID.
+        assertEquals(listOf("a","z","b"), CollectionPriority.build(rows,today).map { it.loanId })
         assertThrows(IllegalArgumentException::class.java) {
             CollectionPriority.build(listOf(CollectionPriorityRecord(" ","c","DOP",same,1)),today)
         }
@@ -65,5 +66,4 @@ class CollectionPriorityTest {
             CollectionPriority.build(listOf(CollectionPriorityRecord("l"," ","DOP",same,1)),today)
         }
     }
-
 }

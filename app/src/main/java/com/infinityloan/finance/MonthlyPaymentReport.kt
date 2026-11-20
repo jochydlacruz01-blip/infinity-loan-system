@@ -1,5 +1,6 @@
 package com.infinityloan.finance
 
+import com.infinityloan.data.PaymentEntity
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
@@ -15,6 +16,26 @@ data class PaymentReportEntry(
 data class MonthlyPaymentTotal(val month: YearMonth, val currency: String, val totalMinor: Long, val count: Int)
 
 object MonthlyPaymentReport {
+    /**
+     * Builds monthly totals from persisted payments. Currency is resolved through
+     * the owning loan because PaymentEntity intentionally stores no currency field.
+     * Reversed originals are excluded from operational totals.
+     */
+    fun fromPayments(
+        payments: List<PaymentEntity>,
+        loanCurrencies: Map<String, String>,
+        reversedOperationIds: Set<String>,
+        zone: ZoneId = ZoneId.of("UTC")
+    ): List<MonthlyPaymentTotal> {
+        val effective = PaymentReporting.effectivePayments(payments, reversedOperationIds)
+        val entries = effective.map { payment ->
+            val currency = requireNotNull(loanCurrencies[payment.loanId]) {
+                "No se encontró la moneda del préstamo " + payment.loanId
+            }
+            PaymentReportEntry(payment.operationId, payment.amountMinor, currency, payment.createdAt)
+        }
+        return aggregate(entries, zone)
+    }
     private val supportedCurrencies = setOf("DOP", "USD", "EUR")
 
     fun aggregate(entries: List<PaymentReportEntry>, zone: ZoneId = ZoneId.of("UTC")): List<MonthlyPaymentTotal> {

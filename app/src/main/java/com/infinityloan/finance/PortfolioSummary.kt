@@ -1,6 +1,7 @@
 package com.infinityloan.finance
 
 import java.time.LocalDate
+import java.util.Locale
 
 /** Currency-separated portfolio indicators; no implicit FX conversion is performed. */
 data class PortfolioLoanRecord(

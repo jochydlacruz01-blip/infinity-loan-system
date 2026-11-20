@@ -1,6 +1,7 @@
 package com.infinityloan.finance
 
 import java.time.LocalDate
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test

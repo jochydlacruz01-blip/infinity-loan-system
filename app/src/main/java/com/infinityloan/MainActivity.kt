@@ -65,6 +65,7 @@ private enum class Screen(val label: String, val permission: Permission) {
     CLIENTS("Clientes", Permission.CLIENT_VIEW),
     LOANS("Préstamos y cuotas", Permission.LOAN_VIEW),
     PAYMENTS("Pagos", Permission.PAYMENT_VIEW),
+    PROMISES("Promesas de pago", Permission.PROMISE_TO_PAY_VIEW),
     CASH("Gestión de caja", Permission.CASH_SESSION_OPEN),
     REPORTS("Informes", Permission.REPORT_VIEW),
     SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE),
@@ -430,6 +431,7 @@ private fun AuthenticatedInfinityApp(
                                 }
                             }
                         )
+                        Screen.PROMISES -> PromiseToPayScreen(db, session, authenticationService, clients, loans, can(Permission.PROMISE_TO_PAY_CREATE), can(Permission.PROMISE_TO_PAY_RESOLVE), onMessage = { message = it })
                         Screen.CASH -> CashManagementScreen(db, session, can, onMessage = { message = it })
                         Screen.REPORTS -> ReportsSummaryScreen(db, clients, loans, PaymentReporting.effectivePayments(payments, reversedPaymentIds.toSet()), installments)
                         Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")

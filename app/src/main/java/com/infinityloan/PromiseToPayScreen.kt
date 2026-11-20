@@ -1,0 +1,154 @@
+package com.infinityloan
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.infinityloan.data.*
+import com.infinityloan.finance.PromiseToPayStatus
+import com.infinityloan.security.StaffAuthenticationService
+import com.infinityloan.security.StaffSession
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.time.LocalDate
+
+private val PromiseGold = Color(0xFFD6AD55)
+private val PromisePanel = Color(0xFF142746)
+private val PromiseMuted = Color(0xFF9EADC4)
+
+@Composable
+internal fun PromiseToPayScreen(
+    db: InfinityDatabase,
+    session: StaffSession,
+    authentication: StaffAuthenticationService,
+    clients: List<ClientEntity>,
+    loans: List<LoanEntity>,
+    canCreate: Boolean,
+    canResolve: Boolean,
+    onMessage: (String) -> Unit
+) {
+    val promises by db.promisesToPay().observeAll().collectAsState(initial = emptyList())
+    val names = remember(clients) { clients.associate { it.id to it.fullName } }
+    val scope = rememberCoroutineScope()
+    var createOpen by remember { mutableStateOf(false) }
+    var resolving by remember { mutableStateOf<PromiseToPayEntity?>(null) }
+    var closingStatus by remember { mutableStateOf(PromiseToPayStatus.KEPT) }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = PromisePanel)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Seguimiento de compromisos", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("${promises.count { it.status == "OPEN" }} abiertas · ${promises.size} en total", color = PromiseMuted)
+                    if (canCreate && loans.any { it.status == "ACTIVE" }) {
+                        Button(onClick = { createOpen = true }, colors = ButtonDefaults.buttonColors(containerColor = PromiseGold, contentColor = Color(0xFF0B1730))) { Text("＋ Nueva promesa") }
+                    }
+                }
+            }
+        }
+        if (promises.isEmpty()) item {
+            Card(colors = CardDefaults.cardColors(containerColor = PromisePanel)) {
+                Text("Todavía no hay promesas registradas.", color = PromiseMuted, modifier = Modifier.padding(16.dp))
+            }
+        }
+        items(promises, key = { it.promiseId }) { p ->
+            Card(colors = CardDefaults.cardColors(containerColor = PromisePanel)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(names[p.clientId] ?: "Cliente", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("${p.currency} ${BigDecimal.valueOf(p.promisedAmountMinor, 2).setScale(2, RoundingMode.HALF_UP)}", color = PromiseGold, fontWeight = FontWeight.Bold)
+                    Text("Fecha: ${p.promisedDate} · ${p.status}", color = PromiseMuted, fontSize = 12.sp)
+                    if (p.note.isNotBlank()) Text(p.note, color = PromiseMuted, fontSize = 12.sp)
+                    if (p.status == "OPEN" && canResolve) {
+                        Row {
+                            TextButton(onClick = { resolving = p; closingStatus = PromiseToPayStatus.KEPT }) { Text("Cumplida", color = PromiseGold) }
+                            TextButton(onClick = { resolving = p; closingStatus = PromiseToPayStatus.BROKEN }) { Text("Incumplida", color = Color(0xFFFF8A80)) }
+                            TextButton(onClick = { resolving = p; closingStatus = PromiseToPayStatus.CANCELLED }) { Text("Cancelar", color = PromiseMuted) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (createOpen) {
+        var loanId by remember { mutableStateOf(loans.firstOrNull { it.status == "ACTIVE" }?.id.orEmpty()) }
+        var expanded by remember { mutableStateOf(false) }
+        var amount by remember { mutableStateOf("") }
+        var date by remember { mutableStateOf(LocalDate.now().toString()) }
+        var note by remember { mutableStateOf("") }
+        var busy by remember { mutableStateOf(false) }
+        val loan = loans.firstOrNull { it.id == loanId && it.status == "ACTIVE" }
+        AlertDialog(
+            onDismissRequest = { if (!busy) createOpen = false },
+            title = { Text("Nueva promesa de pago") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                        OutlinedTextField(
+                            value = loan?.let { "${names[it.clientId] ?: "Cliente"} · ${it.currency}" } ?: "Seleccionar préstamo",
+                            onValueChange = {}, readOnly = true, label = { Text("Préstamo activo") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            loans.filter { it.status == "ACTIVE" }.forEach { item ->
+                                DropdownMenuItem(text = { Text("${names[item.clientId] ?: "Cliente"} · ${item.currency}") }, onClick = { loanId = item.id; expanded = false })
+                            }
+                        }
+                    }
+                    OutlinedTextField(amount, { amount = it }, label = { Text("Importe (${loan?.currency ?: ""})") }, singleLine = true)
+                    OutlinedTextField(date, { date = it }, label = { Text("Fecha AAAA-MM-DD") }, singleLine = true)
+                    OutlinedTextField(note, { note = it }, label = { Text("Nota opcional") }, minLines = 2)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !busy && loan != null && amount.toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true, onClick = {
+                    busy = true
+                    scope.launch {
+                        try {
+                            val minor = amount.toBigDecimal().setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact()
+                            withContext(Dispatchers.IO) { PromiseToPayService(db, authentication).create(session, loanId, minor, LocalDate.parse(date), note) }
+                            createOpen = false
+                            onMessage("Promesa registrada correctamente.")
+                        } catch (e: Exception) { onMessage(e.message ?: "No se pudo registrar la promesa.") }
+                        finally { busy = false }
+                    }
+                }) { Text(if (busy) "Guardando…" else "Registrar", color = PromiseGold) }
+            },
+            dismissButton = { TextButton(onClick = { if (!busy) createOpen = false }) { Text("Cancelar") } }
+        )
+    }
+
+    resolving?.let { p ->
+        var reason by remember(p.promiseId) { mutableStateOf("") }
+        var busy by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { if (!busy) resolving = null },
+            title = { Text("Confirmar: ${closingStatus.name}") },
+            text = { OutlinedTextField(reason, { reason = it }, label = { Text("Observación") }, minLines = 2) },
+            confirmButton = {
+                TextButton(enabled = !busy, onClick = {
+                    busy = true
+                    scope.launch {
+                        try {
+                            val ok = withContext(Dispatchers.IO) { PromiseToPayService(db, authentication).resolve(session, p.promiseId, closingStatus, reason) }
+                            onMessage(if (ok) "Promesa actualizada." else "La promesa ya fue modificada.")
+                            resolving = null
+                        } catch (e: Exception) { onMessage(e.message ?: "No se pudo actualizar.") }
+                        finally { busy = false }
+                    }
+                }) { Text("Confirmar", color = PromiseGold) }
+            },
+            dismissButton = { TextButton(onClick = { if (!busy) resolving = null }) { Text("Volver") } }
+        )
+    }
+}

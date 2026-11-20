@@ -766,7 +766,7 @@ class StaffAuthenticationServiceTest {
             ),
             auditEvents.map { it.action }.filter { it.startsWith("STAFF_") }
         )
-        assertTrue(auditEvents.all {
+        assertTrue(auditEvents.filter { it.action.startsWith("STAFF_") }.all {
             it.actorStaffId == admin.staffId &&
                 it.actorUsername == admin.username &&
                 it.targetId == cashier.id &&

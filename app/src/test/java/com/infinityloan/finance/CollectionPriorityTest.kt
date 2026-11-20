@@ -66,7 +66,7 @@ class CollectionPriorityTest {
             CollectionPriority.build(listOf(CollectionPriorityRecord("l"," ","DOP",same,1)),today)
         }
     }
-    @Test fun amountBreaksTiesOnlyAfterDaysAndCurrenciesRemainIndependent() {
+    @Test fun amountBreaksTiesAfterDaysAcrossCurrenciesWithoutConversion() {
         val date = today.minusDays(40)
         val rows = listOf(
             CollectionPriorityRecord("small","client","DOP",date,50),

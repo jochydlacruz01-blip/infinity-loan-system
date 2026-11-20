@@ -637,4 +637,91 @@ class StaffAuthenticationServiceTest {
         assertEquals(Permission.PAYMENT_REGISTER.name, updated.denials)
     }
 
+
+
+    @Test
+    fun administratorCannotChangeOwnPermissions() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        val before = requireNotNull(dao.findById(admin.staffId))
+
+        try {
+            service.updateStaffPermissions(
+                actor = admin,
+                staffId = admin.staffId,
+                grants = emptySet(),
+                denials = setOf(Permission.PAYMENT_REGISTER)
+            )
+            throw AssertionError("No debe permitirse modificar los propios permisos.")
+        } catch (_: IllegalArgumentException) {
+            val after = requireNotNull(dao.findById(admin.staffId))
+            assertEquals(before.grants, after.grants)
+            assertEquals(before.denials, after.denials)
+            assertTrue(service.isSessionValid(admin))
+        }
+    }
+
+    @Test
+    fun supervisorCannotGrantPermissionOutsideTheirOwnCapabilities() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "supervisor",
+            displayName = "Supervisor",
+            role = StaffRole.SUPERVISOR,
+            password = "ClaveSupervisorMuySegura-2026".toCharArray()
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "cashier",
+            displayName = "Cajero",
+            role = StaffRole.CASHIER,
+            password = "ClaveCajeroMuySegura-2026".toCharArray()
+        )
+        val supervisor = requireNotNull(
+            service.authenticate(
+                "supervisor",
+                "ClaveSupervisorMuySegura-2026".toCharArray()
+            ).second
+        )
+        val cashier = requireNotNull(
+            service.authenticate(
+                "cashier",
+                "ClaveCajeroMuySegura-2026".toCharArray()
+            ).second
+        )
+        val before = requireNotNull(dao.findById(cashier.staffId))
+
+        try {
+            service.updateStaffPermissions(
+                actor = supervisor,
+                staffId = cashier.staffId,
+                grants = setOf(Permission.PAYMENT_REVERSE),
+                denials = emptySet()
+            )
+            throw AssertionError("El supervisor no debe conceder permisos fuera de su alcance.")
+        } catch (_: IllegalArgumentException) {
+            val after = requireNotNull(dao.findById(cashier.staffId))
+            assertEquals(before.grants, after.grants)
+            assertEquals(before.denials, after.denials)
+        }
+    }
+
 }

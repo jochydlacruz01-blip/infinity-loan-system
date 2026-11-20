@@ -53,7 +53,7 @@ object LoanScheduleGenerator {
         }
 
         var remaining = principal.setScale(scale, java.math.RoundingMode.HALF_UP)
-        return installments.mapIndexed { index, installment ->
+        val schedule = installments.mapIndexed { index, installment ->
             remaining = remaining.subtract(installment.principal)
                 .setScale(scale, java.math.RoundingMode.HALF_UP)
             ScheduledInstallment(
@@ -65,6 +65,20 @@ object LoanScheduleGenerator {
                 remainingPrincipal = remaining
             )
         }
+
+        require(schedule.all { row ->
+            row.principal >= BigDecimal.ZERO && row.interest >= BigDecimal.ZERO &&
+                row.total.compareTo(row.principal.add(row.interest)) == 0 &&
+                row.remainingPrincipal >= BigDecimal.ZERO
+        }) { "El calendario contiene importes o balances inválidos" }
+        require(schedule.zipWithNext().all { (current, next) ->
+            next.number == current.number + 1 && next.dueDate.isAfter(current.dueDate) &&
+                next.remainingPrincipal <= current.remainingPrincipal
+        }) { "El calendario no mantiene orden y balances descendentes" }
+        require(schedule.last().remainingPrincipal.compareTo(BigDecimal.ZERO) == 0) {
+            "El calendario no liquida el principal al finalizar"
+        }
+        schedule
     }
 
     private fun dueDate(firstDueDate: LocalDate, frequency: Frequency, index: Int): LocalDate =

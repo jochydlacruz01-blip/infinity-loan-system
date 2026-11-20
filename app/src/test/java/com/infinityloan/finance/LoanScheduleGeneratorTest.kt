@@ -69,6 +69,28 @@ class LoanScheduleGeneratorTest {
         assertTrue(rows.zipWithNext().all { (a, b) -> b.number == a.number + 1 })
     }
 
+    @Test
+    fun generatedSchedulesMaintainReconciliationAndChronologyAcrossMethodsAndFrequencies() {
+        listOf("FRANCES", "ITALIANO", "AMERICANO").forEach { method ->
+            LoanScheduleGenerator.Frequency.values().forEach { frequency ->
+                val rows = LoanScheduleGenerator.generate(
+                    BigDecimal("9876.54"), BigDecimal("0.0125"), 36, method,
+                    frequency = frequency, firstDueDate = LocalDate.of(2026, 3, 30)
+                )
+                assertEquals(36, rows.size)
+                assertEquals(0, rows.last().remainingPrincipal.compareTo(BigDecimal.ZERO))
+                assertTrue(rows.all { row ->
+                    row.principal >= BigDecimal.ZERO && row.interest >= BigDecimal.ZERO &&
+                        row.remainingPrincipal >= BigDecimal.ZERO &&
+                        row.total.compareTo(row.principal.add(row.interest)) == 0
+                })
+                assertTrue(rows.zipWithNext().all { (a, b) ->
+                    b.number == a.number + 1 && b.dueDate.isAfter(a.dueDate)
+                })
+            }
+        }
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejectsUnknownAmortizationMethod() {
         LoanScheduleGenerator.generate(

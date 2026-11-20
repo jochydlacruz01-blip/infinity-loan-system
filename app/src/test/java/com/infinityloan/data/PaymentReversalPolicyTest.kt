@@ -41,7 +41,14 @@ class PaymentReversalPolicyTest {
             PaymentReversalPolicy.evaluate(request(reason = "  ")))
     }
 
-    @Test fun rejectsReversalReasonLongerThanPersistedLimit() {\n        assertEquals(PaymentReversalPolicy.Result.INVALID_REASON,\n            PaymentReversalPolicy.evaluate(request(reason = "x".repeat(501))))\n        assertEquals(PaymentReversalPolicy.Result.ELIGIBLE,\n            PaymentReversalPolicy.evaluate(request(reason = "x".repeat(500))))\n    }\n\n    @Test fun rejectsInconsistentCreditLedgerValues() {
+    @Test fun rejectsReversalReasonLongerThanPersistedLimit() {
+        assertEquals(PaymentReversalPolicy.Result.INVALID_REASON,
+            PaymentReversalPolicy.evaluate(request(reason = "x".repeat(501))))
+        assertEquals(PaymentReversalPolicy.Result.ELIGIBLE,
+            PaymentReversalPolicy.evaluate(request(reason = "x".repeat(500))))
+    }
+
+    @Test fun rejectsInconsistentCreditLedgerValues() {
         assertEquals(PaymentReversalPolicy.Result.INVALID_CREDIT_LEDGER,
             PaymentReversalPolicy.evaluate(request(generatedCredit = -1L)))
         assertEquals(PaymentReversalPolicy.Result.INVALID_CREDIT_LEDGER,

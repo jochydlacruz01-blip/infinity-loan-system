@@ -51,4 +51,20 @@ class PortfolioAgingTest {
             ), today)
         }
     }
+    @Test fun outputIsStableAndIncludesEmptyBucketsForEachCurrency() {
+        val rows = listOf(
+            AgingInstallment("USD", today.minusDays(8), 20),
+            AgingInstallment("DOP", today.minusDays(2), 10),
+            AgingInstallment("DOP", today.minusDays(2), 15)
+        )
+        val result = PortfolioAging.build(rows, today)
+        assertEquals(listOf("DOP", "USD"), result.map { it.currency })
+        val dop = result.first()
+        assertEquals(4, dop.buckets.size)
+        assertEquals(2, dop.buckets.first().installmentCount)
+        assertEquals(25L, dop.buckets.first().unpaidMinor)
+        assertEquals(0, dop.buckets.last().installmentCount)
+        assertEquals(0L, dop.buckets.last().unpaidMinor)
+        assertEquals(20L, result.last().totalOverdueMinor)
+    }
 }

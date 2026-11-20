@@ -873,9 +873,10 @@ enum class CreditPaymentResult {
         AuditLogEntity::class,
         CashSessionEntity::class,
         CashMovementEntity::class,
-        PaymentReversalEntity::class
+        PaymentReversalEntity::class,
+        CashVarianceReviewEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 
@@ -1271,6 +1272,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun auditLogs(): AuditLogDao
     abstract fun cashSessions(): CashSessionDao
     abstract fun paymentReversals(): PaymentReversalDao
+    abstract fun cashVarianceReviews(): CashVarianceReviewDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -1505,6 +1507,32 @@ internal val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+internal val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS cash_variance_reviews (
+                reviewId TEXT NOT NULL PRIMARY KEY,
+                sessionId TEXT NOT NULL,
+                reviewerStaffId TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                comment TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                expectedCashMinor INTEGER NOT NULL,
+                countedCashMinor INTEGER NOT NULL,
+                varianceMinor INTEGER NOT NULL,
+                reviewedAt INTEGER NOT NULL,
+                FOREIGN KEY(sessionId) REFERENCES cash_sessions(sessionId)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(reviewerStaffId) REFERENCES staff_accounts(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_cash_variance_reviews_sessionId ON cash_variance_reviews(sessionId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_cash_variance_reviews_reviewerStaffId ON cash_variance_reviews(reviewerStaffId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_cash_variance_reviews_reviewedAt ON cash_variance_reviews(reviewedAt)")
+    }
+}
+
 internal val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL("""
@@ -1566,7 +1594,7 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
 )
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
 .build().also { INSTANCE = it }
             }
     }

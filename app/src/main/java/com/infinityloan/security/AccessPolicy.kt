@@ -34,7 +34,8 @@ enum class Permission {
     STAFF_MANAGE,
     ROLE_PERMISSION_MANAGE,
     SYSTEM_SETTINGS_MANAGE,
-    AUDIT_LOG_VIEW
+    AUDIT_LOG_VIEW,
+    CASH_VARIANCE_REVIEW
 }
 
 /**
@@ -67,7 +68,8 @@ object AccessPolicy {
         Permission.REPORT_VIEW,
         Permission.REPORT_EXPORT,
         Permission.STAFF_VIEW,
-        Permission.AUDIT_LOG_VIEW
+        Permission.AUDIT_LOG_VIEW,
+        Permission.CASH_VARIANCE_REVIEW
     )
 
     private val cashier = setOf(

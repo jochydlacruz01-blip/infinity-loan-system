@@ -11,7 +11,7 @@ class CollectionContactAttemptLogTest {
     @Test fun aggregatesByCollectorAndOutcome() {
         val rows=listOf(attempt(),attempt("a2", outcome=CollectionContactOutcome.NO_ANSWER),attempt("a3", collector="staff2", outcome=CollectionContactOutcome.PROMISE_TO_PAY),attempt("a4", outcome=CollectionContactOutcome.FOLLOW_UP_REQUIRED))
         val summaries=CollectionContactAttemptLog.summarize(rows)
-        assertEquals(2,summaries[0].attemptCount)
+        assertEquals(3,summaries[0].attemptCount)
         assertEquals(1,summaries[0].successfulContacts)
         assertEquals(1,summaries[0].noAnswerCount)
         assertEquals(1,summaries[0].followUps)

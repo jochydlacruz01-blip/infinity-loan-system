@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.infinityloan.data.*
 import com.infinityloan.finance.PromiseToPayStatus
+import com.infinityloan.finance.PromiseToPayRecord
+import com.infinityloan.finance.PromiseToPaySummaryCalculator
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +48,24 @@ internal fun PromiseToPayScreen(
     }
     val promises by promiseFlow.collectAsState(initial = emptyList())
     val names = remember(clients) { clients.associate { it.id to it.fullName } }
+    val summary = remember(promises) {
+        PromiseToPaySummaryCalculator.calculate(
+            promises.map { item ->
+                PromiseToPayRecord(
+                    promiseId = item.promiseId,
+                    loanId = item.loanId,
+                    clientId = item.clientId,
+                    collectorId = item.collectorId,
+                    promisedAmountMinor = item.promisedAmountMinor,
+                    currency = item.currency,
+                    promisedDate = LocalDate.parse(item.promisedDate),
+                    status = PromiseToPayStatus.valueOf(item.status),
+                    note = item.note
+                )
+            },
+            LocalDate.now()
+        )
+    }
     val scope = rememberCoroutineScope()
     var createOpen by remember { mutableStateOf(false) }
     var resolving by remember { mutableStateOf<PromiseToPayEntity?>(null) }
@@ -56,7 +76,19 @@ internal fun PromiseToPayScreen(
             Card(colors = CardDefaults.cardColors(containerColor = PromisePanel)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text("Seguimiento de compromisos", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("${promises.count { it.status == "OPEN" }} abiertas · ${promises.size} en total", color = PromiseMuted)
+                    Text("${summary.openCount} abiertas · ${summary.overdueCount} vencidas · ${promises.size} en total", color = PromiseMuted)
+                    Text("${summary.keptCount} cumplidas · ${summary.brokenCount} incumplidas", color = PromiseMuted, fontSize = 12.sp)
+                    listOf("DOP", "USD", "EUR").forEach { currency ->
+                        val openMinor = summary.openMinorByCurrency[currency] ?: 0L
+                        val overdueMinor = summary.overdueMinorByCurrency[currency] ?: 0L
+                        if (openMinor > 0L || overdueMinor > 0L) {
+                            Text(
+                                "$currency · Abierto: ${BigDecimal.valueOf(openMinor, 2).setScale(2, RoundingMode.HALF_UP)} · Vencido: ${BigDecimal.valueOf(overdueMinor, 2).setScale(2, RoundingMode.HALF_UP)}",
+                                color = PromiseGold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                     if (canCreate && loans.any { it.status == "ACTIVE" }) {
                         Button(onClick = { createOpen = true }, colors = ButtonDefaults.buttonColors(containerColor = PromiseGold, contentColor = Color(0xFF0B1730))) { Text("＋ Nueva promesa") }
                     }

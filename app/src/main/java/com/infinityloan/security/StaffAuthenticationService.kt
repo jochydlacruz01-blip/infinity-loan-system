@@ -245,10 +245,14 @@ class StaffAuthenticationService(
             }
 
             val account = staffAccounts.findByUsername(normalizedUsername)
-                ?: return AuthenticationResult.INVALID_CREDENTIALS to null
+                ?: run {
+                    audit(AuditLogEntity(actorStaffId = null, actorUsername = normalizedUsername.take(64).ifBlank { "unknown" }, action = "LOGIN_FAILED_UNKNOWN_USER", targetType = "AUTHENTICATION", targetId = null, details = "reason=unknown_username"))
+                    return AuthenticationResult.INVALID_CREDENTIALS to null
+                }
 
             val now = clock()
             if (account.lockedUntil?.let { it > now } == true) {
+                audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_BLOCKED_LOCKOUT", targetType = "AUTHENTICATION", targetId = account.id, details = "reason=account_locked"))
                 return AuthenticationResult.ACCOUNT_LOCKED to null
             }
 
@@ -265,9 +269,11 @@ class StaffAuthenticationService(
                     maxAttempts = MAX_FAILED_LOGIN_ATTEMPTS,
                     lockUntil = Math.addExact(now, LOGIN_LOCKOUT_MILLIS)
                 )
+                audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_FAILED_PASSWORD", targetType = "AUTHENTICATION", targetId = account.id, details = "attempts=\\${account.failedLoginAttempts + 1};lockTriggered=\\${account.failedLoginAttempts + 1 >= MAX_FAILED_LOGIN_ATTEMPTS}"))
                 return AuthenticationResult.INVALID_CREDENTIALS to null
             }
             if (!account.isActive) {
+                audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_BLOCKED_DISABLED", targetType = "AUTHENTICATION", targetId = account.id, details = "reason=account_disabled"))
                 return AuthenticationResult.ACCOUNT_DISABLED to null
             }
 
@@ -280,6 +286,7 @@ class StaffAuthenticationService(
             )
             staffAccounts.resetFailedLogins(account.id)
             staffAccounts.updateLastLogin(account.id, now)
+            audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_SUCCESS", targetType = "AUTHENTICATION", targetId = account.id, details = "role=\\${role.name}"))
             return AuthenticationResult.AUTHENTICATED to StaffSession(
                 staffId = account.id,
                 username = account.username,

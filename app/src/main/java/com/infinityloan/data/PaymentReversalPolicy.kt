@@ -32,7 +32,7 @@ object PaymentReversalPolicy {
     fun evaluate(request: Request): Result {
         if (request.paymentAmountMinor <= 0L) return Result.INVALID_PAYMENT_AMOUNT
         if (request.actorStaffId.isBlank()) return Result.INVALID_ACTOR
-        if (request.reason.isBlank()) return Result.INVALID_REASON
+        if (request.reason.isBlank() || request.reason.trim().length > 500) return Result.INVALID_REASON
         if (request.generatedCreditMinor < 0L ||
             request.generatedCreditMinor > request.paymentAmountMinor ||
             request.availableCustomerCreditMinor < 0L

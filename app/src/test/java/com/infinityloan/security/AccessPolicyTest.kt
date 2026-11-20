@@ -16,6 +16,20 @@ class AccessPolicyTest {
     }
 
     @Test
+    fun auditHistoryIsAvailableByDefaultOnlyToAdministratorAndSupervisor() {
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.ADMINISTRATOR), Permission.AUDIT_LOG_VIEW))
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.SUPERVISOR), Permission.AUDIT_LOG_VIEW))
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.CASHIER), Permission.AUDIT_LOG_VIEW))
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.COLLECTOR), Permission.AUDIT_LOG_VIEW))
+    }
+
+    @Test
+    fun auditPermissionCanBeExplicitlyDeniedOrGranted() {
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.ADMINISTRATOR, denials = setOf(Permission.AUDIT_LOG_VIEW)), Permission.AUDIT_LOG_VIEW))
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.COLLECTOR, grants = setOf(Permission.AUDIT_LOG_VIEW)), Permission.AUDIT_LOG_VIEW))
+    }
+
+    @Test
     fun cashierCanRegisterPaymentsButCannotManageStaffOrSystemSettings() {
         val profile = AccessProfile(StaffRole.CASHIER)
 

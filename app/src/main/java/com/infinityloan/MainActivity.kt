@@ -1832,8 +1832,17 @@ private fun StaffManagementScreen(
 
 
 @Composable
-private fun AuditLogScreen(db: InfinityDatabase) {
-    val entries by db.auditLogs().observeRecent(200).collectAsState(initial = emptyList())
+private fun AuditLogScreen(db: InfinityDatabase, session: StaffSession) {
+    var entries by remember { mutableStateOf<List<AuditLogEntity>>(emptyList()) }
+    var accessMessage by remember { mutableStateOf("Verificando acceso...") }
+    LaunchedEffect(db, session) {
+        val auth = StaffAuthenticationService(db.staffAccounts())
+        val permitted = withContext(Dispatchers.IO) { auth.hasPermission(session, Permission.AUDIT_LOG_VIEW) }
+        if (permitted) {
+            entries = withContext(Dispatchers.IO) { db.auditLogs().observeRecent(200).first() }
+            accessMessage = ""
+        } else accessMessage = "Acceso denegado o sesión caducada."
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1841,6 +1850,7 @@ private fun AuditLogScreen(db: InfinityDatabase) {
         item {
             Column {
                 Text("Registro de auditoría", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                if (accessMessage.isNotBlank()) Text(accessMessage, color = Gold)
                 Text("Últimos 200 eventos registrados en este dispositivo", color = Muted, fontSize = 12.sp)
             }
         }

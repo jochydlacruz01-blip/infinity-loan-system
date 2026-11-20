@@ -38,7 +38,13 @@ internal fun PromiseToPayScreen(
     canResolve: Boolean,
     onMessage: (String) -> Unit
 ) {
-    val promises by db.promisesToPay().observeAll().collectAsState(initial = emptyList())
+    val promiseFlow = remember(session.staffId, session.profile.role) {
+        if (session.profile.role == com.infinityloan.security.StaffRole.ADMINISTRATOR ||
+            session.profile.role == com.infinityloan.security.StaffRole.SUPERVISOR
+        ) db.promisesToPay().observeAll()
+        else db.promisesToPay().observeForCollector(session.staffId)
+    }
+    val promises by promiseFlow.collectAsState(initial = emptyList())
     val names = remember(clients) { clients.associate { it.id to it.fullName } }
     val scope = rememberCoroutineScope()
     var createOpen by remember { mutableStateOf(false) }

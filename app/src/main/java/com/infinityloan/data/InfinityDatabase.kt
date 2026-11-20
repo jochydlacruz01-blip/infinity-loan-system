@@ -59,6 +59,9 @@ interface PromiseToPayDao {
     @Query("SELECT * FROM promises_to_pay ORDER BY promisedDate, createdAt, promiseId")
     fun observeAll(): Flow<List<PromiseToPayEntity>>
 
+    @Query("SELECT * FROM promises_to_pay WHERE collectorId = :collectorId ORDER BY promisedDate, createdAt, promiseId")
+    fun observeForCollector(collectorId: String): Flow<List<PromiseToPayEntity>>
+
     @Query("SELECT * FROM promises_to_pay WHERE status = 'OPEN' ORDER BY promisedDate, createdAt, promiseId")
     fun observeOpen(): Flow<List<PromiseToPayEntity>>
 

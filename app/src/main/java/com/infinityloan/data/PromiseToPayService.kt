@@ -81,6 +81,13 @@ class PromiseToPayService(
         return database.withTransaction {
             val existing = database.promisesToPay().findById(promiseId)
                 ?: throw IllegalArgumentException("La promesa no existe.")
+            if (actor.profile.role == com.infinityloan.security.StaffRole.COLLECTOR ||
+                actor.profile.role == com.infinityloan.security.StaffRole.CASHIER
+            ) {
+                require(existing.collectorId == actor.staffId) {
+                    "Solo puedes gestionar las promesas que registraste."
+                }
+            }
             val record = PromiseToPayRecord(
                 promiseId = existing.promiseId,
                 loanId = existing.loanId,

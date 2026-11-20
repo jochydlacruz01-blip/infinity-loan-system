@@ -28,6 +28,59 @@ import com.infinityloan.security.AccessProfile
 import com.infinityloan.security.Permission
 import com.infinityloan.security.StaffRole
 
+@Entity(
+    tableName = "promises_to_pay",
+    foreignKeys = [
+        ForeignKey(entity = LoanEntity::class, parentColumns = ["id"], childColumns = ["loanId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = ClientEntity::class, parentColumns = ["id"], childColumns = ["clientId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = StaffAccountEntity::class, parentColumns = ["id"], childColumns = ["collectorId"], onDelete = ForeignKey.RESTRICT)
+    ],
+    indices = [Index("loanId"), Index("clientId"), Index("collectorId"), Index("status"), Index("promisedDate")]
+)
+data class PromiseToPayEntity(
+    @PrimaryKey val promiseId: String,
+    val loanId: String,
+    val clientId: String,
+    val collectorId: String,
+    val promisedAmountMinor: Long,
+    val currency: String,
+    val promisedDate: String,
+    val status: String = "OPEN",
+    val note: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface PromiseToPayDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(promise: PromiseToPayEntity)
+
+    @Query("SELECT * FROM promises_to_pay ORDER BY promisedDate, createdAt, promiseId")
+    fun observeAll(): Flow<List<PromiseToPayEntity>>
+
+    @Query("SELECT * FROM promises_to_pay WHERE status = 'OPEN' ORDER BY promisedDate, createdAt, promiseId")
+    fun observeOpen(): Flow<List<PromiseToPayEntity>>
+
+    @Query("SELECT * FROM promises_to_pay WHERE loanId = :loanId ORDER BY createdAt DESC")
+    fun observeForLoan(loanId: String): Flow<List<PromiseToPayEntity>>
+
+    @Query("SELECT * FROM promises_to_pay WHERE promiseId = :promiseId LIMIT 1")
+    suspend fun findById(promiseId: String): PromiseToPayEntity?
+
+    @Query("""
+        UPDATE promises_to_pay
+        SET status = :newStatus, note = :note, updatedAt = :updatedAt
+        WHERE promiseId = :promiseId AND status = 'OPEN'
+    """)
+    suspend fun closeOpenPromise(
+        promiseId: String,
+        newStatus: String,
+        note: String,
+        updatedAt: Long = System.currentTimeMillis()
+    ): Int
+}
+
 @Entity(tableName = "clients", indices = [Index(value = ["documentNumber"], unique = true)])
 data class ClientEntity(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
@@ -874,9 +927,10 @@ enum class CreditPaymentResult {
         CashSessionEntity::class,
         CashMovementEntity::class,
         PaymentReversalEntity::class,
-        CashVarianceReviewEntity::class
+        CashVarianceReviewEntity::class,
+        PromiseToPayEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 
@@ -1273,6 +1327,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun cashSessions(): CashSessionDao
     abstract fun paymentReversals(): PaymentReversalDao
     abstract fun cashVarianceReviews(): CashVarianceReviewDao
+    abstract fun promisesToPay(): PromiseToPayDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -1599,7 +1654,7 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         installAuditImmutabilityTriggers(db)
@@ -1613,5 +1668,36 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
 internal val MIGRATION_11_12 = object : Migration(11, 12) {
     override fun migrate(database: SupportSQLiteDatabase) {
         InfinityDatabase.installAuditImmutabilityTriggers(database)
+    }
+}
+
+internal val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS promises_to_pay (
+                promiseId TEXT NOT NULL PRIMARY KEY,
+                loanId TEXT NOT NULL,
+                clientId TEXT NOT NULL,
+                collectorId TEXT NOT NULL,
+                promisedAmountMinor INTEGER NOT NULL,
+                currency TEXT NOT NULL,
+                promisedDate TEXT NOT NULL,
+                status TEXT NOT NULL,
+                note TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                FOREIGN KEY(loanId) REFERENCES loans(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(clientId) REFERENCES clients(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(collectorId) REFERENCES staff_accounts(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_loanId ON promises_to_pay(loanId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_clientId ON promises_to_pay(clientId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_collectorId ON promises_to_pay(collectorId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_status ON promises_to_pay(status)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_promisedDate ON promises_to_pay(promisedDate)")
     }
 }

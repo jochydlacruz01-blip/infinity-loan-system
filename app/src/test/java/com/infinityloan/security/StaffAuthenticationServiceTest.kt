@@ -776,4 +776,45 @@ class StaffAuthenticationServiceTest {
         assertTrue(auditEvents.last().details.contains("active=false"))
     }
 
+
+    @Test
+    fun staffMutationRollsBackWhenAuditPersistenceFails() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(
+            dao,
+            audit = { throw IllegalStateException("audit storage unavailable") },
+            persistStaffChange = { operation ->
+                val snapshot = dao.accounts.toMap()
+                try {
+                    operation()
+                } catch (failure: Throwable) {
+                    dao.accounts.clear()
+                    dao.accounts.putAll(snapshot)
+                    throw failure
+                }
+            }
+        )
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        try {
+            service.createStaffAccount(
+                actor = admin,
+                username = "cashier",
+                displayName = "Cajero",
+                role = StaffRole.CASHIER,
+                password = "ClaveCajeroMuySegura-2026".toCharArray()
+            )
+            throw AssertionError("La operación debe fallar si no se puede guardar la auditoría.")
+        } catch (failure: IllegalStateException) {
+            assertEquals("audit storage unavailable", failure.message)
+        }
+        assertNull(dao.findByUsername("cashier"))
+    }
+
 }

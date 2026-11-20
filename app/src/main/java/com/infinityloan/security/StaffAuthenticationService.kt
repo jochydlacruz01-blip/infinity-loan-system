@@ -27,8 +27,9 @@ enum class AuthenticationResult {
  */
 class StaffAuthenticationService(
     private val staffAccounts: StaffAccountDao,
-    private val clock: () -> Long = System::currentTimeMillis,
-    private val audit: suspend (AuditLogEntity) -> Unit = {}
+    private val audit: suspend (AuditLogEntity) -> Unit = {},
+    private val persistStaffChange: suspend (suspend () -> Unit) -> Unit = { operation -> operation() },
+    private val clock: () -> Long = System::currentTimeMillis
 ) {
     suspend fun createInitialAdministrator(
         username: String,
@@ -112,15 +113,17 @@ class StaffAuthenticationService(
                 passwordSaltBase64 = hash.saltBase64,
                 passwordHashBase64 = hash.hashBase64
             )
-            staffAccounts.insert(account)
-            audit(AuditLogEntity(
-                actorStaffId = actor.staffId,
-                actorUsername = actor.username,
-                action = "STAFF_ACCOUNT_CREATED",
-                targetType = "STAFF_ACCOUNT",
-                targetId = account.id,
-                details = "username=$normalizedUsername;role=${role.name};grants=${account.grants};denials=${account.denials}"
-            ))
+            persistStaffChange {
+                staffAccounts.insert(account)
+                audit(AuditLogEntity(
+                    actorStaffId = actor.staffId,
+                    actorUsername = actor.username,
+                    action = "STAFF_ACCOUNT_CREATED",
+                    targetType = "STAFF_ACCOUNT",
+                    targetId = account.id,
+                    details = "username=$normalizedUsername;role=${role.name};grants=${account.grants};denials=${account.denials}"
+                ))
+            }
             return true
         } finally {
             password.fill('\u0000')
@@ -153,18 +156,20 @@ class StaffAuthenticationService(
                 "No puedes desactivar el último administrador activo."
             }
         }
-        val result = staffAccounts.setActiveSafely(staffId, active)
-        require(result != -1) { "No puedes desactivar el último administrador activo." }
-        require(result > 0) { "La cuenta ya no existe." }
-        if (target.isActive != active) {
-            audit(AuditLogEntity(
-                actorStaffId = actor.staffId,
-                actorUsername = actor.username,
-                action = if (active) "STAFF_ACCOUNT_ENABLED" else "STAFF_ACCOUNT_DISABLED",
-                targetType = "STAFF_ACCOUNT",
-                targetId = staffId,
-                details = "username=${target.username};role=${target.role};active=$active"
-            ))
+        persistStaffChange {
+            val result = staffAccounts.setActiveSafely(staffId, active)
+            require(result != -1) { "No puedes desactivar el último administrador activo." }
+            require(result > 0) { "La cuenta ya no existe." }
+            if (target.isActive != active) {
+                audit(AuditLogEntity(
+                    actorStaffId = actor.staffId,
+                    actorUsername = actor.username,
+                    action = if (active) "STAFF_ACCOUNT_ENABLED" else "STAFF_ACCOUNT_DISABLED",
+                    targetType = "STAFF_ACCOUNT",
+                    targetId = staffId,
+                    details = "username=${target.username};role=${target.role};active=$active"
+                ))
+            }
         }
     }
 
@@ -196,15 +201,17 @@ class StaffAuthenticationService(
         val encodedGrants = grants.sortedBy { it.name }.joinToString("|") { it.name }
         val encodedDenials = denials.sortedBy { it.name }.joinToString("|") { it.name }
         if (target.grants != encodedGrants || target.denials != encodedDenials) {
-            staffAccounts.updatePermissions(staffId, encodedGrants, encodedDenials)
-            audit(AuditLogEntity(
-                actorStaffId = actor.staffId,
-                actorUsername = actor.username,
-                action = "STAFF_PERMISSIONS_UPDATED",
-                targetType = "STAFF_ACCOUNT",
-                targetId = staffId,
-                details = "username=${target.username};role=${target.role};oldGrants=${target.grants};oldDenials=${target.denials};newGrants=$encodedGrants;newDenials=$encodedDenials"
-            ))
+            persistStaffChange {
+                staffAccounts.updatePermissions(staffId, encodedGrants, encodedDenials)
+                audit(AuditLogEntity(
+                    actorStaffId = actor.staffId,
+                    actorUsername = actor.username,
+                    action = "STAFF_PERMISSIONS_UPDATED",
+                    targetType = "STAFF_ACCOUNT",
+                    targetId = staffId,
+                    details = "username=${target.username};role=${target.role};oldGrants=${target.grants};oldDenials=${target.denials};newGrants=$encodedGrants;newDenials=$encodedDenials"
+                ))
+            }
         }
     }
 

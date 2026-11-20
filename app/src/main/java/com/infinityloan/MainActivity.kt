@@ -81,7 +81,11 @@ private fun InfinityApp(db: InfinityDatabase) {
     if (currentSession == null) {
         StaffAccessGate(
             accountCount = accountCount,
-            service = remember(db) { StaffAuthenticationService(db.staffAccounts(), audit = { db.auditLogs().insert(it) }) },
+            service = remember(db) { StaffAuthenticationService(
+            db.staffAccounts(),
+            audit = { db.auditLogs().insert(it) },
+            persistStaffChange = { operation -> db.withTransaction { operation() } }
+        ) },
             db = db,
             onAuthenticated = { session = it }
         )
@@ -253,7 +257,11 @@ private fun AuthenticatedInfinityApp(
     session: StaffSession,
     onLogout: () -> Unit
 ) {
-    val authenticationService = remember(db) { StaffAuthenticationService(db.staffAccounts(), audit = { db.auditLogs().insert(it) }) }
+    val authenticationService = remember(db) { StaffAuthenticationService(
+            db.staffAccounts(),
+            audit = { db.auditLogs().insert(it) },
+            persistStaffChange = { operation -> db.withTransaction { operation() } }
+        ) }
     val reversalService = remember(db, authenticationService) { PaymentReversalService(db, authenticationService) }
     val clients by db.clients().observeAll().collectAsState(initial = emptyList())
     val loans by db.loans().observeAll().collectAsState(initial = emptyList())
@@ -631,7 +639,11 @@ private fun AuthenticatedInfinityApp(
 
 @Composable
 private fun CashManagementScreen(db: InfinityDatabase, session: StaffSession, can: (Permission) -> Boolean, onMessage: (String) -> Unit) {
-    val authenticationService = remember(db) { StaffAuthenticationService(db.staffAccounts(), audit = { db.auditLogs().insert(it) }) }
+    val authenticationService = remember(db) { StaffAuthenticationService(
+            db.staffAccounts(),
+            audit = { db.auditLogs().insert(it) },
+            persistStaffChange = { operation -> db.withTransaction { operation() } }
+        ) }
     val openSessions by db.cashSessions().observeOpenSessions().collectAsState(initial = emptyList())
     val allSessions by db.cashSessions().observeSessions().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
@@ -1511,7 +1523,11 @@ private fun StaffManagementScreen(
     onMessage: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    val service = remember(db) { StaffAuthenticationService(db.staffAccounts(), audit = { db.auditLogs().insert(it) }) }
+    val service = remember(db) { StaffAuthenticationService(
+            db.staffAccounts(),
+            audit = { db.auditLogs().insert(it) },
+            persistStaffChange = { operation -> db.withTransaction { operation() } }
+        ) }
     var accounts by remember { mutableStateOf(emptyList<StaffAccountSummary>()) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var showCreate by remember { mutableStateOf(false) }

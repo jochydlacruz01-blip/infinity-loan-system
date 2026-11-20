@@ -31,3 +31,18 @@
 - Contrato inicial del backend (diseño, no implementación): `docs/BACKEND_API_CONTRACT.md`.
 - Seguridad y control de acceso: `docs/SECURITY_AND_ACCESS_CONTROL.md`.
 - Conciliación de caja: `docs/CASH_RECONCILIATION.md`.
+
+
+## Validación adicional de cartera y cobros (20-11-2026)
+- Se incorporan pruebas deterministas de clasificación de vencimientos, separación por moneda, límites de días, saldo cero y protección contra overflow.
+- Pruebas de promesas de pago para totales por moneda y exclusión de estados resueltos de la cola abierta.
+- Pruebas de asignación de carga de cobradores para desempates, datos inválidos y orden estable.
+- Estos cambios son cobertura de pruebas; no equivalen a auditoría de producción ni certifican la aplicación.
+
+## Checklist de cierre previo a operación real
+- [ ] Ejecutar y verificar lint, pruebas unitarias, instrumentadas y construcción APK en Actions, sin cancelaciones.
+- [ ] Revisión independiente de cálculo contractual de interés, mora, redondeo y asignación de pagos.
+- [ ] Verificar restauración de respaldos, migraciones y manejo de pérdida/robo del dispositivo.
+- [ ] Confirmar segregación de funciones, autorización, autenticación y trazabilidad de reversos.
+- [ ] Integrar y probar backend seguro, sincronización, portal cliente y proveedor de pagos antes de activar esas funciones.
+- [ ] Firmar release y validar distribución y políticas de privacidad/regulatorias aplicables.

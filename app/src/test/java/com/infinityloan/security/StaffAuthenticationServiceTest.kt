@@ -724,4 +724,56 @@ class StaffAuthenticationServiceTest {
         }
     }
 
+
+
+    @Test
+    fun staffManagementChangesEmitAuditEventsWithActorAndTarget() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val auditEvents = mutableListOf<com.infinityloan.data.AuditLogEntity>()
+        val service = StaffAuthenticationService(
+            dao,
+            audit = { auditEvents += it }
+        )
+        service.createInitialAdministrator(
+            "admin",
+            "Administración",
+            "UnaClaveMuySegura-2026".toCharArray()
+        )
+        val admin = requireNotNull(
+            service.authenticate("admin", "UnaClaveMuySegura-2026".toCharArray()).second
+        )
+        service.createStaffAccount(
+            actor = admin,
+            username = "cashier",
+            displayName = "Cajero",
+            role = StaffRole.CASHIER,
+            password = "ClaveCajeroMuySegura-2026".toCharArray()
+        )
+        val cashier = requireNotNull(dao.findByUsername("cashier"))
+        service.updateStaffPermissions(
+            actor = admin,
+            staffId = cashier.id,
+            grants = setOf(Permission.CLIENT_UPDATE),
+            denials = emptySet()
+        )
+        service.setStaffAccountActive(admin, cashier.id, false)
+
+        assertEquals(
+            listOf(
+                "STAFF_ACCOUNT_CREATED",
+                "STAFF_PERMISSIONS_UPDATED",
+                "STAFF_ACCOUNT_DISABLED"
+            ),
+            auditEvents.map { it.action }
+        )
+        assertTrue(auditEvents.all {
+            it.actorStaffId == admin.staffId &&
+                it.actorUsername == admin.username &&
+                it.targetId == cashier.id &&
+                it.targetType == "STAFF_ACCOUNT"
+        })
+        assertTrue(auditEvents.first().details.contains("role=CASHIER"))
+        assertTrue(auditEvents.last().details.contains("active=false"))
+    }
+
 }

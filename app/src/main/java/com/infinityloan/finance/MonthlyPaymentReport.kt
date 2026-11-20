@@ -25,8 +25,7 @@ object MonthlyPaymentReport {
             require(it.currency in supportedCurrencies) { "Moneda no soportada" }
         }
         return entries.groupBy { entry ->
-            YearMonth.from(Instant.ofEpochMilli(entry.paidAtMillis).atZone(zone))
-                to entry.currency
+            Pair(YearMonth.from(Instant.ofEpochMilli(entry.paidAtMillis).atZone(zone)), entry.currency)
         }.map { (key, rows) ->
             MonthlyPaymentTotal(key.first, key.second,
                 rows.fold(0L) { total, row -> Math.addExact(total, row.amountMinor) }, rows.size)

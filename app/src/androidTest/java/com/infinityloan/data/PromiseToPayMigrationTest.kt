@@ -27,7 +27,7 @@ class PromiseToPayMigrationTest {
         )
         try {
             val db = helper.writableDatabase
-            InfinityDatabase.MIGRATION_12_13.migrate(db)
+            MIGRATION_12_13.migrate(db)
             db.execSQL("""
                 INSERT INTO promises_to_pay (
                     promiseId, loanId, clientId, collectorId, promisedAmountMinor,

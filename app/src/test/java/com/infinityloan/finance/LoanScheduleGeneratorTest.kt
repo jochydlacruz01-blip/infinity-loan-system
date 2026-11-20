@@ -5,6 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.DateTimeException
 
 class LoanScheduleGeneratorTest {
     private val principal = BigDecimal("1200.00")

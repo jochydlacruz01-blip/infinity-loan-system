@@ -2,6 +2,7 @@ package com.infinityloan.finance
 
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * Construye un calendario contractual a partir de un cálculo financiero ya validado.
@@ -34,6 +35,8 @@ object LoanScheduleGenerator {
         scale: Int = 2
     ): List<ScheduledInstallment> {
         require(periods in 1..600) { "El número de cuotas debe estar entre 1 y 600" }
+        // Fail before generating a partial schedule if the final due date exceeds LocalDate limits.
+        dueDate(firstDueDate, frequency, periods - 1)
         require(firstDueDate != LocalDate.MIN && firstDueDate != LocalDate.MAX) {
             "La fecha del primer vencimiento no es válida"
         }
@@ -45,7 +48,7 @@ object LoanScheduleGenerator {
         }
         require(periodicRate >= BigDecimal.ZERO) { "La tasa no puede ser negativa" }
 
-        val installments = when (method.uppercase()) {
+        val installments = when (method.trim().uppercase(Locale.ROOT)) {
             "FRANCES", "FRENCH" -> LoanCalculator.french(principal, periodicRate, periods, scale)
             "ITALIANO" -> LoanCalculator.italian(principal, periodicRate, periods, scale)
             "AMERICANO" -> LoanCalculator.american(principal, periodicRate, periods, scale)

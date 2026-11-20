@@ -744,7 +744,11 @@ private fun ReportsSummaryScreen(
     installments: List<LoanInstallmentEntity>
 ) {
     val currencies = listOf("DOP", "USD", "EUR")
-    val today = LocalDate.now().toString()
+    val businessDate = LocalDate.now()
+    val today = businessDate.toString()
+    val portfolioSummary by remember(db, businessDate) {
+        PortfolioSummaryRepository(db.loans(), db.installments()).observe(businessDate)
+    }.collectAsState(initial = emptyList())
     var cashSummary by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(db) {
         db.cashSessions().observeSessions().collect { rows ->
@@ -797,6 +801,20 @@ private fun ReportsSummaryScreen(
         }
         item {
             DataCard("Resumen general", "Clientes registrados: ${clients.size}\nPréstamos: ${loans.size}\nActivos: ${loans.count { it.status == "ACTIVE" }}\nPagos registrados: ${payments.size}")
+        }
+        item {
+            Text("CARTERA CONSOLIDADA POR MONEDA", color = Gold, fontWeight = FontWeight.Bold)
+            Text("Proyección financiera conectada directamente a Room · corte ${businessDate}", color = Muted, fontSize = 11.sp)
+        }
+        if (portfolioSummary.isEmpty()) {
+            item { DataCard("Cartera", "Todavía no hay datos suficientes para generar el resumen.") }
+        } else {
+            items(portfolioSummary, key = { it.currency }) { summary ->
+                DataCard(
+                    title = "Cartera · ${summary.currency}",
+                    detail = "Préstamos: ${summary.loanCount}\nActivos: ${summary.activeLoanCount}\nCapital pendiente activo: ${money(summary.outstandingPrincipalMinor)} ${summary.currency}\nCuotas vencidas: ${summary.overdueInstallmentCount}\nImporte contractual vencido: ${money(summary.overdueScheduledMinor)} ${summary.currency}"
+                )
+            }
         }
         item { Text("CONCILIACIÓN CONSOLIDADA DE CAJA", color = Gold, fontWeight = FontWeight.Bold) }
         items(cashSummary) { summary -> DataCard("Caja por moneda", summary) }

@@ -269,7 +269,7 @@ class StaffAuthenticationService(
                     maxAttempts = MAX_FAILED_LOGIN_ATTEMPTS,
                     lockUntil = Math.addExact(now, LOGIN_LOCKOUT_MILLIS)
                 )
-                audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_FAILED_PASSWORD", targetType = "AUTHENTICATION", targetId = account.id, details = "attempts=\${account.failedLoginAttempts + 1};lockTriggered=\${account.failedLoginAttempts + 1 >= MAX_FAILED_LOGIN_ATTEMPTS}"))
+                audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_FAILED_PASSWORD", targetType = "AUTHENTICATION", targetId = account.id, details = "attempts=${account.failedLoginAttempts + 1};lockTriggered=${account.failedLoginAttempts + 1 >= MAX_FAILED_LOGIN_ATTEMPTS}"))
                 return AuthenticationResult.INVALID_CREDENTIALS to null
             }
             if (!account.isActive) {
@@ -286,7 +286,7 @@ class StaffAuthenticationService(
             )
             staffAccounts.resetFailedLogins(account.id)
             staffAccounts.updateLastLogin(account.id, now)
-            audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_SUCCESS", targetType = "AUTHENTICATION", targetId = account.id, details = "role=\${role.name}"))
+            audit(AuditLogEntity(actorStaffId = account.id, actorUsername = account.username, action = "LOGIN_SUCCESS", targetType = "AUTHENTICATION", targetId = account.id, details = "role=${role.name}"))
             return AuthenticationResult.AUTHENTICATED to StaffSession(
                 staffId = account.id,
                 username = account.username,

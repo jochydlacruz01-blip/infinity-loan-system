@@ -876,7 +876,7 @@ enum class CreditPaymentResult {
         PaymentReversalEntity::class,
         CashVarianceReviewEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 
@@ -1276,6 +1276,11 @@ abstract class InfinityDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
+
+        internal fun installAuditImmutabilityTriggers(database: SupportSQLiteDatabase) {
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS audit_logs_no_update BEFORE UPDATE ON audit_logs BEGIN SELECT RAISE(ABORT, 'audit logs are immutable'); END")
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS audit_logs_no_delete BEFORE DELETE ON audit_logs BEGIN SELECT RAISE(ABORT, 'audit logs are immutable'); END")
+        }
         
 internal val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(
@@ -1593,9 +1598,20 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
                     context.applicationContext,
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
-)
-.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
-.build().also { INSTANCE = it }
+                )
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        installAuditImmutabilityTriggers(db)
+                    }
+                })
+                .build().also { INSTANCE = it }
             }
+    }
+}
+
+internal val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        InfinityDatabase.installAuditImmutabilityTriggers(database)
     }
 }

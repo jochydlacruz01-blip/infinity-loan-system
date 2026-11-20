@@ -1,6 +1,7 @@
 package com.infinityloan.data
 
 import androidx.room.Room
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.first
@@ -21,7 +22,11 @@ class AuditLogDaoTest {
         database = Room.inMemoryDatabaseBuilder(
             InstrumentationRegistry.getInstrumentation().targetContext,
             InfinityDatabase::class.java
-        ).allowMainThreadQueries().build()
+        ).allowMainThreadQueries().addCallback(object : RoomDatabase.Callback() {
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                InfinityDatabase.installAuditImmutabilityTriggers(db)
+            }
+        }).build()
     }
 
     @After

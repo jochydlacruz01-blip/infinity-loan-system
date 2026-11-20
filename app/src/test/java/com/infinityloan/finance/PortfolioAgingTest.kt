@@ -67,4 +67,18 @@ class PortfolioAgingTest {
         assertEquals(0L, dop.buckets.last().unpaidMinor)
         assertEquals(20L, result.last().totalOverdueMinor)
     }
+    @Test fun inputOrderAndListAreNotMutatedAndCurrencyRowsAreSorted() {
+        val source = mutableListOf(
+            AgingInstallment("EUR", today.minusDays(2), 30),
+            AgingInstallment("DOP", today.minusDays(2), 10),
+            AgingInstallment("USD", today.minusDays(2), 20)
+        )
+        val original = source.toList()
+        val result = PortfolioAging.build(source, today)
+        assertEquals(original, source)
+        assertEquals(listOf("DOP", "EUR", "USD"), result.map { it.currency })
+        assertEquals(10L, result.first { it.currency == "DOP" }.totalOverdueMinor)
+        assertEquals(30L, result.first { it.currency == "EUR" }.totalOverdueMinor)
+        assertEquals(20L, result.first { it.currency == "USD" }.totalOverdueMinor)
+    }
 }

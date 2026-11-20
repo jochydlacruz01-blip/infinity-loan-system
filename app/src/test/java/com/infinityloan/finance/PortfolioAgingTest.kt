@@ -81,7 +81,6 @@ class PortfolioAgingTest {
         assertEquals(30L, result.first { it.currency == "EUR" }.totalOverdueMinor)
         assertEquals(20L, result.first { it.currency == "USD" }.totalOverdueMinor)
     }
-}
 
     @Test fun emptyInputReturnsEmptySummary() {
         assertEquals(emptyList<CurrencyAgingSummary>(), PortfolioAging.build(emptyList(), today))
@@ -95,3 +94,4 @@ class PortfolioAgingTest {
             PortfolioAging.build(listOf(AgingInstallment("dop", today.minusDays(1), 1)), today)
         }
     }
+}

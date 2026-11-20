@@ -386,7 +386,7 @@ private fun AuthenticatedInfinityApp(
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
                     when (screen) {
-                        Screen.HOME -> HomeScreen(clients, loans, PaymentReporting.effectivePayments(payments, reversedPaymentIds.toSet()), installments)
+                        Screen.HOME -> HomeScreen(clients, loans, PaymentReporting.effectivePayments(payments, reversedPaymentIds.toSet()), installments, onNavigate = { target -> if (target in availableScreens) screen = target else message = "Tu perfil no tiene acceso a este registro." })
                         Screen.CLIENTS -> ClientsScreen(
     clients = clients,
     onEdit = { client ->
@@ -891,7 +891,8 @@ private fun HomeScreen(
     clients: List<ClientEntity>,
     loans: List<LoanEntity>,
     payments: List<PaymentEntity>,
-    installments: List<LoanInstallmentEntity>
+    installments: List<LoanInstallmentEntity>,
+    onNavigate: (Screen) -> Unit
 ) {
     val currencies = listOf("DOP", "USD", "EUR")
 
@@ -917,8 +918,8 @@ private fun HomeScreen(
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Kpi("Clientes", clients.size.toString(), Color(0xFF51417D), Modifier.weight(1f))
-                Kpi("Préstamos", loans.size.toString(), Color(0xFF174B83), Modifier.weight(1f))
+                Kpi("Clientes", clients.size.toString(), Color(0xFF51417D), Modifier.weight(1f).clickable { onNavigate(Screen.CLIENTS) })
+                Kpi("Préstamos", loans.size.toString(), Color(0xFF174B83), Modifier.weight(1f).clickable { onNavigate(Screen.LOANS) })
             }
         }
 
@@ -928,9 +929,9 @@ private fun HomeScreen(
                     "Activos",
                     loans.count { it.status == "ACTIVE" }.toString(),
                     Color(0xFF17634E),
-                    Modifier.weight(1f)
+                    Modifier.weight(1f).clickable { onNavigate(Screen.LOANS) }
                 )
-                Kpi("Pagos", payments.size.toString(), Color(0xFF76551F), Modifier.weight(1f))
+                Kpi("Pagos", payments.size.toString(), Color(0xFF76551F), Modifier.weight(1f).clickable { onNavigate(Screen.PAYMENTS) })
             }
         }
 
@@ -965,7 +966,8 @@ private fun HomeScreen(
                 detail = """
                     Préstamos activos: ${activeLoans.size}
                     Capital pendiente: ${moneyTotal(activeLoans.map { it.balanceMinor })} $currency
-                """.trimIndent()
+                """.trimIndent(),
+                modifier = Modifier.clickable { onNavigate(Screen.LOANS) }
             )
         }
 
@@ -982,7 +984,8 @@ private fun HomeScreen(
                     Préstamos registrados: ${currencyLoans.size}
                     Capital inicial: ${moneyTotal(currencyLoans.map { it.principalMinor })} $currency
                     Saldo pendiente: ${moneyTotal(currencyLoans.map { it.balanceMinor })} $currency
-                """.trimIndent()
+                """.trimIndent(),
+                modifier = Modifier.clickable { onNavigate(Screen.LOANS) }
             )
         }
 
@@ -1011,7 +1014,8 @@ private fun HomeScreen(
                         Importe: ${money(payment.amountMinor)} ${loan?.currency ?: ""}
                         Fecha: ${formatDate(payment.createdAt)}
                         Préstamo: ${payment.loanId.take(8)}
-                    """.trimIndent()
+                    """.trimIndent(),
+                    modifier = Modifier.clickable { onNavigate(Screen.PAYMENTS) }
                 )
             }
         }
@@ -1030,7 +1034,8 @@ private fun HomeScreen(
                 detail = """
                     Total registrado: ${moneyTotal(currencyPayments.map { it.amountMinor })} $currency
                     Operaciones: ${currencyPayments.size}
-                """.trimIndent()
+                """.trimIndent(),
+                modifier = Modifier.clickable { onNavigate(Screen.PAYMENTS) }
             )
         }
 
@@ -1435,8 +1440,8 @@ private fun Kpi(title: String, value: String, color: Color, modifier: Modifier) 
 }
 
 @Composable
-private fun DataCard(title: String, detail: String) {
-    Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+private fun DataCard(title: String, detail: String, modifier: Modifier = Modifier) {
+    Surface(color = Panel, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().then(modifier)) {
         Column(Modifier.padding(14.dp)) {
             Text(title, color = Gold, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))

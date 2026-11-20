@@ -9,10 +9,11 @@ class CollectionWorkloadBalancerTest {
    assertEquals("a",CollectionWorkloadBalancer.suggestCollector(listOf("b","a"),emptyMap()))
  }
  @Test fun rejectsEmptyOrNegativeLoad(){
-   try { CollectionWorkloadBalancer.suggestCollector(emptyList(),emptyMap()); fail() } catch (_:IllegalArgumentException){}
-   try { CollectionWorkloadBalancer.suggestCollector(listOf("a"),mapOf("a" to -1)); fail() } catch (_:IllegalArgumentException){}
+   assertThrows(IllegalArgumentException::class.java) { CollectionWorkloadBalancer.suggestCollector(emptyList(),emptyMap()) }
+   assertThrows(IllegalArgumentException::class.java) { CollectionWorkloadBalancer.suggestCollector(listOf("a"),mapOf("a" to -1)) }
+   assertThrows(IllegalArgumentException::class.java) { CollectionWorkloadBalancer.workload(listOf("a"),mapOf("a" to -1)) }
  }
- @Test fun workloadReportsMissingAsZero(){
-   assertEquals(mapOf("a" to 0,"b" to 2),CollectionWorkloadBalancer.workload(listOf("b","a"),mapOf("b" to 2)))
+ @Test fun workloadReportsMissingAsZeroAndDeduplicates(){
+   assertEquals(mapOf("a" to 0,"b" to 2),CollectionWorkloadBalancer.workload(listOf("b","a","a"," "),mapOf("b" to 2)))
  }
 }

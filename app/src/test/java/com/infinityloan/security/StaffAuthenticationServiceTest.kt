@@ -758,22 +758,23 @@ class StaffAuthenticationServiceTest {
         )
         service.setStaffAccountActive(admin, cashier.id, false)
 
+        val staffEvents = auditEvents.filter { it.action.startsWith("STAFF_") }
         assertEquals(
             listOf(
                 "STAFF_ACCOUNT_CREATED",
                 "STAFF_PERMISSIONS_UPDATED",
                 "STAFF_ACCOUNT_DISABLED"
             ),
-            auditEvents.map { it.action }.filter { it.startsWith("STAFF_") }
+            staffEvents.map { it.action }
         )
-        assertTrue(auditEvents.filter { it.action.startsWith("STAFF_") }.all {
+        assertTrue(staffEvents.all {
             it.actorStaffId == admin.staffId &&
                 it.actorUsername == admin.username &&
                 it.targetId == cashier.id &&
                 it.targetType == "STAFF_ACCOUNT"
         })
-        assertTrue(auditEvents.first().details.contains("role=CASHIER"))
-        assertTrue(auditEvents.last().details.contains("active=false"))
+        assertTrue(staffEvents.first().details.contains("role=CASHIER"))
+        assertTrue(staffEvents.last().details.contains("active=false"))
     }
 
 

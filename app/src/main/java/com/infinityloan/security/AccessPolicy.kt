@@ -25,6 +25,9 @@ enum class Permission {
     PAYMENT_REVERSE,
     CUSTOMER_CREDIT_VIEW,
     CUSTOMER_CREDIT_APPLY,
+    PROMISE_TO_PAY_VIEW,
+    PROMISE_TO_PAY_CREATE,
+    PROMISE_TO_PAY_RESOLVE,
     CASH_SESSION_OPEN,
     CASH_SESSION_CLOSE,
     CASH_MOVEMENT_MANAGE,
@@ -38,10 +41,6 @@ enum class Permission {
     CASH_VARIANCE_REVIEW
 }
 
-/**
- * Explicit denials take precedence over explicit grants and role defaults.
- * This allows administrators to narrow an individual staff profile safely.
- */
 data class AccessProfile(
     val role: StaffRole,
     val grants: Set<Permission> = emptySet(),
@@ -52,45 +51,29 @@ object AccessPolicy {
     private val administrator = Permission.entries.toSet()
 
     private val supervisor = setOf(
-        Permission.DASHBOARD_VIEW,
-        Permission.CLIENT_VIEW,
-        Permission.CLIENT_CREATE,
-        Permission.CLIENT_UPDATE,
-        Permission.LOAN_VIEW,
-        Permission.LOAN_CREATE,
-        Permission.LOAN_UPDATE,
-        Permission.PAYMENT_VIEW,
-        Permission.PAYMENT_REGISTER,
-        Permission.CUSTOMER_CREDIT_VIEW,
-        Permission.CASH_SESSION_OPEN,
-        Permission.CASH_SESSION_CLOSE,
-        Permission.CASH_MOVEMENT_MANAGE,
-        Permission.REPORT_VIEW,
-        Permission.REPORT_EXPORT,
-        Permission.STAFF_VIEW,
-        Permission.AUDIT_LOG_VIEW,
-        Permission.CASH_VARIANCE_REVIEW
+        Permission.DASHBOARD_VIEW, Permission.CLIENT_VIEW, Permission.CLIENT_CREATE,
+        Permission.CLIENT_UPDATE, Permission.LOAN_VIEW, Permission.LOAN_CREATE,
+        Permission.LOAN_UPDATE, Permission.PAYMENT_VIEW, Permission.PAYMENT_REGISTER,
+        Permission.CUSTOMER_CREDIT_VIEW, Permission.PROMISE_TO_PAY_VIEW,
+        Permission.PROMISE_TO_PAY_CREATE, Permission.PROMISE_TO_PAY_RESOLVE,
+        Permission.CASH_SESSION_OPEN, Permission.CASH_SESSION_CLOSE,
+        Permission.CASH_MOVEMENT_MANAGE, Permission.REPORT_VIEW, Permission.REPORT_EXPORT,
+        Permission.STAFF_VIEW, Permission.AUDIT_LOG_VIEW, Permission.CASH_VARIANCE_REVIEW
     )
 
     private val cashier = setOf(
-        Permission.DASHBOARD_VIEW,
-        Permission.CLIENT_VIEW,
-        Permission.LOAN_VIEW,
-        Permission.PAYMENT_VIEW,
-        Permission.PAYMENT_REGISTER,
-        Permission.CUSTOMER_CREDIT_VIEW,
-        Permission.CUSTOMER_CREDIT_APPLY,
-        Permission.CASH_SESSION_OPEN,
-        Permission.CASH_SESSION_CLOSE,
+        Permission.DASHBOARD_VIEW, Permission.CLIENT_VIEW, Permission.LOAN_VIEW,
+        Permission.PAYMENT_VIEW, Permission.PAYMENT_REGISTER,
+        Permission.CUSTOMER_CREDIT_VIEW, Permission.CUSTOMER_CREDIT_APPLY,
+        Permission.PROMISE_TO_PAY_VIEW, Permission.PROMISE_TO_PAY_CREATE,
+        Permission.CASH_SESSION_OPEN, Permission.CASH_SESSION_CLOSE,
         Permission.CASH_MOVEMENT_MANAGE
     )
 
     private val collector = setOf(
-        Permission.DASHBOARD_VIEW,
-        Permission.CLIENT_VIEW,
-        Permission.LOAN_VIEW,
-        Permission.PAYMENT_VIEW,
-        Permission.PAYMENT_REGISTER
+        Permission.DASHBOARD_VIEW, Permission.CLIENT_VIEW, Permission.LOAN_VIEW,
+        Permission.PAYMENT_VIEW, Permission.PAYMENT_REGISTER,
+        Permission.PROMISE_TO_PAY_VIEW, Permission.PROMISE_TO_PAY_CREATE
     )
 
     fun defaultPermissions(role: StaffRole): Set<Permission> = when (role) {

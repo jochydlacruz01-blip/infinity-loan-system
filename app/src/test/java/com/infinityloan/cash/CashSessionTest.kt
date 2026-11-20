@@ -93,6 +93,13 @@ class CashSessionTest {
         assertEquals(-Long.MAX_VALUE, closed.varianceMinor)
     }
 
+    @Test fun movementReasonMustFitPersistedAuditLimit() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CashMovement("too-long", CashMovementType.CASH_IN, 1L, "x".repeat(501))
+        }
+        CashMovement("limit", CashMovementType.CASH_IN, 1L, "x".repeat(500))
+    }
+
     @Test fun cashOutExactlyAvailableBalanceIsAllowed() {
         val result = session().addMovement(
             CashMovement("out", CashMovementType.CASH_OUT, 10_000L, "Salida")

@@ -35,6 +35,7 @@ import com.infinityloan.security.AccessProfile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID

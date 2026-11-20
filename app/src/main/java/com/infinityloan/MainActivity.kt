@@ -434,7 +434,7 @@ private fun AuthenticatedInfinityApp(
                             session = session,
                             onMessage = { message = it }
                         )
-                        Screen.AUDIT -> AuditLogScreen(db)
+                        Screen.AUDIT -> AuditLogScreen(db, session)
                     }
                     message?.let {
                         Spacer(Modifier.height(8.dp))

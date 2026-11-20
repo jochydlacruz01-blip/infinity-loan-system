@@ -119,7 +119,7 @@ class StaffAuthenticationService(
                 action = "STAFF_ACCOUNT_CREATED",
                 targetType = "STAFF_ACCOUNT",
                 targetId = account.id,
-                details = "username=$normalizedUsername;role=\${role.name};grants=\${account.grants};denials=\${account.denials}"
+                details = "username=$normalizedUsername;role=${role.name};grants=${account.grants};denials=${account.denials}"
             ))
             return true
         } finally {
@@ -163,7 +163,7 @@ class StaffAuthenticationService(
                 action = if (active) "STAFF_ACCOUNT_ENABLED" else "STAFF_ACCOUNT_DISABLED",
                 targetType = "STAFF_ACCOUNT",
                 targetId = staffId,
-                details = "username=\${target.username};role=\${target.role};active=$active"
+                details = "username=${target.username};role=${target.role};active=$active"
             ))
         }
     }
@@ -203,7 +203,7 @@ class StaffAuthenticationService(
                 action = "STAFF_PERMISSIONS_UPDATED",
                 targetType = "STAFF_ACCOUNT",
                 targetId = staffId,
-                details = "username=\${target.username};role=\${target.role};oldGrants=\${target.grants};oldDenials=\${target.denials};newGrants=$encodedGrants;newDenials=$encodedDenials"
+                details = "username=${target.username};role=${target.role};oldGrants=${target.grants};oldDenials=${target.denials};newGrants=$encodedGrants;newDenials=$encodedDenials"
             ))
         }
     }

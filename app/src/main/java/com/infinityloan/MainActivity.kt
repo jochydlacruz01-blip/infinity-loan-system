@@ -28,6 +28,7 @@ import com.infinityloan.finance.LoanScheduleGenerator
 import com.infinityloan.finance.MinorUnitTotals
 import com.infinityloan.finance.OverdueBalance
 import com.infinityloan.finance.PaymentReporting
+import com.infinityloan.data.MonthlyPaymentReportRepository
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
 import com.infinityloan.security.AuthenticationResult
@@ -748,6 +749,7 @@ private fun ReportsSummaryScreen(
     payments: List<PaymentEntity>,
     installments: List<LoanInstallmentEntity>
 ) {
+    val monthlyPayments by remember(db) { MonthlyPaymentReportRepository(db.payments(), db.loans(), db.paymentReversals()).observe() }.collectAsState(initial = emptyList())
     val currencies = listOf("DOP", "USD", "EUR")
     val businessDate = LocalDate.now()
     val today = businessDate.toString()
@@ -830,6 +832,18 @@ private fun ReportsSummaryScreen(
                 DataCard(
                     title = "Cartera · ${summary.currency}",
                     detail = "Préstamos: ${summary.loanCount}\nActivos: ${summary.activeLoanCount}\nCapital pendiente activo: ${money(summary.outstandingPrincipalMinor)} ${summary.currency}\nCuotas vencidas: ${summary.overdueInstallmentCount}\nImporte contractual vencido: ${money(summary.overdueScheduledMinor)} ${summary.currency}"
+                )
+            }
+        }
+        item { Text("RECAUDACIÓN MENSUAL · POR MONEDA", color = Gold, fontWeight = FontWeight.Bold) }
+        if (monthlyPayments.isEmpty()) {
+            item { DataCard("Pagos mensuales", "No hay pagos válidos para el informe mensual.") }
+        } else {
+            items(monthlyPayments.takeLast(36), key = { "monthly-" + it.month + "-" + it.currency }) { total ->
+                DataCard(
+                    total.month.toString() + " · " + total.currency,
+                    "Recaudación: " + money(total.totalMinor) + " " + total.currency +
+                        "\nOperaciones: " + total.count
                 )
             }
         }

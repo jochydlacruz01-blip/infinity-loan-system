@@ -54,4 +54,22 @@ class CashPaymentReconciliationTest {
         assertEquals(1, issues.count { it.type == CashReconciliationIssueType.INVALID_CASH_MOVEMENT })
     }
 
+    @Test fun flagsUnsupportedCurrenciesForPaymentsAndMovements() {
+        val issues = CashPaymentReconciliation.reconcile(
+            listOf(ReconciliationPayment("p-invalid-currency", 500, "XYZ")),
+            listOf(ReconciliationCashMovement("c-invalid-currency", "p-invalid-currency", 500, "XYZ", "IN"))
+        )
+        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.INVALID_PAYMENT })
+        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.INVALID_CASH_MOVEMENT })
+    }
+
+    @Test fun acceptsSupportedCurrencies() {
+        listOf("DOP", "USD", "EUR").forEach { currency ->
+            assertTrue(CashPaymentReconciliation.reconcile(
+                listOf(ReconciliationPayment("p-$currency", 100, currency)),
+                listOf(ReconciliationCashMovement("c-$currency", "p-$currency", 100, currency, "IN"))
+            ).isEmpty())
+        }
+    }
+
 }

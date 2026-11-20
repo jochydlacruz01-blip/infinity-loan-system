@@ -39,6 +39,7 @@ data class CashReconciliationIssue(
 )
 
 /** Pure, deterministic reconciliation report. No financial data is modified. */
+private val supportedCurrencies = setOf("DOP", "USD", "EUR")
 object CashPaymentReconciliation {
     fun reconcile(
         payments: List<ReconciliationPayment>,
@@ -55,12 +56,12 @@ object CashPaymentReconciliation {
                 )
             }
         movements.filter { it.operationId.isBlank() || it.amountMinor <= 0L ||
-            it.currency.isBlank() || it.type.isBlank()
+            it.currency !in supportedCurrencies || it.type.isBlank()
         }.sortedBy { it.operationId }.forEach { movement ->
             issues += CashReconciliationIssue(
                 CashReconciliationIssueType.INVALID_CASH_MOVEMENT,
                 movement.linkedPaymentOperationId, movement.operationId,
-                null, movement.amountMinor, "Cash movement has invalid operation id, amount, currency, or type."
+                null, movement.amountMinor, "Cash movement has invalid operation id, amount, supported currency, or type."
             )
         }
         val linked = movements.filter { it.linkedPaymentOperationId != null }
@@ -68,10 +69,10 @@ object CashPaymentReconciliation {
 
         payments.sortedBy { it.operationId }.forEach { payment ->
             if ((paymentById[payment.operationId]?.size ?: 0) > 1) return@forEach
-            if (payment.operationId.isBlank() || payment.amountMinor <= 0L || payment.currency.isBlank()) {
+            if (payment.operationId.isBlank() || payment.amountMinor <= 0L || payment.currency !in supportedCurrencies) {
                 issues += CashReconciliationIssue(
                     CashReconciliationIssueType.INVALID_PAYMENT, payment.operationId,
-                    null, payment.amountMinor, null, "Payment has invalid operation id, amount, or currency."
+                    null, payment.amountMinor, null, "Payment has invalid operation id, amount, or supported currency."
                 )
                 return@forEach
             }

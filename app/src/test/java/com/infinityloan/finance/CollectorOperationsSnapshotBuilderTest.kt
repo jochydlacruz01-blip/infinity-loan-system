@@ -38,7 +38,7 @@ class CollectorOperationsSnapshotBuilderTest {
 
     @Test fun rejectsOverflow() {
         val p1=PromiseFollowUpItem("p1","l","c","a","DOP",Long.MAX_VALUE,date.minusDays(8),8,PromiseFollowUpUrgency.MEDIUM)
-        val p2=PromiseFollowUpItem("p2","l","c","b","DOP",1,date.minusDays(9),9,PromiseFollowUpUrgency.MEDIUM)
+        val p2=PromiseFollowUpItem("p2","l","c","a","DOP",1,date.minusDays(9),9,PromiseFollowUpUrgency.MEDIUM)
         try { CollectorOperationsSnapshotBuilder.build(emptyList(),listOf(p1,p2),date); fail("expected overflow") }
         catch(_:ArithmeticException) {}
     }

@@ -641,4 +641,46 @@ class CashPaymentIntegrationTest {
         assertNull(open.varianceMinor)
         assertNull(open.issue)
     }
+
+    @Test
+    fun persistedStaffCashAuditGroupsByEmployeeAndCurrencyAndKeepsOpenAndClosedTotalsSeparate() = runBlocking {
+        val closedDop = "STAFF-AUDIT-CLOSED-DOP"
+        val openUsd = "STAFF-AUDIT-OPEN-USD"
+        val otherStaffDop = "STAFF-AUDIT-OTHER-DOP"
+
+        database.openCashSession(CashSessionEntity(closedDop, "STAFF-A", "DOP", 5000L, 100L))
+        database.postCashMovement(
+            CashMovementEntity("STAFF-AUDIT-IN", closedDop, "CASH_IN", 1500L, "Ingreso", 101L)
+        )
+        database.closeCashSession(closedDop, countedMinor = 6400L, closedAt = 102L)
+
+        database.openCashSession(CashSessionEntity(openUsd, "STAFF-A", "USD", 900L, 103L))
+        database.openCashSession(CashSessionEntity(otherStaffDop, "STAFF-B", "DOP", 2500L, 104L))
+
+        val report = database.auditPersistedCashByStaff()
+
+        assertEquals(0, report.invalidSessionCount)
+        assertTrue(report.invalidSessionIds.isEmpty())
+        assertEquals(3, report.staffRows.size)
+
+        val staffADop = report.staffRows.first { it.staffId == "STAFF-A" && it.currency == "DOP" }
+        assertEquals(1, staffADop.sessionCount)
+        assertEquals(0, staffADop.openSessionCount)
+        assertEquals(1, staffADop.closedSessionCount)
+        assertEquals(6500L, staffADop.expectedCashMinor)
+        assertEquals(6400L, staffADop.countedCashMinor)
+        assertEquals(-100L, staffADop.varianceMinor)
+
+        val staffAUsd = report.staffRows.first { it.staffId == "STAFF-A" && it.currency == "USD" }
+        assertEquals(1, staffAUsd.openSessionCount)
+        assertEquals(0, staffAUsd.closedSessionCount)
+        assertEquals(900L, staffAUsd.expectedCashMinor)
+        assertEquals(0L, staffAUsd.countedCashMinor)
+        assertEquals(0L, staffAUsd.varianceMinor)
+
+        val staffBDop = report.staffRows.first { it.staffId == "STAFF-B" && it.currency == "DOP" }
+        assertEquals(2500L, staffBDop.expectedCashMinor)
+        assertEquals(1, staffBDop.openSessionCount)
+    }
+
 }

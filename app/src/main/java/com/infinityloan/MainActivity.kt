@@ -949,9 +949,9 @@ private fun HomeScreen(
                         val amount = overdue.filter { row -> loans.any { it.id == row.loanId && it.currency == currency } }
                             .map { it.totalMinor - it.paidPrincipalMinor - it.paidInterestMinor }
                         "Saldo vencido $currency: ${moneyTotal(amount)} $currency"
-                    }
-            ),
+                    },
                 modifier = Modifier.clickable { onNavigate(Screen.LOANS) }
+            )
         }
         item {
             Text("RESUMEN EJECUTIVO", color = Gold, fontWeight = FontWeight.Bold)

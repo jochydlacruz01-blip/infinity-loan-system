@@ -11,8 +11,8 @@ class ClientCollectionDossierBuilderTest {
         CollectionVisitRecord(id,"loan1",client,"staff1",today.minusDays(1),status)
     private fun attempt(id:String, at:String, client:String="c1") =
         CollectionContactAttempt(id,"v1","loan1",client,"staff1",Instant.parse(at),CollectionContactChannel.PHONE,CollectionContactOutcome.CONTACTED)
-    private fun promise(id:String, days:Long, client:String="c1", currency:String="DOP", amount:Long=100) =
-        PromiseToPayRecord(id,"loan1",client,"staff1",amount,currency,today.plusDays(days))
+    private fun promise(id:String, days:Long, client:String="c1", currency:String="DOP", amount:Long=100, status:PromiseToPayStatus=PromiseToPayStatus.OPEN) =
+        PromiseToPayRecord(id,"loan1",client,"staff1",amount,currency,today.plusDays(days),status)
 
     @Test fun combinesClientActivityAndCurrencySafeOpenPromiseTotals() {
         val result=ClientCollectionDossierBuilder.build("c1",listOf(visit("v1"),visit("v2","c2")),listOf(attempt("a1","2026-11-18T10:00:00Z"),attempt("a2","2026-11-19T10:00:00Z","c2")),listOf(promise("p1",-2),promise("p2",3,currency="USD",amount=500),promise("closed",0,status=PromiseToPayStatus.KEPT)),today)

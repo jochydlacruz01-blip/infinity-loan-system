@@ -830,7 +830,8 @@ private fun ReportsSummaryScreen(
                 }
                 DataCard("Vencimiento · " + aging.currency, bucketLines + "\nTotal vencido: " + money(aging.totalOverdueMinor) + " " + aging.currency)
             }
-        }\n        item { Text("CONCILIACIÓN CONSOLIDADA DE CAJA", color = Gold, fontWeight = FontWeight.Bold) }
+        }
+        item { Text("CONCILIACIÓN CONSOLIDADA DE CAJA", color = Gold, fontWeight = FontWeight.Bold) }
         items(cashSummary) { summary -> DataCard("Caja por moneda", summary) }
         items(currencies) { currency ->
             val currencyLoans = loans.filter { it.currency == currency }

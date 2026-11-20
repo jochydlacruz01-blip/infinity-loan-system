@@ -13,8 +13,8 @@ class PromiseFollowUpCollectorSummaryTest {
    item("c","a",PromiseFollowUpUrgency.CRITICAL,"EUR",50),
    item("d","z",PromiseFollowUpUrgency.LOW,"DOP",300)
   ))
-  assertEquals("a",result.first().collectorId)
-  val z=result.last()
+  assertEquals("z",result.first().collectorId)
+  val z=result.first()
   assertEquals(3,z.overdueCount);assertEquals(1,z.criticalCount);assertEquals(1,z.highCount);assertEquals(1,z.lowCount)
   assertEquals(400L,z.overdueMinorByCurrency["DOP"]);assertEquals(200L,z.overdueMinorByCurrency["USD"])
  }

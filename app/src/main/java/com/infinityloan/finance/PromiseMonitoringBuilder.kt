@@ -31,7 +31,7 @@ object PromiseMonitoringBuilder {
             require(seen.add(p.promiseId)) { "Promesas duplicadas" }
             if (p.status != PromiseToPayStatus.OPEN) return@mapNotNull null
             val delta = java.time.temporal.ChronoUnit.DAYS.between(asOf, p.promisedDate)
-            if (delta > upcomingDays || delta < 0 && p.promisedDate.isBefore(asOf.minusDays(3650))) return@mapNotNull null
+            if (delta > upcomingDays) return@mapNotNull null
             PromiseMonitoringItem(p.promiseId,p.clientId,p.collectorId,p.promisedAmountMinor,p.currency,p.promisedDate,p.status,delta)
         }.sortedWith(compareBy<PromiseMonitoringItem> { it.daysUntilOrOverdue }.thenBy { it.currency }.thenBy { it.clientId }.thenBy { it.promiseId })
         val overdue = items.count { it.daysUntilOrOverdue < 0 }

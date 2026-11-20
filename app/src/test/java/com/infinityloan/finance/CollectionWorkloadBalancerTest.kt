@@ -16,4 +16,15 @@ class CollectionWorkloadBalancerTest {
  @Test fun workloadReportsMissingAsZeroAndDeduplicates(){
    assertEquals(mapOf("a" to 0,"b" to 2),CollectionWorkloadBalancer.workload(listOf("b","a","a"," "),mapOf("b" to 2)))
  }
+ @Test fun ignoresBlankAndUnknownCollectorIdsAndDoesNotMutateInput(){
+   val ids = listOf("b", " ", "a", "b")
+   val counts = mutableMapOf("a" to 3, "b" to 1, "unlisted" to 99)
+   assertEquals("b", CollectionWorkloadBalancer.suggestCollector(ids, counts))
+   assertEquals(mapOf("a" to 3, "b" to 1), CollectionWorkloadBalancer.workload(ids, counts))
+   assertEquals(listOf("b", " ", "a", "b"), ids)
+   assertEquals(99, counts["unlisted"])
+ }
+ @Test fun workloadAllowsEmptyEligibleList(){
+   assertEquals(emptyMap<String, Int>(), CollectionWorkloadBalancer.workload(listOf(" ", ""), emptyMap()))
+ }
 }

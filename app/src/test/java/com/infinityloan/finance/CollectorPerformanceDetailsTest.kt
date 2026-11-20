@@ -16,7 +16,7 @@ class CollectorPerformanceDetailsTest {
         val detail=CollectorPerformanceDetails.build(rows,day,day).single()
         assertEquals(5,detail.scheduled)
         assertEquals(1,detail.cancelled)
-        assertEquals(4,detail.completedVisits)
+        assertEquals(5,detail.completedVisits)
         assertEquals(1,detail.contactAttempts)
         assertEquals(3,detail.successfulContacts)
         assertEquals(1,detail.promisesToPay)

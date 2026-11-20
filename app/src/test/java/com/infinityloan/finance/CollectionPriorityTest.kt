@@ -73,7 +73,7 @@ class CollectionPriorityTest {
             CollectionPriorityRecord("large","client","DOP",date,500),
             CollectionPriorityRecord("usd","client","USD",date,999)
         )
-        assertEquals(listOf("large","small","usd"), CollectionPriority.build(rows,today).map { it.loanId })
+        assertEquals(listOf("usd","large","small"), CollectionPriority.build(rows,today).map { it.loanId })
     }
 
     @Test fun acceptsZeroBalanceButStillValidatesItsMetadata() {

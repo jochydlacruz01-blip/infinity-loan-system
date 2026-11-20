@@ -9,7 +9,7 @@ class PromiseFollowUpQueueSummaryBuilderTest {
   PromiseFollowUpItem(id,"L$id","CL$id",collector,currency,amount,LocalDate.of(2026,11,1),10,urgency)
  @Test fun groupsUrgencyAndCurrencies() {
   val s=PromiseFollowUpQueueSummaryBuilder.build(listOf(item("1"),item("2",currency="USD",collector="C2"),item("3",PromiseFollowUpUrgency.CRITICAL)))
-  assertEquals(3,s.total);assertEquals(2,s.urgency[PromiseFollowUpUrgency.HIGH]?.count);assertEquals(200L,s.urgency[PromiseFollowUpUrgency.HIGH]?.amountMinorByCurrency?.get("DOP"));assertEquals(2,s.collectorCount)
+  assertEquals(3,s.total);assertEquals(2,s.urgency[PromiseFollowUpUrgency.HIGH]?.count);assertEquals(100L,s.urgency[PromiseFollowUpUrgency.HIGH]?.amountMinorByCurrency?.get("DOP"));assertEquals(2,s.collectorCount)
  }
  @Test fun emptyQueue() { assertEquals(0,PromiseFollowUpQueueSummaryBuilder.build(emptyList()).total) }
  @Test fun rejectsDuplicatesAndInvalidCurrency() {

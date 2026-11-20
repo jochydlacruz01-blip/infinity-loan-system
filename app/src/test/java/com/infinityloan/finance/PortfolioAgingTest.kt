@@ -82,3 +82,16 @@ class PortfolioAgingTest {
         assertEquals(20L, result.first { it.currency == "USD" }.totalOverdueMinor)
     }
 }
+
+    @Test fun emptyInputReturnsEmptySummary() {
+        assertEquals(emptyList<CurrencyAgingSummary>(), PortfolioAging.build(emptyList(), today))
+    }
+
+    @Test fun currencyValidationIsCaseSensitiveAndWhitespaceIsRejected() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PortfolioAging.build(listOf(AgingInstallment(" dop ", today.minusDays(1), 1)), today)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            PortfolioAging.build(listOf(AgingInstallment("dop", today.minusDays(1), 1)), today)
+        }
+    }

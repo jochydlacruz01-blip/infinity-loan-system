@@ -38,4 +38,32 @@ class CollectionPriorityTest {
             CollectionPriority.build(listOf(CollectionPriorityRecord("a","b","DOP",today.minusDays(1),-1)),today)
         }
     }
+
+    @Test fun overdueThresholdsAreExactAndZeroDaysNeverOverdue() {
+        val result = CollectionPriority.build((1L..61L).map { days ->
+            CollectionPriorityRecord("loan$days","client$days","DOP",today.minusDays(days),days)
+        } + CollectionPriorityRecord("today","today","DOP",today,99), today)
+        assertEquals(61, result.size)
+        assertEquals(CollectionPriorityLevel.CRITICAL, result.first { it.daysOverdue == 61L }.level)
+        assertEquals(CollectionPriorityLevel.HIGH, result.first { it.daysOverdue == 31L }.level)
+        assertEquals(CollectionPriorityLevel.MEDIUM, result.first { it.daysOverdue == 8L }.level)
+        assertEquals(CollectionPriorityLevel.LOW, result.first { it.daysOverdue == 1L }.level)
+    }
+
+    @Test fun deterministicTieBreakersAndIdentifierValidation() {
+        val same = today.minusDays(10)
+        val rows = listOf(
+            CollectionPriorityRecord("z","c","DOP",same,100),
+            CollectionPriorityRecord("a","c","DOP",same,100),
+            CollectionPriorityRecord("b","b","USD",same,100)
+        )
+        assertEquals(listOf("b","a","z"), CollectionPriority.build(rows,today).map { it.loanId })
+        assertThrows(IllegalArgumentException::class.java) {
+            CollectionPriority.build(listOf(CollectionPriorityRecord(" ","c","DOP",same,1)),today)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            CollectionPriority.build(listOf(CollectionPriorityRecord("l"," ","DOP",same,1)),today)
+        }
+    }
+
 }

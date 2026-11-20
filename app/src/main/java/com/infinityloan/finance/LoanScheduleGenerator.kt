@@ -78,7 +78,7 @@ object LoanScheduleGenerator {
         require(schedule.last().remainingPrincipal.compareTo(BigDecimal.ZERO) == 0) {
             "El calendario no liquida el principal al finalizar"
         }
-        schedule
+        return schedule
     }
 
     private fun dueDate(firstDueDate: LocalDate, frequency: Frequency, index: Int): LocalDate =

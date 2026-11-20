@@ -15,6 +15,7 @@ import com.infinityloan.data.*
 import com.infinityloan.finance.PromiseToPayStatus
 import com.infinityloan.finance.PromiseToPayRecord
 import com.infinityloan.finance.PromiseToPaySummaryCalculator
+import com.infinityloan.finance.PromiseToPayOperationalReport
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +67,26 @@ internal fun PromiseToPayScreen(
             LocalDate.now()
         )
     }
+    val operationalRows = remember(promises) {
+        PromiseToPayOperationalReport.build(
+            promises.map { item ->
+                PromiseToPayRecord(
+                    promiseId = item.promiseId,
+                    loanId = item.loanId,
+                    clientId = item.clientId,
+                    collectorId = item.collectorId,
+                    promisedAmountMinor = item.promisedAmountMinor,
+                    currency = item.currency,
+                    promisedDate = LocalDate.parse(item.promisedDate),
+                    status = PromiseToPayStatus.valueOf(item.status),
+                    note = item.note
+                )
+            },
+            LocalDate.now()
+        )
+    }
+    val supervisorView = session.profile.role == com.infinityloan.security.StaffRole.ADMINISTRATOR ||
+        session.profile.role == com.infinityloan.security.StaffRole.SUPERVISOR
     val scope = rememberCoroutineScope()
     var createOpen by remember { mutableStateOf(false) }
     var resolving by remember { mutableStateOf<PromiseToPayEntity?>(null) }
@@ -91,6 +112,27 @@ internal fun PromiseToPayScreen(
                     }
                     if (canCreate && loans.any { it.status == "ACTIVE" }) {
                         Button(onClick = { createOpen = true }, colors = ButtonDefaults.buttonColors(containerColor = PromiseGold, contentColor = Color(0xFF0B1730))) { Text("＋ Nueva promesa") }
+                    }
+                }
+            }
+        }
+        if (supervisorView && operationalRows.isNotEmpty()) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = PromisePanel)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Prioridad operativa por cobrador", color = PromiseGold, fontWeight = FontWeight.Bold)
+                        operationalRows.forEach { row ->
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(row.collectorId, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text("Abiertas: ${row.totalOpen} · Vencidas: ${row.overdue} · Hoy: ${row.dueToday} · Futuras: ${row.upcoming}", color = PromiseMuted, fontSize = 12.sp)
+                                listOf("DOP", "USD", "EUR").forEach { currency ->
+                                    val overdue = row.overdueMinorByCurrency[currency] ?: 0L
+                                    val open = row.openMinorByCurrency[currency] ?: 0L
+                                    if (open > 0L) Text("$currency · Abierto: ${BigDecimal.valueOf(open, 2).setScale(2, RoundingMode.HALF_UP)} · Vencido: ${BigDecimal.valueOf(overdue, 2).setScale(2, RoundingMode.HALF_UP)}", color = PromiseGold, fontSize = 11.sp)
+                                }
+                            }
+                            Divider(color = PromiseMuted.copy(alpha = 0.35f))
+                        }
                     }
                 }
             }

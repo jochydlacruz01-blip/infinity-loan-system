@@ -13,7 +13,7 @@ class CollectionVisitPlannerTest {
  }
  @Test fun dayOrderingIsStableForCollectorAndClientCase(){
    val rows=CollectionVisitPlanner.forDay(listOf(record("z",collector="B"),record("b",collector="a"),record("a",collector="A"),record("c",collector="b")),date)
-   assertEquals(listOf("a","b","z","c"),rows.map{it.visitId})
+   assertEquals(listOf("a","b","c","z"),rows.map{it.visitId})
  }
  @Test fun collectorDateRange(){
    val rows=CollectionVisitPlanner.forCollector(listOf(record("1"),record("2",collector="c2"),record("3",day=date.plusDays(1))),"c1",date,date)

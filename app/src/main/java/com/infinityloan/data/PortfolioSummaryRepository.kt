@@ -20,9 +20,7 @@ class PortfolioSummaryRepository(
         combine(loans.observeAll(), installments.observeAll()) { loanRows, installmentRows ->
             val loanById = loanRows.associateBy { it.id }
             val installmentRecords = installmentRows.map { row ->
-                val loan = requireNotNull(loanById[row.loanId]) {
-                    "Una cuota no tiene préstamo asociado"
-                }
+                val loan = requireNotNull(loanById[row.loanId]) { "Una cuota no tiene préstamo asociado" }
                 PortfolioSummaryMapper.toRecord(row, loan.currency)
             }
             PortfolioSummary.build(
@@ -36,9 +34,7 @@ class PortfolioSummaryRepository(
         combine(loans.observeAll(), installments.observeAll(), asOfDate) { loanRows, installmentRows, date ->
             val loanById = loanRows.associateBy { it.id }
             val installmentRecords = installmentRows.map { row ->
-                val loan = requireNotNull(loanById[row.loanId]) {
-                    "Una cuota no tiene préstamo asociado"
-                }
+                val loan = requireNotNull(loanById[row.loanId]) { "Una cuota no tiene préstamo asociado" }
                 PortfolioSummaryMapper.toRecord(row, loan.currency)
             }
             PortfolioSummary.build(
@@ -56,18 +52,14 @@ internal object PortfolioSummaryMapper {
         outstandingPrincipalMinor = loan.balanceMinor
     )
 
-    fun toRecord(
-        installment: LoanInstallmentEntity,
-        currency: String
-    ): PortfolioInstallmentRecord {
-        val paidMinor = listOf(
-            installment.paidLateFeeMinor,
-            installment.paidChargesMinor,
+    fun toRecord(installment: LoanInstallmentEntity, currency: String): PortfolioInstallmentRecord {
+        // Late fees and extra charges are separate contract items, not part of totalMinor.
+        val paidScheduledMinor = Math.addExact(
             installment.paidInterestMinor,
             installment.paidPrincipalMinor
-        ).fold(0L) { total, amount -> Math.addExact(total, amount) }
-        val unpaidMinor = Math.subtractExact(installment.totalMinor, paidMinor)
-        require(unpaidMinor >= 0L) { "Los pagos aplicados superan el total de la cuota" }
+        )
+        val unpaidMinor = Math.subtractExact(installment.totalMinor, paidScheduledMinor)
+        require(unpaidMinor >= 0L) { "Los pagos aplicados superan el total programado de la cuota" }
         return PortfolioInstallmentRecord(
             currency = currency,
             dueDate = LocalDate.parse(installment.dueDate),

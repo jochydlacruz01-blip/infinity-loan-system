@@ -20,7 +20,7 @@ class CollectorDailyWorkloadBuilderTest {
     @Test fun excludesOtherDatesAndCancelledIds() {
         val other=visit("other").copy(plannedDate=day.plusDays(1))
         val rows=CollectorDailyWorkloadBuilder.build(listOf(other,visit("cancel",status=CollectionVisitStatus.CANCELLED)),day)
-        assertTrue(rows.isEmpty())
+        assertEquals(1,rows.size); assertEquals(0,rows.single().total); assertEquals(1,rows.single().cancelled)
     }
     @Test fun duplicateIdsAndInvalidCapacityAreRejected() {
         assertThrows(IllegalArgumentException::class.java){CollectorDailyWorkloadBuilder.build(listOf(visit("x"),visit("x")),day)}

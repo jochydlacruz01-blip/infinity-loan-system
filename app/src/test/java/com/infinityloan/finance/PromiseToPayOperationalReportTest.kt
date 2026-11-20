@@ -15,11 +15,11 @@ class PromiseToPayOperationalReportTest {
    p("4","a","2026-11-19",amount=50),
    p("5","a","2026-11-18",amount=500,status=PromiseToPayStatus.BROKEN)
   ),LocalDate.parse("2026-11-20"))
-  assertEquals(listOf("a","b"),result.map{it.collectorId})
-  val b=result[1]
+  assertEquals(listOf("b","a"),result.map{it.collectorId})
+  val b=result[0]
   assertEquals(1,b.overdue);assertEquals(1,b.dueToday);assertEquals(1,b.upcoming);assertEquals(3,b.totalOpen)
   assertEquals(200L,b.overdueMinorByCurrency["DOP"]);assertEquals(300L,b.openMinorByCurrency["USD"]);assertEquals(400L,b.openMinorByCurrency["EUR"])
-  assertEquals(1,result[0].overdue)
+  assertEquals(1,result[1].overdue)
  }
  @Test fun duplicatePromiseIdsRejected(){
   try { PromiseToPayOperationalReport.build(listOf(p("x","a","2026-11-19"),p("x","b","2026-11-20")),LocalDate.parse("2026-11-20"));fail() }

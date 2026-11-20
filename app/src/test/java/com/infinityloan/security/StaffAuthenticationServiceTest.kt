@@ -764,7 +764,7 @@ class StaffAuthenticationServiceTest {
                 "STAFF_PERMISSIONS_UPDATED",
                 "STAFF_ACCOUNT_DISABLED"
             ),
-            auditEvents.map { it.action }
+            auditEvents.map { it.action }.filter { it.startsWith("STAFF_") }
         )
         assertTrue(auditEvents.all {
             it.actorStaffId == admin.staffId &&

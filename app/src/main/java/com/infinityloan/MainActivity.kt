@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.infinityloan.data.*
 import com.infinityloan.finance.AgingBucket
+import com.infinityloan.finance.CollectionPriority
+import com.infinityloan.finance.CollectionPriorityRecord
 import com.infinityloan.finance.LoanScheduleGenerator
 import com.infinityloan.finance.MinorUnitTotals
 import com.infinityloan.finance.OverdueBalance
@@ -753,6 +755,15 @@ private fun ReportsSummaryScreen(
     val agingSummary by remember(db, businessDate) {
         PortfolioAgingRepository(db.loans(), db.installments()).observe(businessDate)
     }.collectAsState(initial = emptyList())
+    val collectionPriority = remember(loans, installments, businessDate) {
+        val loanById = loans.associateBy { it.id }
+        CollectionPriority.build(installments.mapNotNull { row ->
+            val loan = loanById[row.loanId] ?: return@mapNotNull null
+            val unpaid = Math.subtractExact(row.totalMinor, Math.addExact(row.paidPrincipalMinor, row.paidInterestMinor))
+            CollectionPriorityRecord(loan.id, loan.clientId, loan.currency, LocalDate.parse(row.dueDate), unpaid)
+        }, businessDate)
+    }
+    val clientById = remember(clients) { clients.associateBy { it.id } }
     var cashSummary by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(db) {
         db.cashSessions().observeSessions().collect { rows ->
@@ -829,6 +840,27 @@ private fun ReportsSummaryScreen(
                     bucket.bucket.label + ": " + bucket.installmentCount + " cuotas · " + money(bucket.unpaidMinor) + " " + aging.currency
                 }
                 DataCard("Vencimiento · " + aging.currency, bucketLines + "\nTotal vencido: " + money(aging.totalOverdueMinor) + " " + aging.currency)
+            }
+        }
+        item { Text("PRIORIDAD DE COBRO", color = Gold, fontWeight = FontWeight.Bold) }
+        if (collectionPriority.isEmpty()) {
+            item { DataCard("Cobranza", "No hay cuotas vencidas pendientes que requieran gestión.") }
+        } else {
+            items(collectionPriority.take(100), key = { "priority-" + it.loanId + "-" + it.dueDate }) { priorityItem ->
+                val client = clientById[priorityItem.clientId]
+                val priorityLabel = when (priorityItem.level) {
+                    com.infinityloan.finance.CollectionPriorityLevel.CRITICAL -> "CRÍTICA"
+                    com.infinityloan.finance.CollectionPriorityLevel.HIGH -> "ALTA"
+                    com.infinityloan.finance.CollectionPriorityLevel.MEDIUM -> "MEDIA"
+                    com.infinityloan.finance.CollectionPriorityLevel.LOW -> "BAJA"
+                }
+                DataCard(
+                    priorityLabel + " · " + priorityItem.daysOverdue + " días · " + priorityItem.currency,
+                    "Cliente: " + (client?.fullName ?: priorityItem.clientId) +
+                        "\nPréstamo: " + priorityItem.loanId +
+                        "\nVencimiento: " + priorityItem.dueDate +
+                        "\nSaldo vencido: " + money(priorityItem.unpaidMinor) + " " + priorityItem.currency
+                )
             }
         }
         item { Text("CONCILIACIÓN CONSOLIDADA DE CAJA", color = Gold, fontWeight = FontWeight.Bold) }

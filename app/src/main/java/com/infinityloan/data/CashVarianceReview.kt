@@ -75,11 +75,17 @@ class CashVarianceReviewService(
         }
         require(sessionId.isNotBlank()) { "La sesión de caja es obligatoria." }
         require(comment.isNotBlank()) { "La revisión requiere una observación." }
+        require(comment.trim().length <= 1000) {
+            "La observación no puede superar los 1000 caracteres."
+        }
 
         val row = database.auditPersistedCashClosings().rows.firstOrNull { it.sessionId == sessionId }
             ?: throw IllegalArgumentException("La sesión de caja no existe.")
         require(row.issue == null) { "La sesión contiene datos inválidos y no puede aprobarse." }
         require(row.closed) { "Solo se pueden revisar sesiones cerradas." }
+        require(actor.staffId != row.staffId) {
+            "No puedes revisar una diferencia de una sesión de caja propia."
+        }
         val expected = requireNotNull(row.expectedCashMinor)
         val counted = requireNotNull(row.countedCashMinor)
         val variance = requireNotNull(row.varianceMinor)

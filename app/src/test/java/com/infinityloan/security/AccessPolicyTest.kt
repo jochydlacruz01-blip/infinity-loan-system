@@ -93,4 +93,41 @@ class AccessPolicyTest {
         assertFalse(Permission.REPORT_EXPORT in effective)
         assertFalse(Permission.STAFF_VIEW in effective)
     }
+    @Test
+    fun supervisorCanReviewCashVarianceButCashierAndCollectorCannotByDefault() {
+        assertTrue(
+            AccessPolicy.allows(
+                AccessProfile(StaffRole.SUPERVISOR),
+                Permission.CASH_VARIANCE_REVIEW
+            )
+        )
+        assertFalse(
+            AccessPolicy.allows(
+                AccessProfile(StaffRole.CASHIER),
+                Permission.CASH_VARIANCE_REVIEW
+            )
+        )
+        assertFalse(
+            AccessPolicy.allows(
+                AccessProfile(StaffRole.COLLECTOR),
+                Permission.CASH_VARIANCE_REVIEW
+            )
+        )
+    }
+
+    @Test
+    fun cashVarianceReviewPermissionCanBeExplicitlyGrantedOrDenied() {
+        val granted = AccessProfile(
+            StaffRole.CASHIER,
+            grants = setOf(Permission.CASH_VARIANCE_REVIEW)
+        )
+        val denied = AccessProfile(
+            StaffRole.SUPERVISOR,
+            denials = setOf(Permission.CASH_VARIANCE_REVIEW)
+        )
+
+        assertTrue(AccessPolicy.allows(granted, Permission.CASH_VARIANCE_REVIEW))
+        assertFalse(AccessPolicy.allows(denied, Permission.CASH_VARIANCE_REVIEW))
+    }
+
 }

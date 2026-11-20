@@ -950,7 +950,8 @@ private fun HomeScreen(
                             .map { it.totalMinor - it.paidPrincipalMinor - it.paidInterestMinor }
                         "Saldo vencido $currency: ${moneyTotal(amount)} $currency"
                     }
-            )
+            ),
+                modifier = Modifier.clickable { onNavigate(Screen.LOANS) }
         }
         item {
             Text("RESUMEN EJECUTIVO", color = Gold, fontWeight = FontWeight.Bold)

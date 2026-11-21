@@ -800,7 +800,8 @@ private fun AuthenticatedInfinityApp(
                             ?: error("Abre primero una caja en ${loan.currency} para registrar este cobro.")
                         val postResult = db.postCashLoanPayment(
                             PaymentEntity(operationId, loanId, minor, reference.trim()),
-                            cashSession.sessionId
+                            cashSession.sessionId,
+                            session.staffId
                         )
                         if (postResult == PaymentPostResult.POSTED) {
                             db.auditLogs().insert(AuditLogEntity(

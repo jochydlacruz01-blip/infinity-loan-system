@@ -53,4 +53,20 @@ class FinancialLedgerAuditTest {
   )
   assertTrue(findings.any{it.type==LedgerIssueType.INSTALLMENT_STATUS_MISMATCH})
  }
+ @Test fun feeOnlyPaymentRequiresPartialStatus(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",1000,1000)),
+   listOf(LedgerInstallment("L1",1,1000,100,1100,0,0,"PENDING",paidLateFeeMinor=25)),
+   emptyList(),emptyList(),emptyList()
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.INSTALLMENT_STATUS_MISMATCH})
+ }
+ @Test fun feeOnlyPaymentWithPartialStatusIsConsistent(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",1000,1000)),
+   listOf(LedgerInstallment("L1",1,1000,100,1100,0,0,"PARTIAL",paidChargesMinor=15)),
+   emptyList(),emptyList(),emptyList()
+  )
+  assertTrue(findings.none{it.type==LedgerIssueType.INSTALLMENT_STATUS_MISMATCH})
+ }
 }

@@ -26,4 +26,15 @@ class FinancialLedgerAuditTest {
   val findings=FinancialLedgerAudit.audit(listOf(LedgerLoan("L1",10000,9000)),listOf(LedgerInstallment("L1",1,10000,500,10500,1000,0,"PARTIAL")),listOf(LedgerPayment("P1","L1",1000)),listOf(LedgerAllocation("P1","L1",1,0,0,0,1000)),emptyList())
   assertTrue(findings.isEmpty())
  }
+ @Test fun reversedPaymentIsExcludedFromActiveLedgerAllocationChecks(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",1000,1000)),
+   listOf(LedgerInstallment("L1",1,1000,0,1000,0,0,"PENDING")),
+   listOf(LedgerPayment("P-REV","L1",500)),
+   emptyList(),emptyList(),setOf("P-REV")
+  )
+  assertTrue(findings.none{it.type==LedgerIssueType.PAYMENT_WITHOUT_ALLOCATION})
+  assertTrue(findings.none{it.type==LedgerIssueType.ALLOCATION_SUM_MISMATCH})
+ }
+
 }

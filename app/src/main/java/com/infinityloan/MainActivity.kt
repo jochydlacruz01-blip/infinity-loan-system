@@ -442,7 +442,6 @@ private fun AuthenticatedInfinityApp(
         }
     }
 )
-                        Screen.LOANS -> LoansScreen(loans, clients, installments)
                     financialProfileClient?.let { profileClient ->
                         AlertDialog(
                             onDismissRequest = { financialProfileClient = null },
@@ -475,6 +474,7 @@ private fun AuthenticatedInfinityApp(
                         )
                     }
 
+                        Screen.LOANS -> LoansScreen(loans, clients, installments)
                         Screen.PAYMENTS -> PaymentsScreen(
                             db = db,
                             payments = payments,

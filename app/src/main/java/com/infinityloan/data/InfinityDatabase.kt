@@ -731,6 +731,13 @@ interface PaymentAllocationDao {
     suspend fun findForPayment(operationId: String): List<PaymentAllocationEntity>
 }
 
+data class PromiseEligiblePayment(
+    val operationId: String,
+    val amountMinor: Long,
+    val remainingMinor: Long,
+    val createdAt: Long
+)
+
 @Dao
 interface PaymentDao {
     @Query("SELECT * FROM payments ORDER BY createdAt DESC")
@@ -738,6 +745,31 @@ interface PaymentDao {
 
     @Query("SELECT * FROM payments WHERE operationId = :operationId LIMIT 1")
     suspend fun findByOperationId(operationId: String): PaymentEntity?
+
+    @Query("""
+        SELECT payments.operationId AS operationId,
+               payments.amountMinor AS amountMinor,
+               payments.amountMinor - COALESCE((
+                   SELECT SUM(promise_payment_links.amountMinor)
+                   FROM promise_payment_links
+                   WHERE promise_payment_links.operationId = payments.operationId
+               ), 0) AS remainingMinor,
+               payments.createdAt AS createdAt
+        FROM payments
+        WHERE payments.loanId = :loanId
+          AND payments.createdAt >= :createdAt
+          AND NOT EXISTS (
+              SELECT 1 FROM payment_reversals
+              WHERE payment_reversals.originalOperationId = payments.operationId
+          )
+          AND payments.amountMinor > COALESCE((
+              SELECT SUM(promise_payment_links.amountMinor)
+              FROM promise_payment_links
+              WHERE promise_payment_links.operationId = payments.operationId
+          ), 0)
+        ORDER BY payments.createdAt DESC, payments.operationId
+    """)
+    fun observeEligibleForPromise(loanId: String, createdAt: Long): Flow<List<PromiseEligiblePayment>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(payment: PaymentEntity): Long

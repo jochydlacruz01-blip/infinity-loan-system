@@ -12,7 +12,9 @@ enum class IdentityIntegrityIssueType {
     PAYMENT_CURRENCY_MISMATCH,
     ALLOCATION_PAYMENT_MISSING,
     ALLOCATION_LOAN_MISMATCH,
-    DUPLICATE_PAYMENT_ID
+    DUPLICATE_PAYMENT_ID,
+    INVALID_INSTALLMENT_NUMBER,
+    DUPLICATE_ALLOCATION
 }
 data class IdentityIntegrityIssue(
     val type: IdentityIntegrityIssueType,
@@ -45,7 +47,7 @@ object FinancialIdentityIntegrity {
                 issues += IdentityIntegrityIssue(IdentityIntegrityIssueType.PAYMENT_CURRENCY_MISMATCH,payment.operationId,"Payment currency differs from the linked loan.")
             }
         }
-        allocations.sortedWith(compareBy<IdentityAllocation>{it.operationId}.thenBy{it.loanId}.thenBy{it.installmentNumber}).forEach { allocation ->
+        allocations.groupBy { Triple(it.operationId, it.loanId, it.installmentNumber) }.filter { it.value.size > 1 }.entries.sortedBy { it.key.toString() }.forEach { (key, _) ->\n            issues += IdentityIntegrityIssue(IdentityIntegrityIssueType.DUPLICATE_ALLOCATION, key.first, "Duplicate allocation for installment ${key.third} on loan ${key.second}.")\n        }\n        allocations.filter { it.installmentNumber <= 0 }.sortedBy { it.operationId }.forEach { allocation ->\n            issues += IdentityIntegrityIssue(IdentityIntegrityIssueType.INVALID_INSTALLMENT_NUMBER, allocation.operationId, "Allocation references a non-positive installment number.")\n        }\n        allocations.sortedWith(compareBy<IdentityAllocation>{it.operationId}.thenBy{it.loanId}.thenBy{it.installmentNumber}).forEach { allocation ->
             val payment=paymentById[allocation.operationId].orEmpty()
             if(payment.isEmpty()) issues += IdentityIntegrityIssue(IdentityIntegrityIssueType.ALLOCATION_PAYMENT_MISSING,allocation.operationId,"Allocation references a missing payment.")
             else if(payment.none { it.loanId==allocation.loanId }) issues += IdentityIntegrityIssue(IdentityIntegrityIssueType.ALLOCATION_LOAN_MISMATCH,allocation.operationId,"Allocation loan differs from the payment's loan.")

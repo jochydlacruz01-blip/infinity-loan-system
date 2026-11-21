@@ -872,4 +872,75 @@ class CashPaymentIntegrationTest {
         assertTrue(database.auditLogs().findByActor("ADMIN-001", 10).isEmpty())
     }
 
+
+    @Test
+    fun cashVarianceReviewRejectsOpenSessionsAndZeroVarianceWithoutAuditWrites() = runBlocking {
+        val openSessionId = "CASH-VARIANCE-OPEN"
+        val balancedSessionId = "CASH-VARIANCE-BALANCED"
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = openSessionId,
+                staffId = "CASHIER-TEST",
+                currency = "DOP",
+                openingMinor = 1000L,
+                openedAt = 400L
+            )
+        )
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = balancedSessionId,
+                staffId = "CASHIER-TEST",
+                currency = "DOP",
+                openingMinor = 2000L,
+                openedAt = 401L
+            )
+        )
+        database.closeCashSession(
+            balancedSessionId,
+            countedMinor = 2000L,
+            closedAt = 402L
+        )
+
+        val authentication = com.infinityloan.security.StaffAuthenticationService(database.staffAccounts())
+        val service = CashVarianceReviewService(database, authentication)
+        val administrator = com.infinityloan.security.StaffSession(
+            staffId = "ADMIN-001",
+            username = "admin0",
+            displayName = "Administrador de prueba",
+            profile = com.infinityloan.security.AccessProfile(
+                com.infinityloan.security.StaffRole.ADMINISTRATOR
+            )
+        )
+
+        var openSessionRejected = false
+        try {
+            service.review(
+                administrator,
+                openSessionId,
+                CashVarianceDecision.APPROVED,
+                "No debe revisarse una sesión abierta."
+            )
+        } catch (_: IllegalArgumentException) {
+            openSessionRejected = true
+        }
+        assertTrue(openSessionRejected)
+
+        var balancedSessionRejected = false
+        try {
+            service.review(
+                administrator,
+                balancedSessionId,
+                CashVarianceDecision.APPROVED,
+                "No existe diferencia que revisar."
+            )
+        } catch (_: IllegalArgumentException) {
+            balancedSessionRejected = true
+        }
+        assertTrue(balancedSessionRejected)
+
+        assertTrue(database.cashVarianceReviews().findForSession(openSessionId).isEmpty())
+        assertTrue(database.cashVarianceReviews().findForSession(balancedSessionId).isEmpty())
+        assertTrue(database.auditLogs().findByActor("ADMIN-001", 10).isEmpty())
+    }
+
 }

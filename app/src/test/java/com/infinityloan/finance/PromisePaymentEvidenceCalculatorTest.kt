@@ -2,7 +2,6 @@ package com.infinityloan.finance
 
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class PromisePaymentEvidenceCalculatorTest {
@@ -37,10 +36,9 @@ class PromisePaymentEvidenceCalculatorTest {
         assertEquals(0L, result.remainingMinor)
     }
 
-    @Test fun manualKeptWithoutFullEvidenceIsRejected() {
-        assertThrows(IllegalArgumentException::class.java) {
-            PromisePaymentEvidenceCalculator.evaluate(input(linked = 9_999L, status = "KEPT"), today)
-        }
+    @Test fun historicalKeptWithoutFullEvidenceIsMarkedUnverified() {
+        assertEquals(PromiseEvidenceState.UNVERIFIED,
+            PromisePaymentEvidenceCalculator.evaluate(input(status = "KEPT"), today).state)
     }
 
     @Test fun linkedAmountCannotExceedPromise() {

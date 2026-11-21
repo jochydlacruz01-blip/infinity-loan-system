@@ -33,7 +33,7 @@ suspend fun InfinityDatabase.reconcilePersistedCashPayments(): PersistedCashReco
             linkedPaymentOperationId = row.operationId.removePrefix("CASH-PAY-"),
             amountMinor = row.amountMinor,
             currency = row.sessionCurrency,
-            type = row.type
+            type = if (row.type == "CASH_IN") "IN" else row.type
         )
     }
     return PersistedCashReconciliationReport(

@@ -24,10 +24,12 @@ class CollectionVisitPerformanceTest {
         assertEquals(listOf("a","b"),result.map{it.collectorId})
         val a=result[0]
         assertEquals(3,a.planned); assertEquals(2,a.paid); assertEquals(1,a.unreachable)
-        assertEquals(66,a.completionRatePercent)
+        assertEquals(100,a.completionRatePercent)
+        assertEquals(66,a.paidRatePercent)
         val b=result[1]
         assertEquals(2,b.planned); assertEquals(1,b.paid); assertEquals(1,b.promises); assertEquals(1,b.cancelled)
-        assertEquals(50,b.completionRatePercent)
+        assertEquals(100,b.completionRatePercent)
+        assertEquals(50,b.paidRatePercent)
     }
 
     @Test fun emptyRangeReturnsEmptyAndInvertedRangeRejected() {
@@ -38,7 +40,9 @@ class CollectionVisitPerformanceTest {
     @Test fun zeroPlannedVisitsDoesNotDivideByZero() {
         val result=CollectionVisitPerformance.summarize(listOf(row("x","c",CollectionVisitStatus.CANCELLED)),day,day)
         assertEquals(0,result.single().planned)
+        assertEquals(0,result.single().completed)
         assertEquals(0,result.single().completionRatePercent)
+        assertEquals(0,result.single().paidRatePercent)
         assertEquals(0,result.single().promiseRatePercent)
     }
 }

@@ -100,6 +100,41 @@ data class PromiseToPayEntity(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(
+    tableName = "promise_payment_links",
+    primaryKeys = ["promiseId", "operationId"],
+    foreignKeys = [
+        ForeignKey(entity = PromiseToPayEntity::class, parentColumns = ["promiseId"], childColumns = ["promiseId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = PaymentEntity::class, parentColumns = ["operationId"], childColumns = ["operationId"], onDelete = ForeignKey.RESTRICT)
+    ],
+    indices = [Index("promiseId"), Index("operationId")]
+)
+data class PromisePaymentLinkEntity(
+    val promiseId: String,
+    val operationId: String,
+    val amountMinor: Long,
+    val linkedByStaffId: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface PromisePaymentLinkDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(link: PromisePaymentLinkEntity)
+
+    @Query("SELECT COALESCE(SUM(amountMinor), 0) FROM promise_payment_links WHERE promiseId = :promiseId")
+    suspend fun sumForPromise(promiseId: String): Long
+
+    @Query("SELECT COALESCE(SUM(amountMinor), 0) FROM promise_payment_links WHERE operationId = :operationId")
+    suspend fun sumForPayment(operationId: String): Long
+
+    @Query("SELECT * FROM promise_payment_links WHERE promiseId = :promiseId ORDER BY createdAt, operationId")
+    fun observeForPromise(promiseId: String): Flow<List<PromisePaymentLinkEntity>>
+
+    @Query("SELECT * FROM promise_payment_links WHERE promiseId = :promiseId ORDER BY createdAt, operationId")
+    suspend fun findForPromise(promiseId: String): List<PromisePaymentLinkEntity>
+}
+
 @Dao
 interface PromiseToPayDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -991,7 +1026,7 @@ enum class CreditPaymentResult {
         PromiseToPayEntity::class,
         CollectionVisitEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 
@@ -1388,7 +1423,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun cashSessions(): CashSessionDao
     abstract fun paymentReversals(): PaymentReversalDao
     abstract fun cashVarianceReviews(): CashVarianceReviewDao
-    abstract fun promisesToPay(): PromiseToPayDao
+    abstract fun promisesToPay(): PromiseToPayDao\n    abstract fun promisePaymentLinks(): PromisePaymentLinkDao
     abstract fun collectionVisits(): CollectionVisitDao
 
     companion object {
@@ -1716,7 +1751,7 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         installAuditImmutabilityTriggers(db)
@@ -1791,5 +1826,27 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
         database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_collectorId ON collection_visits(collectorId)")
         database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_status ON collection_visits(status)")
         database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_plannedDate ON collection_visits(plannedDate)")
+    }
+}
+
+
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS promise_payment_links (
+                promiseId TEXT NOT NULL,
+                operationId TEXT NOT NULL,
+                amountMinor INTEGER NOT NULL,
+                linkedByStaffId TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                PRIMARY KEY(promiseId, operationId),
+                FOREIGN KEY(promiseId) REFERENCES promises_to_pay(promiseId)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(operationId) REFERENCES payments(operationId)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promise_payment_links_promiseId ON promise_payment_links(promiseId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promise_payment_links_operationId ON promise_payment_links(operationId)")
     }
 }

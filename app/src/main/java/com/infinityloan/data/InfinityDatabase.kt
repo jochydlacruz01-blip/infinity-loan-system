@@ -122,6 +122,9 @@ interface PromisePaymentLinkDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(link: PromisePaymentLinkEntity)
 
+    @Query("SELECT * FROM promise_payment_links ORDER BY createdAt, promiseId, operationId")
+    fun observeAll(): Flow<List<PromisePaymentLinkEntity>>
+
     @Query("SELECT COALESCE(SUM(amountMinor), 0) FROM promise_payment_links WHERE promiseId = :promiseId")
     suspend fun sumForPromise(promiseId: String): Long
 

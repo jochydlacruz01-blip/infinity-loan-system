@@ -24,6 +24,12 @@ import com.infinityloan.data.*
 import com.infinityloan.finance.AgingBucket
 import com.infinityloan.finance.CollectionPriority
 import com.infinityloan.finance.CollectionPriorityRecord
+import com.infinityloan.finance.ClientCollectionRiskBuilder
+import com.infinityloan.finance.ClientCollectionRiskInput
+import com.infinityloan.finance.CollectionOperationalAlertBuilder
+import com.infinityloan.finance.CollectionAlertSeverity
+import com.infinityloan.finance.PromiseToPayRecord
+import com.infinityloan.finance.PromiseToPayStatus
 import com.infinityloan.finance.LoanScheduleGenerator
 import com.infinityloan.finance.MinorUnitTotals
 import com.infinityloan.finance.OverdueBalance
@@ -67,6 +73,7 @@ private enum class Screen(val label: String, val permission: Permission) {
     LOANS("Préstamos y cuotas", Permission.LOAN_VIEW),
     PAYMENTS("Pagos", Permission.PAYMENT_VIEW),
     PROMISES("Promesas de pago", Permission.PROMISE_TO_PAY_VIEW),
+    COLLECTION_ALERTS("Alertas de cobranza", Permission.REPORT_VIEW),
     CASH("Gestión de caja", Permission.CASH_SESSION_OPEN),
     REPORTS("Informes", Permission.REPORT_VIEW),
     SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE),
@@ -274,6 +281,7 @@ private fun AuthenticatedInfinityApp(
     val payments by db.payments().observeAll().collectAsState(initial = emptyList())
     val reversedPaymentIds by db.paymentReversals().observeReversedOperationIds().collectAsState(initial = emptyList())
     val installments by db.installments().observeAll().collectAsState(initial = emptyList())
+    val openPromiseEntities by db.promisesToPay().observeOpen().collectAsState(initial = emptyList())
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -433,6 +441,12 @@ private fun AuthenticatedInfinityApp(
                             }
                         )
                         Screen.PROMISES -> PromiseToPayScreen(db, session, authenticationService, clients, loans, can(Permission.PROMISE_TO_PAY_CREATE), can(Permission.PROMISE_TO_PAY_RESOLVE), onMessage = { message = it })
+                        Screen.COLLECTION_ALERTS -> CollectionAlertsScreen(
+                            clients = clients,
+                            loans = loans,
+                            installments = installments,
+                            promiseEntities = openPromiseEntities
+                        )
                         Screen.CASH -> CashManagementScreen(db, session, can, onMessage = { message = it })
                         Screen.REPORTS -> ReportsSummaryScreen(db, clients, loans, PaymentReporting.effectivePayments(payments, reversedPaymentIds.toSet()), installments)
                         Screen.SETTINGS -> InfoScreen("Configuración", "La autenticación y los perfiles locales están activos en este dispositivo. La sincronización central, copias remotas y controles de producción requieren el backend compartido.")
@@ -896,6 +910,85 @@ private fun ReportsSummaryScreen(
         }
         item {
             DataCard("Alcance y control", "Los informes de cartera y la conciliación de caja se calculan con datos locales del dispositivo. La caja incluye sesiones, movimientos, conteo físico y diferencias de cierre. No constituye conciliación contable externa ni sincronización central; estas requieren backend y controles adicionales.")
+        }
+    }
+}
+
+@Composable
+private fun CollectionAlertsScreen(
+    clients: List<ClientEntity>,
+    loans: List<LoanEntity>,
+    installments: List<LoanInstallmentEntity>,
+    promiseEntities: List<PromiseToPayEntity>
+) {
+    val today = LocalDate.now()
+    val loanById = loans.associateBy { it.id }
+    val overdueInputs = installments.mapNotNull { installment ->
+        val loan = loanById[installment.loanId] ?: return@mapNotNull null
+        val dueDate = runCatching { LocalDate.parse(installment.dueDate) }.getOrNull()
+            ?: return@mapNotNull null
+        val unpaid = OverdueBalance.remainingMinor(
+            installment.totalMinor, installment.paidPrincipalMinor, installment.paidInterestMinor
+        )
+        if (loan.status != "ACTIVE" || dueDate >= today || unpaid <= 0L) return@mapNotNull null
+        ClientCollectionRiskInput(loan.id, loan.clientId, loan.currency, dueDate, unpaid)
+    }
+    val promises = promiseEntities.mapNotNull { entity ->
+        val date = runCatching { LocalDate.parse(entity.promisedDate) }.getOrNull() ?: return@mapNotNull null
+        val status = runCatching { PromiseToPayStatus.valueOf(entity.status) }.getOrNull() ?: return@mapNotNull null
+        PromiseToPayRecord(
+            promiseId = entity.promiseId, loanId = entity.loanId, clientId = entity.clientId,
+            collectorId = entity.collectorId, promisedAmountMinor = entity.promisedAmountMinor,
+            currency = entity.currency, promisedDate = date, status = status, note = entity.note
+        )
+    }
+    val risks = ClientCollectionRiskBuilder.build(overdueInputs, promises, today)
+    val alerts = CollectionOperationalAlertBuilder.build(risks, emptyList(), promises, today)
+    val clientById = clients.associateBy { it.id }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
+        item {
+            Text("CENTRO DE ALERTAS", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Alertas calculadas con cuotas y promesas abiertas guardadas en este dispositivo.", color = Muted, fontSize = 12.sp)
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Kpi("Total", alerts.size.toString(), Color(0xFF174B83), Modifier.weight(1f))
+                Kpi("Críticas", alerts.count { it.severity == CollectionAlertSeverity.CRITICAL }.toString(), Color(0xFF8B3030), Modifier.weight(1f))
+                Kpi("Altas", alerts.count { it.severity == CollectionAlertSeverity.HIGH }.toString(), Color(0xFF76551F), Modifier.weight(1f))
+            }
+        }
+        if (alerts.isEmpty()) {
+            item { EmptyState("Sin alertas pendientes", "No hay cuotas vencidas ni promesas abiertas vencidas o con vencimiento hoy.") }
+        } else {
+            items(alerts, key = { it.alertId }) { alert ->
+                val clientName = clientById[alert.clientId]?.fullName ?: "Cliente no disponible"
+                val severityText = when (alert.severity) {
+                    CollectionAlertSeverity.CRITICAL -> "CRÍTICA"
+                    CollectionAlertSeverity.HIGH -> "ALTA"
+                    CollectionAlertSeverity.MEDIUM -> "MEDIA"
+                }
+                val title = when (alert.type) {
+                    com.infinityloan.finance.CollectionAlertType.CLIENT_CRITICAL -> "Cliente con riesgo crítico"
+                    com.infinityloan.finance.CollectionAlertType.CLIENT_HIGH -> "Cliente con riesgo alto"
+                    com.infinityloan.finance.CollectionAlertType.VISIT_OVERDUE -> "Visita vencida"
+                    com.infinityloan.finance.CollectionAlertType.VISIT_DUE_TODAY -> "Visita para hoy"
+                    com.infinityloan.finance.CollectionAlertType.PROMISE_OVERDUE -> "Promesa de pago vencida"
+                    com.infinityloan.finance.CollectionAlertType.PROMISE_DUE_TODAY -> "Promesa de pago para hoy"
+                }
+                DataCard(
+                    title = "$severityText · $title",
+                    detail = buildString {
+                        append("Cliente: $clientName")
+                        alert.assignedTo?.let { append("\nResponsable: $it") }
+                        alert.dueDate?.let { append("\nFecha: $it") }
+                        if (alert.daysOverdue > 0) append("\nDías de atraso: ${alert.daysOverdue}")
+                    }
+                )
+            }
+        }
+        item {
+            Text("Las alertas no sustituyen la revisión del expediente ni registran pagos automáticamente.", color = Muted, fontSize = 11.sp)
         }
     }
 }

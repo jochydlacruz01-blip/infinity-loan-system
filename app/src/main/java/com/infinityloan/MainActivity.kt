@@ -964,49 +964,33 @@ private fun ReportsSummaryScreen(
         }, businessDate)
     }
     val clientById = remember(clients) { clients.associateBy { it.id } }
-    var cashSummary by remember { mutableStateOf<List<String>>(emptyList()) }
-    LaunchedEffect(db) {
-        combine(
-            db.cashSessions().observeSessions(),
-            db.cashSessions().observeAllMovements()
-        ) { rows, _ -> rows }.collect { rows ->
-            cashSummary = withContext(Dispatchers.IO) {
-                val summaries = mutableListOf<String>()
-                for (currency in currencies) {
-                    val matching = rows.filter { it.currency == currency }
-                    val closed = matching.filter { it.closedAt != null }
-                    val expectedBySession = mutableMapOf<String, Long>()
-                    for (row in matching) {
-                        val movements = db.cashSessions().findMovements(row.sessionId)
-                        var balance = row.openingMinor
-                        for (movement in movements) {
-                            balance = if (movement.type == "CASH_IN") Math.addExact(balance, movement.amountMinor)
-                            else Math.subtractExact(balance, movement.amountMinor)
-                        }
-                        expectedBySession[row.sessionId] = balance
-                    }
-                    var expectedOpen = 0L
-                    var expectedClosed = 0L
-                    for (row in matching) {
-                        val balance = expectedBySession[row.sessionId] ?: row.openingMinor
-                        if (row.closedAt == null) expectedOpen = Math.addExact(expectedOpen, balance)
-                        else expectedClosed = Math.addExact(expectedClosed, balance)
-                    }
-                    var counted = 0L
-                    var variance = 0L
-                    for (row in closed) {
-                        val physical = row.countedClosingMinor ?: 0L
-                        counted = Math.addExact(counted, physical)
-                        variance = Math.addExact(variance, Math.subtractExact(physical, expectedBySession[row.sessionId] ?: row.openingMinor))
-                    }
-                    summaries.add(
-                        currency + " · sesiones: " + matching.size + " (abiertas " + matching.count { it.closedAt == null } + ", cerradas " + closed.size + ")" +
-                            "\nEsperado en cajas abiertas: " + money(expectedOpen) + "\nEsperado de cajas cerradas: " + money(expectedClosed) + "\nConteo físico (cerradas): " + money(counted) +
-                            "\nDiferencia acumulada (cerradas): " + money(variance)
-                    )
-                }
-                summaries
+    val cashReconciliation by remember(db) {
+        db.cashSessions().observeCashReconciliation()
+    }.collectAsState(initial = emptyList())
+    val cashSummary = remember(cashReconciliation, currencies) {
+        currencies.map { currency ->
+            val matching = cashReconciliation.filter { it.currency == currency }
+            val closed = matching.filter { it.closedAt != null }
+            val open = matching.filter { it.closedAt == null }
+            val expectedOpen = open.fold(0L) { total, row ->
+                Math.addExact(total, row.expectedCashMinor)
             }
+            val expectedClosed = closed.fold(0L) { total, row ->
+                Math.addExact(total, row.expectedCashMinor)
+            }
+            val counted = closed.fold(0L) { total, row ->
+                Math.addExact(total, row.countedClosingMinor ?: 0L)
+            }
+            val variance = closed.fold(0L) { total, row ->
+                val physical = row.countedClosingMinor ?: 0L
+                Math.addExact(total, Math.subtractExact(physical, row.expectedCashMinor))
+            }
+            currency + " · sesiones: " + matching.size +
+                " (abiertas " + open.size + ", cerradas " + closed.size + ")" +
+                "\\nEsperado en cajas abiertas: " + money(expectedOpen) +
+                "\\nEsperado de cajas cerradas: " + money(expectedClosed) +
+                "\\nConteo físico (cerradas): " + money(counted) +
+                "\\nDiferencia acumulada (cerradas): " + money(variance)
         }
     }
     LazyColumn(

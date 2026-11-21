@@ -7,8 +7,8 @@ import org.junit.Test
 class CashPaymentReconciliationTest {
     @Test fun linkedOutgoingMovementIsRejectedAsPaymentReceipt() {
         val issues = CashPaymentReconciliation.reconcile(
-            listOf(ReconciliationPayment(\"p-1\", 1200, \"DOP\")),
-            listOf(ReconciliationCashMovement(\"c-1\", \"p-1\", 1200, \"DOP\", \"OUT\"))
+            listOf(ReconciliationPayment("p-1", 1200, "DOP")),
+            listOf(ReconciliationCashMovement("c-1", "p-1", 1200, "DOP", "OUT"))
         )
         assertEquals(1, issues.count { it.type == CashReconciliationIssueType.PAYMENT_MOVEMENT_NOT_IN })
     }

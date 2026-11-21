@@ -843,7 +843,7 @@ interface PaymentDao {
                     principalMinor = toMinor(item.principal),
                     interestMinor = toMinor(item.interest),
                     totalMinor = toMinor(item.total),
-                    remainingPrincipalMinor = toMinor(item.remainingPrincipal)
+                    remainingPrincipalMinor = toMinor(item.principal)
                 )
             }
             val scheduledPrincipal = rows.fold(0L) { total, row ->

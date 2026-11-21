@@ -134,6 +134,8 @@ interface PromisePaymentLinkDao {
 
     @Query("SELECT COALESCE(SUM(amountMinor), 0) FROM promise_payment_links WHERE operationId = :operationId")
     suspend fun sumForPayment(operationId: String): Long
+    @Query("SELECT COUNT(*) FROM promise_payment_links WHERE operationId = :operationId")
+    suspend fun countForPayment(operationId: String): Int
 
     @Query("SELECT * FROM promise_payment_links WHERE promiseId = :promiseId ORDER BY createdAt, operationId")
     fun observeForPromise(promiseId: String): Flow<List<PromisePaymentLinkEntity>>
@@ -1172,7 +1174,7 @@ abstract class InfinityDatabase : RoomDatabase() {
         }
         val payment = payments().findByOperationId(operationId)
             ?: return@withTransaction PaymentReversalResult.PAYMENT_NOT_FOUND
-        if (promisePaymentLinks().sumForPayment(operationId) > 0L) {
+        if (promisePaymentLinks().countForPayment(operationId) > 0) {
             return@withTransaction PaymentReversalResult.PAYMENT_LINKED_TO_PROMISE
         }
         val loan = loans().findById(payment.loanId)

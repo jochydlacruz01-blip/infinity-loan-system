@@ -16,6 +16,8 @@ import com.infinityloan.finance.PromiseToPayStatus
 import com.infinityloan.finance.PromiseToPayRecord
 import com.infinityloan.finance.PromiseToPaySummaryCalculator
 import com.infinityloan.finance.PromiseToPayOperationalReport
+import com.infinityloan.finance.PromisePaymentEvidenceCalculator
+import com.infinityloan.finance.PromiseEvidenceInput
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +50,8 @@ internal fun PromiseToPayScreen(
         else db.promisesToPay().observeForCollector(session.staffId)
     }
     val promises by promiseFlow.collectAsState(initial = emptyList())
+    val linkFlow = remember { db.promisePaymentLinks().observeAll() }
+    val paymentLinks by linkFlow.collectAsState(initial = emptyList())
     val names = remember(clients) { clients.associate { it.id to it.fullName } }
     val summary = remember(promises) {
         PromiseToPaySummaryCalculator.calculate(
@@ -90,7 +94,8 @@ internal fun PromiseToPayScreen(
     val scope = rememberCoroutineScope()
     var createOpen by remember { mutableStateOf(false) }
     var resolving by remember { mutableStateOf<PromiseToPayEntity?>(null) }
-    var closingStatus by remember { mutableStateOf(PromiseToPayStatus.KEPT) }
+    var closingStatus by remember { mutableStateOf(PromiseToPayStatus.BROKEN) }
+    var linking by remember { mutableStateOf<PromiseToPayEntity?>(null) }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
         item {
@@ -98,7 +103,16 @@ internal fun PromiseToPayScreen(
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text("Seguimiento de compromisos", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text("${summary.openCount} abiertas · ${summary.overdueCount} vencidas · ${promises.size} en total", color = PromiseMuted)
-                    Text("${summary.keptCount} cumplidas · ${summary.brokenCount} incumplidas", color = PromiseMuted, fontSize = 12.sp)
+                    val verifiedKept = promises.count { item ->
+                        item.status == "KEPT" && paymentLinks.filter { it.promiseId == item.promiseId }
+                            .fold(0L) { total, link -> Math.addExact(total, link.amountMinor) } >= item.promisedAmountMinor
+                    }
+                    val unverifiedLegacy = promises.count { item ->
+                        item.status == "KEPT" && paymentLinks.filter { it.promiseId == item.promiseId }
+                            .fold(0L) { total, link -> Math.addExact(total, link.amountMinor) } < item.promisedAmountMinor
+                    }
+                    Text("$verifiedKept cumplidas con evidencia · ${summary.brokenCount} incumplidas", color = PromiseMuted, fontSize = 12.sp)
+                    if (unverifiedLegacy > 0) Text("$unverifiedLegacy antiguas sin evidencia conciliada", color = Color(0xFFFFC27A), fontSize = 12.sp)
                     listOf("DOP", "USD", "EUR").forEach { currency ->
                         val openMinor = summary.openMinorByCurrency[currency] ?: 0L
                         val overdueMinor = summary.overdueMinorByCurrency[currency] ?: 0L
@@ -147,11 +161,20 @@ internal fun PromiseToPayScreen(
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(names[p.clientId] ?: "Cliente", color = Color.White, fontWeight = FontWeight.SemiBold)
                     Text("${p.currency} ${BigDecimal.valueOf(p.promisedAmountMinor, 2).setScale(2, RoundingMode.HALF_UP)}", color = PromiseGold, fontWeight = FontWeight.Bold)
-                    Text("Fecha: ${p.promisedDate} · ${p.status}", color = PromiseMuted, fontSize = 12.sp)
+                    val linkedMinor = paymentLinks.filter { it.promiseId == p.promiseId }
+                        .fold(0L) { total, link -> Math.addExact(total, link.amountMinor) }
+                    val evidence = remember(p, linkedMinor) {
+                        PromisePaymentEvidenceCalculator.evaluate(
+                            PromiseEvidenceInput(p.promiseId, p.promisedAmountMinor, LocalDate.parse(p.promisedDate), p.status, linkedMinor),
+                            LocalDate.now()
+                        )
+                    }
+                    Text("Fecha: ${p.promisedDate} · ${evidence.state.name}", color = PromiseMuted, fontSize = 12.sp)
+                    Text("Pago conciliado: ${p.currency} ${BigDecimal.valueOf(linkedMinor, 2).setScale(2, RoundingMode.HALF_UP)} · Pendiente: ${p.currency} ${BigDecimal.valueOf(evidence.remainingMinor, 2).setScale(2, RoundingMode.HALF_UP)}", color = PromiseGold, fontSize = 12.sp)
                     if (p.note.isNotBlank()) Text(p.note, color = PromiseMuted, fontSize = 12.sp)
                     if (p.status == "OPEN" && canResolve) {
                         Row {
-                            TextButton(onClick = { resolving = p; closingStatus = PromiseToPayStatus.KEPT }) { Text("Cumplida", color = PromiseGold) }
+                            TextButton(onClick = { linking = p }) { Text("Vincular pago", color = PromiseGold) }
                             TextButton(onClick = { resolving = p; closingStatus = PromiseToPayStatus.BROKEN }) { Text("Incumplida", color = Color(0xFFFF8A80)) }
                             TextButton(onClick = { resolving = p; closingStatus = PromiseToPayStatus.CANCELLED }) { Text("Cancelar", color = PromiseMuted) }
                         }
@@ -207,6 +230,50 @@ internal fun PromiseToPayScreen(
                 }) { Text(if (busy) "Guardando…" else "Registrar", color = PromiseGold) }
             },
             dismissButton = { TextButton(onClick = { if (!busy) createOpen = false }) { Text("Cancelar") } }
+        )
+    }
+
+    linking?.let { p ->
+        var operationId by remember(p.promiseId) { mutableStateOf("") }
+        var amount by remember(p.promiseId) { mutableStateOf("") }
+        var busy by remember { mutableStateOf(false) }
+        val linkedMinor = paymentLinks.filter { it.promiseId == p.promiseId }
+            .fold(0L) { total, link -> Math.addExact(total, link.amountMinor) }
+        val remainingMinor = (p.promisedAmountMinor - linkedMinor).coerceAtLeast(0L)
+        val parsed = amount.toBigDecimalOrNull()
+        AlertDialog(
+            onDismissRequest = { if (!busy) linking = null },
+            title = { Text("Conciliar pago real") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Pendiente: ${p.currency} ${BigDecimal.valueOf(remainingMinor, 2).setScale(2, RoundingMode.HALF_UP)}")
+                    OutlinedTextField(operationId, { operationId = it }, label = { Text("ID de operación del pago") }, singleLine = true)
+                    OutlinedTextField(amount, { amount = it }, label = { Text("Importe a conciliar (${p.currency})") }, singleLine = true)
+                    Text("El pago debe existir, pertenecer al mismo préstamo y no estar reversado.", color = PromiseMuted, fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy && operationId.isNotBlank() && parsed != null && parsed > BigDecimal.ZERO &&
+                        runCatching { parsed.setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact() <= remainingMinor }.getOrDefault(false),
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            try {
+                                val minor = amount.toBigDecimal().setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact()
+                                withContext(Dispatchers.IO) {
+                                    PromiseToPayService(db, authentication).linkPayment(session, p.promiseId, operationId.trim(), minor)
+                                }
+                                onMessage("Pago conciliado con evidencia del libro contable.")
+                                linking = null
+                            } catch (e: Exception) {
+                                onMessage(e.message ?: "No se pudo conciliar el pago.")
+                            } finally { busy = false }
+                        }
+                    }
+                ) { Text(if (busy) "Conciliando…" else "Conciliar", color = PromiseGold) }
+            },
+            dismissButton = { TextButton(onClick = { if (!busy) linking = null }) { Text("Cancelar") } }
         )
     }
 

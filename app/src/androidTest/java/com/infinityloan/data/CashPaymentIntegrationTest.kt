@@ -817,6 +817,17 @@ class CashPaymentIntegrationTest {
             )
         )
         database.closeCashSession(sessionId, countedMinor = 900L, closedAt = 301L)
+        val ownSessionId = "CASH-SESSION-ADMIN-OWN"
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = ownSessionId,
+                staffId = "ADMIN-001",
+                currency = "DOP",
+                openingMinor = 2000L,
+                openedAt = 302L
+            )
+        )
+        database.closeCashSession(ownSessionId, countedMinor = 1900L, closedAt = 303L)
 
         val authentication = com.infinityloan.security.StaffAuthenticationService(database.staffAccounts())
         val service = CashVarianceReviewService(database, authentication)
@@ -848,14 +859,8 @@ class CashPaymentIntegrationTest {
         var ownerRejected = false
         try {
             service.review(
-                cashier.copy(
-                    staffId = "CASHIER-TEST",
-                    username = "cashier",
-                    profile = com.infinityloan.security.AccessProfile(
-                        com.infinityloan.security.StaffRole.ADMINISTRATOR
-                    )
-                ),
-                sessionId,
+                administrator,
+                ownSessionId,
                 CashVarianceDecision.APPROVED,
                 "Intento de auto revisión"
             )

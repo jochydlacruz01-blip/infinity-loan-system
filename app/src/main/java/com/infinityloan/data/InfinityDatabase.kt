@@ -385,6 +385,14 @@ interface StaffAccountDao {
     """)
     suspend fun getAllSummaries(): List<StaffAccountSummary>
 
+    @Query("""
+        SELECT id, username, displayName, role, isActive, createdAt, lastLoginAt
+        FROM staff_accounts
+        WHERE role = 'COLLECTOR' AND isActive = 1
+        ORDER BY displayName COLLATE NOCASE
+    """)
+    suspend fun getActiveCollectorSummaries(): List<StaffAccountSummary>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(account: StaffAccountEntity)
 

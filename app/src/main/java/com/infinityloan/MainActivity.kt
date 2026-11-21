@@ -442,6 +442,7 @@ private fun AuthenticatedInfinityApp(
 )
                         Screen.LOANS -> LoansScreen(loans, clients, installments)
                         Screen.PAYMENTS -> PaymentsScreen(
+                            db = db,
                             payments = payments,
                             loans = loans,
                             clients = clients,
@@ -1681,6 +1682,7 @@ private fun LoansScreen(loans: List<LoanEntity>, clients: List<ClientEntity>, in
 
 @Composable
 private fun PaymentsScreen(
+    db: InfinityDatabase,
     payments: List<PaymentEntity>,
     loans: List<LoanEntity>,
     clients: List<ClientEntity>,
@@ -1691,6 +1693,9 @@ private fun PaymentsScreen(
     var query by remember { mutableStateOf("") }
     var selectedPayment by remember { mutableStateOf<PaymentEntity?>(null) }
     var reversalReason by remember { mutableStateOf("") }
+    var allocationsForPayment by remember { mutableStateOf<List<PaymentAllocationEntity>?>(null) }
+    var allocationPayment by remember { mutableStateOf<PaymentEntity?>(null) }
+    val scope = rememberCoroutineScope()
 
     val filteredPayments = payments
         .sortedByDescending { it.createdAt }
@@ -1704,6 +1709,7 @@ private fun PaymentsScreen(
             }
 
             payment.reference.contains(query, ignoreCase = true) ||
+            payment.operationId.contains(query, ignoreCase = true) ||
             payment.loanId.contains(query, ignoreCase = true) ||
             (client?.fullName ?: "").contains(query, ignoreCase = true) ||
             (loan?.currency ?: "").contains(query, ignoreCase = true)
@@ -1714,7 +1720,7 @@ private fun PaymentsScreen(
             value = query,
             onValueChange = { query = it },
             label = { Text("Buscar pago") },
-            placeholder = { Text("Cliente, recibo, préstamo o moneda") },
+            placeholder = { Text("Cliente, recibo, ID, préstamo o moneda") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
@@ -1773,12 +1779,27 @@ private fun PaymentsScreen(
                                     ${formatDate(payment.createdAt)}
 
                                     PRÉSTAMO
-                                    ${payment.loanId.take(8)}
+                                    ${payment.loanId}
+
+                                    ID DE OPERACIÓN
+                                    ${payment.operationId}
 
                                     ESTADO
                                     ${if (payment.operationId in reversedPaymentIds) "REVERTIDO CON AUDITORÍA" else "REGISTRADO LOCALMENTE"}
                                 """.trimIndent()
                             )
+                            OutlinedButton(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    allocationPayment = payment
+                                    allocationsForPayment = null
+                                    scope.launch {
+                                        allocationsForPayment = withContext(Dispatchers.IO) {
+                                            db.paymentAllocations().findForPayment(payment.operationId)
+                                        }
+                                    }
+                                }
+                            ) { Text("Ver distribución por cuotas") }
                             if (canReverse && payment.operationId !in reversedPaymentIds) {
                                 Button(
                                     onClick = {
@@ -1795,6 +1816,24 @@ private fun PaymentsScreen(
                 }
             }
         }
+    }
+    val detailPayment = allocationPayment
+    if (detailPayment != null && allocationsForPayment != null) {
+        AlertDialog(
+            onDismissRequest = { allocationPayment = null; allocationsForPayment = null },
+            title = { Text("Distribución · ${detailPayment.reference}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("ID: ${detailPayment.operationId}")
+                    Text("Préstamo: ${detailPayment.loanId}")
+                    if (allocationsForPayment!!.isEmpty()) Text("No hay distribución por cuotas registrada para este pago.")
+                    else allocationsForPayment!!.forEach { allocation ->
+                        Text("Cuota ${allocation.installmentNumber} · Mora: ${money(allocation.lateFeePaidMinor)} · Cargos: ${money(allocation.chargesPaidMinor)} · Intereses: ${money(allocation.interestPaidMinor)} · Capital: ${money(allocation.principalPaidMinor)}")
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { allocationPayment = null; allocationsForPayment = null }) { Text("Cerrar") } }
+        )
     }
     val paymentToReverse = selectedPayment
     if (paymentToReverse != null) {

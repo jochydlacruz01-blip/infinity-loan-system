@@ -595,8 +595,31 @@ private fun AuthenticatedInfinityApp(
                                         Text("Estado: ${profileLoan.status} · Moneda: ${profileLoan.currency}")
                                         Text("Capital original: ${money(profileLoan.principalMinor)} ${profileLoan.currency}")
                                         Text("SALDO DE CAPITAL: ${money(profileLoan.balanceMinor)} ${profileLoan.currency}", color = Gold, fontWeight = FontWeight.Bold)
-                                        val paidPrincipalFromSchedule = loanInstallments.sumOf { it.paidPrincipalMinor }
-                                        Text("Capital abonado según cuotas: ${money(paidPrincipalFromSchedule)} ${profileLoan.currency}")
+                                        val paidPrincipalFromSchedule = runCatching {
+                                            loanInstallments.fold(0L) { total, installment ->
+                                                Math.addExact(total, installment.paidPrincipalMinor)
+                                            }
+                                        }.getOrNull()
+                                        val paidPrincipalFromLoanBalance = runCatching {
+                                            Math.subtractExact(profileLoan.principalMinor, profileLoan.balanceMinor)
+                                        }.getOrNull()
+                                        Text(
+                                            "Capital abonado según cuotas: ${paidPrincipalFromSchedule?.let { money(it) } ?: "No conciliable"} ${profileLoan.currency}"
+                                        )
+                                        Text(
+                                            "Capital abonado según saldo: ${paidPrincipalFromLoanBalance?.let { money(it) } ?: "Saldo inválido"} ${profileLoan.currency}"
+                                        )
+                                        val principalReconciled = paidPrincipalFromSchedule != null &&
+                                            paidPrincipalFromLoanBalance != null &&
+                                            paidPrincipalFromSchedule == paidPrincipalFromLoanBalance
+                                        if (!principalReconciled) {
+                                            Text(
+                                                "ALERTA DE CONCILIACIÓN: el capital abonado en las cuotas no coincide con el saldo del préstamo. No ajustes importes manualmente; requiere revisión del historial.",
+                                                color = Color(0xFFFF6B6B),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp
+                                            )
+                                        }
                                         Text("Cuotas: ${loanInstallments.size} · Pagadas: ${loanInstallments.count { it.status.equals("PAID", true) }} · Pendientes: ${loanInstallments.count { !it.status.equals("PAID", true) }}")
                                         loanInstallments.sortedBy { it.number }.forEach { installment ->
                                             val outstanding = OverdueBalance.remainingMinor(installment.totalMinor, installment.paidPrincipalMinor, installment.paidInterestMinor)

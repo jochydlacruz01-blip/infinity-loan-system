@@ -683,4 +683,56 @@ class CashPaymentIntegrationTest {
         assertEquals(1, staffBDop.openSessionCount)
     }
 
+
+    @Test
+    fun persistedCashAuditQuarantinesUnknownMovementTypesWithoutBreakingValidSessions() = runBlocking {
+        val invalidSessionId = "CASH-AUDIT-INVALID-TYPE"
+        val validSessionId = "CASH-AUDIT-VALID-SESSION"
+
+        database.openCashSession(
+            CashSessionEntity(invalidSessionId, "STAFF-INVALID", "DOP", 1000L, 200L)
+        )
+        // Simula una fila histórica corrupta que pudo quedar de una versión anterior.
+        database.cashSessions().insertMovement(
+            CashMovementEntity(
+                operationId = "CASH-AUDIT-UNKNOWN-MOVEMENT",
+                sessionId = invalidSessionId,
+                type = "UNKNOWN_MOVEMENT_TYPE",
+                amountMinor = 100L,
+                reason = "Registro legado inválido",
+                createdAt = 201L
+            )
+        )
+
+        database.openCashSession(
+            CashSessionEntity(validSessionId, "STAFF-VALID", "DOP", 2500L, 202L)
+        )
+        database.postCashMovement(
+            CashMovementEntity(
+                operationId = "CASH-AUDIT-VALID-IN",
+                sessionId = validSessionId,
+                type = "CASH_IN",
+                amountMinor = 500L,
+                reason = "Ingreso válido",
+                createdAt = 203L
+            )
+        )
+
+        val closingAudit = database.auditPersistedCashClosings()
+        val invalid = closingAudit.rows.single { it.sessionId == invalidSessionId }
+        assertTrue(invalid.issue?.isNotBlank() == true)
+        assertNull(invalid.expectedCashMinor)
+
+        val staffAudit = database.auditPersistedCashByStaff()
+        assertEquals(1, staffAudit.invalidSessionCount)
+        assertTrue(invalidSessionId in staffAudit.invalidSessionIds)
+        assertTrue(staffAudit.staffRows.none { it.staffId == "STAFF-INVALID" })
+
+        val validStaffRow = staffAudit.staffRows.single {
+            it.staffId == "STAFF-VALID" && it.currency == "DOP"
+        }
+        assertEquals(3000L, validStaffRow.expectedCashMinor)
+        assertEquals(0L, validStaffRow.varianceMinor)
+    }
+
 }

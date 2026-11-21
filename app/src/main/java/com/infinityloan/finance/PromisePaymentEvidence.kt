@@ -38,10 +38,7 @@ object PromisePaymentEvidenceCalculator {
         val state = when (input.status) {
             "CANCELLED" -> PromiseEvidenceState.CANCELLED
             "BROKEN" -> PromiseEvidenceState.BROKEN
-            "KEPT" -> {
-                require(remaining == 0L) { "Una promesa cumplida necesita evidencia del monto completo." }
-                PromiseEvidenceState.KEPT
-            }
+            "KEPT" -> if (remaining == 0L) PromiseEvidenceState.KEPT else PromiseEvidenceState.UNVERIFIED
             "OPEN" -> when {
                 remaining == 0L -> PromiseEvidenceState.KEPT
                 input.linkedPaymentMinor > 0L -> PromiseEvidenceState.PARTIAL

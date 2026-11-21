@@ -3,7 +3,7 @@ package com.infinityloan.finance
 import java.time.LocalDate
 
 enum class PromiseEvidenceState {
-    PENDING, PARTIAL, KEPT, OVERDUE, BROKEN, CANCELLED
+    PENDING, PARTIAL, KEPT, OVERDUE, BROKEN, CANCELLED, UNVERIFIED
 }
 
 data class PromiseEvidenceInput(

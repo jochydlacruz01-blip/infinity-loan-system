@@ -1203,25 +1203,58 @@ private fun CollectionVisitsScreen(
     }
 
     if (showLoanPicker) {
+        var loanSearchText by remember { mutableStateOf("") }
+        val activeLoans = loans.filter { it.status.equals("ACTIVE", ignoreCase = true) }
+            .filter { loan ->
+                val clientName = clientById[loan.clientId]?.fullName.orEmpty()
+                clientName.contains(loanSearchText.trim(), ignoreCase = true) ||
+                    loan.id.contains(loanSearchText.trim(), ignoreCase = true)
+            }.sortedBy { clientById[it.clientId]?.fullName.orEmpty() }
         AlertDialog(
             onDismissRequest = { showLoanPicker = false },
-            title = { Text("Seleccionar préstamo") },
+            title = { Text("Seleccionar cliente / préstamo") },
             text = {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val activeLoans = loans.filter { it.status == "ACTIVE" }
-                    if (activeLoans.isEmpty()) {
-                        item { Text("No hay préstamos activos disponibles.") }
-                    } else {
-                        items(activeLoans, key = { it.id }) { loan ->
-                            val name = clientById[loan.clientId]?.fullName ?: "Cliente"
-                            TextButton(
-                                onClick = {
-                                    selectedLoanId = loan.id
-                                    showLoanPicker = false
-                                    scheduleMessage = ""
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("$name · ${loan.currency} · ${loan.id.take(8)}") }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = loanSearchText,
+                        onValueChange = { loanSearchText = it },
+                        label = { Text("Buscar por cliente o ID") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("Préstamos activos: ${activeLoans.size}", color = Muted, fontSize = 12.sp)
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 360.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (activeLoans.isEmpty()) {
+                            item {
+                                Text(
+                                    if (loans.none { it.status.equals("ACTIVE", ignoreCase = true) })
+                                        "No hay préstamos activos disponibles."
+                                    else "No hay resultados para esa búsqueda.",
+                                    color = Muted
+                                )
+                            }
+                        } else {
+                            items(activeLoans, key = { it.id }) { loan ->
+                                val name = clientById[loan.clientId]?.fullName ?: "Cliente no disponible"
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        selectedLoanId = loan.id
+                                        showLoanPicker = false
+                                        scheduleMessage = ""
+                                    },
+                                    color = Panel,
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(name, color = Gold, fontWeight = FontWeight.Bold)
+                                        Text("${loan.currency} · ID ${loan.id.take(8)}", color = Muted, fontSize = 12.sp)
+                                        Text("Tocar para seleccionar", fontSize = 11.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

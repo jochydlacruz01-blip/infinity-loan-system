@@ -1064,4 +1064,74 @@ class PaymentDaoTest {
         assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
         assertEquals(1000L, database.installments().findForLoan(loan.id).single().paidPrincipalMinor)
     }
+
+    @Test
+    fun reversalOfCreditFundedPaymentRestoresCustomerCreditAndLoanAtomically() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente reverso crédito",
+            documentNumber = "TEST-REVERSAL-CREDIT-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id, principalMinor = 10000L, balanceMinor = 10000L,
+            currency = "DOP", periodicRate = "0", periods = 1, method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        val admin = StaffAccountEntity(
+            id = "REVERSAL-CREDIT-ADMIN-001", username = "reversal-credit-admin",
+            displayName = "Admin reverso crédito", role = "ADMINISTRATOR",
+            passwordAlgorithm = "PBKDF2_SHA256_V1", passwordIterations = 210000,
+            passwordSaltBase64 = "c2FsdA==", passwordHashBase64 = "aGFzaA=="
+        )
+        database.staffAccounts().insert(admin)
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "REVERSAL-CREDIT-OPENING-001",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 2000L,
+                reference = "Crédito inicial del cliente"
+            )
+        )
+        val payment = PaymentEntity(
+            operationId = "REVERSAL-CREDIT-PAYMENT-001",
+            loanId = loan.id,
+            amountMinor = 1000L,
+            reference = "Pago financiado con crédito"
+        )
+
+        assertEquals(
+            CreditPaymentResult.POSTED,
+            database.postPaymentWithCustomerCredit(payment)
+        )
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(1000L, database.customerCredits().getBalance(client.id, "DOP"))
+
+        assertEquals(
+            PaymentReversalResult.REVERSED,
+            database.reversePayment(
+                operationId = payment.operationId,
+                actorStaffId = admin.id,
+                actorUsername = admin.username,
+                reason = "Reverso de prueba del crédito aplicado"
+            )
+        )
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(2000L, database.customerCredits().getBalance(client.id, "DOP"))
+        val installment = database.installments().findForLoan(loan.id).single()
+        assertEquals(0L, installment.paidPrincipalMinor)
+        assertEquals("PENDING", installment.status)
+        assertEquals(
+            -1000L,
+            database.customerCredits().findMovement("PAYMENT-CREDIT-${payment.operationId}")?.amountMinor
+        )
+        assertEquals(
+            1000L,
+            database.customerCredits().findMovement("PAYMENT-REVERSAL-RESTORE-${payment.operationId}")?.amountMinor
+        )
+    }
+
 }

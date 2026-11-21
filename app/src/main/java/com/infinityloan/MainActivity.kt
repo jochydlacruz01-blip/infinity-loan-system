@@ -276,7 +276,39 @@ private fun StaffAccessGate(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        message?.let { Text(it, color = Gold) }
+                        financialProfileClient?.let { profileClient ->
+                        AlertDialog(
+                            onDismissRequest = { financialProfileClient = null },
+                            title = { Text("Expediente financiero · ${profileClient.fullName}") },
+                            text = {
+                                Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Documento: ${profileClient.documentNumber}")
+                                    Text("Teléfono: ${profileClient.phone}")
+                                    Text("Dirección: ${profileClient.address}")
+                                    Text("Cliente desde: ${formatDate(profileClient.createdAt)}")
+                                    val clientLoans = loans.filter { it.clientId == profileClient.id }
+                                    Text("PRÉSTAMOS: ${clientLoans.size}", color = Gold, fontWeight = FontWeight.Bold)
+                                    if (clientLoans.isEmpty()) Text("No tiene préstamos registrados.")
+                                    clientLoans.forEach { profileLoan ->
+                                        val loanPayments = payments.filter { it.loanId == profileLoan.id }
+                                        val validPayments = loanPayments.filter { it.operationId !in reversedPaymentIds.toSet() }
+                                        val loanInstallments = installments.filter { it.loanId == profileLoan.id }
+                                        Text("Préstamo ${profileLoan.id}", fontWeight = FontWeight.Bold)
+                                        Text("Estado: ${profileLoan.status} · Moneda: ${profileLoan.currency}")
+                                        Text("Principal: ${money(profileLoan.principalMinor)} · Saldo: ${money(profileLoan.balanceMinor)}")
+                                        Text("Cuotas: ${loanInstallments.size} · Pagadas: ${loanInstallments.count { it.status.equals("PAID", true) }} · Pendientes/vencidas: ${loanInstallments.count { !it.status.equals("PAID", true) }}")
+                                        Text("Pagos válidos: ${validPayments.size} · Total: ${money(validPayments.sumOf { it.amountMinor })} ${profileLoan.currency}")
+                                        validPayments.sortedByDescending { it.createdAt }.take(8).forEach { pay -> Text("• ${formatDate(pay.createdAt)} · ${pay.reference} · ${money(pay.amountMinor)} · Recibo ${pay.operationId}") }
+                                        loanPayments.filter { it.operationId in reversedPaymentIds.toSet() }.forEach { pay -> Text("• REVERSADO · ${formatDate(pay.createdAt)} · ${pay.reference} · ${money(pay.amountMinor)}") }
+                                        Spacer(Modifier.height(4.dp))
+                                    }
+                                }
+                            },
+                            confirmButton = { TextButton(onClick = { financialProfileClient = null }) { Text("Cerrar") } }
+                        )
+                    }
+
+                    message?.let { Text(it, color = Gold) }
                     }
                     Text(
                         "Las credenciales de esta versión se almacenan localmente en este dispositivo. La identidad compartida entre sucursales y dispositivos requiere el backend central.",
@@ -442,38 +474,6 @@ private fun AuthenticatedInfinityApp(
         }
     }
 )
-                    financialProfileClient?.let { profileClient ->
-                        AlertDialog(
-                            onDismissRequest = { financialProfileClient = null },
-                            title = { Text("Expediente financiero · ${profileClient.fullName}") },
-                            text = {
-                                Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("Documento: ${profileClient.documentNumber}")
-                                    Text("Teléfono: ${profileClient.phone}")
-                                    Text("Dirección: ${profileClient.address}")
-                                    Text("Cliente desde: ${formatDate(profileClient.createdAt)}")
-                                    val clientLoans = loans.filter { it.clientId == profileClient.id }
-                                    Text("PRÉSTAMOS: ${clientLoans.size}", color = Gold, fontWeight = FontWeight.Bold)
-                                    if (clientLoans.isEmpty()) Text("No tiene préstamos registrados.")
-                                    clientLoans.forEach { profileLoan ->
-                                        val loanPayments = payments.filter { it.loanId == profileLoan.id }
-                                        val validPayments = loanPayments.filter { it.operationId !in reversedPaymentIds.toSet() }
-                                        val loanInstallments = installments.filter { it.loanId == profileLoan.id }
-                                        Text("Préstamo ${profileLoan.id}", fontWeight = FontWeight.Bold)
-                                        Text("Estado: ${profileLoan.status} · Moneda: ${profileLoan.currency}")
-                                        Text("Principal: ${money(profileLoan.principalMinor)} · Saldo: ${money(profileLoan.balanceMinor)}")
-                                        Text("Cuotas: ${loanInstallments.size} · Pagadas: ${loanInstallments.count { it.status.equals("PAID", true) }} · Pendientes/vencidas: ${loanInstallments.count { !it.status.equals("PAID", true) }}")
-                                        Text("Pagos válidos: ${validPayments.size} · Total: ${money(validPayments.sumOf { it.amountMinor })} ${profileLoan.currency}")
-                                        validPayments.sortedByDescending { it.createdAt }.take(8).forEach { pay -> Text("• ${formatDate(pay.createdAt)} · ${pay.reference} · ${money(pay.amountMinor)} · Recibo ${pay.operationId}") }
-                                        loanPayments.filter { it.operationId in reversedPaymentIds.toSet() }.forEach { pay -> Text("• REVERSADO · ${formatDate(pay.createdAt)} · ${pay.reference} · ${money(pay.amountMinor)}") }
-                                        Spacer(Modifier.height(4.dp))
-                                    }
-                                }
-                            },
-                            confirmButton = { TextButton(onClick = { financialProfileClient = null }) { Text("Cerrar") } }
-                        )
-                    }
-
                         Screen.LOANS -> LoansScreen(loans, clients, installments)
                         Screen.PAYMENTS -> PaymentsScreen(
                             db = db,

@@ -241,7 +241,12 @@ internal fun PromiseToPayScreen(
     linking?.let { p ->
         var operationId by remember(p.promiseId) { mutableStateOf("") }
         var amount by remember(p.promiseId) { mutableStateOf("") }
+        var paymentMenuExpanded by remember(p.promiseId) { mutableStateOf(false) }
         var busy by remember { mutableStateOf(false) }
+        val eligiblePaymentsFlow = remember(p.promiseId) {
+            db.payments().observeEligibleForPromise(p.loanId, p.createdAt)
+        }
+        val eligiblePayments by eligiblePaymentsFlow.collectAsState(initial = emptyList())
         val linkedMinor = paymentLinks.filter { it.promiseId == p.promiseId }
             .fold(0L) { total, link -> Math.addExact(total, link.amountMinor) }
         val remainingMinor = (p.promisedAmountMinor - linkedMinor).coerceAtLeast(0L)
@@ -252,7 +257,42 @@ internal fun PromiseToPayScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Pendiente: ${p.currency} ${BigDecimal.valueOf(remainingMinor, 2).setScale(2, RoundingMode.HALF_UP)}")
-                    OutlinedTextField(operationId, { operationId = it }, label = { Text("ID de operación del pago") }, singleLine = true)
+                    ExposedDropdownMenuBox(
+                        expanded = paymentMenuExpanded,
+                        onExpandedChange = { paymentMenuExpanded = !paymentMenuExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = eligiblePayments.firstOrNull { it.operationId == operationId }?.let {
+                                "${it.operationId.take(12)}… · Disponible ${BigDecimal.valueOf(it.remainingMinor, 2).setScale(2, RoundingMode.HALF_UP)}"
+                            } ?: if (operationId.isBlank()) "Seleccionar pago registrado" else operationId,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Pago del libro contable") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(paymentMenuExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = paymentMenuExpanded,
+                            onDismissRequest = { paymentMenuExpanded = false }
+                        ) {
+                            eligiblePayments.forEach { payment ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text("${payment.operationId.take(12)}… · Disponible ${BigDecimal.valueOf(payment.remainingMinor, 2).setScale(2, RoundingMode.HALF_UP)}")
+                                    },
+                                    onClick = {
+                                        operationId = payment.operationId
+                                        val suggestedMinor = minOf(payment.remainingMinor, remainingMinor)
+                                        amount = BigDecimal.valueOf(suggestedMinor, 2).stripTrailingZeros().toPlainString()
+                                        paymentMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    if (eligiblePayments.isEmpty()) {
+                        Text("No hay pagos elegibles sin reverso y con saldo disponible para este préstamo.", color = PromiseMuted, fontSize = 11.sp)
+                    }
                     OutlinedTextField(amount, { amount = it }, label = { Text("Importe a conciliar (${p.currency})") }, singleLine = true)
                     Text("El pago debe existir, pertenecer al mismo préstamo y no estar reversado.", color = PromiseMuted, fontSize = 11.sp)
                 }

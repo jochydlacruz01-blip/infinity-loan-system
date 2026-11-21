@@ -866,6 +866,70 @@ class PaymentDaoTest {
     }
 
     @Test
+    fun creditUsedBeforeInstallmentDueDateRemainsAvailableUntilContractualDueDate() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente crédito anticipado",
+            documentNumber = "CREDIT-ADVANCE-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0.00",
+            periods = 1,
+            method = "FRENCH"
+        )
+        database.loans().insert(loan)
+        database.installments().insertAll(
+            listOf(
+                LoanInstallmentEntity(
+                    loanId = loan.id,
+                    number = 1,
+                    dueDate = LocalDate.now().plusDays(5).toString(),
+                    principalMinor = 10000L,
+                    interestMinor = 0L,
+                    totalMinor = 10000L,
+                    remainingPrincipalMinor = 10000L
+                )
+            )
+        )
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "CREDIT-ADVANCE-OPENING-001",
+                clientId = client.id,
+                loanId = loan.id,
+                currency = "DOP",
+                amountMinor = 5000L,
+                reference = "Crédito disponible antes del vencimiento"
+            )
+        )
+
+        val payment = PaymentEntity(
+            operationId = "CREDIT-ADVANCE-PAYMENT-001",
+            loanId = loan.id,
+            amountMinor = 1500L,
+            reference = "Aplicación anticipada de crédito"
+        )
+        val result = database.postPaymentWithCustomerCredit(payment)
+
+        assertEquals(CreditPaymentResult.POSTED, result)
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(5000L, database.customerCredits().getBalance(client.id, "DOP"))
+        assertEquals(0, database.paymentAllocations().findForPayment(payment.operationId).size)
+        assertEquals(payment.operationId, database.payments().findByOperationId(payment.operationId)?.operationId)
+
+        val installment = database.installments().findForLoan(loan.id).single()
+        assertEquals(0L, installment.paidPrincipalMinor)
+        assertEquals(10000L, installment.remainingPrincipalMinor)
+        assertEquals("PENDING", installment.status)
+    }
+
+    @Test
     fun creditDebitConflictRollsBackPaymentAndLoanChanges() = runBlocking {
         val client = ClientEntity(
             fullName = "Cliente atomicidad crédito",

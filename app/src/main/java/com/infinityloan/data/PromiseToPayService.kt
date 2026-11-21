@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.infinityloan.finance.PromiseToPayRecord
 import com.infinityloan.finance.PromiseToPayStatus
 import com.infinityloan.finance.PromiseToPayWorkflow
+import com.infinityloan.security.StaffRole
 import com.infinityloan.security.Permission
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffSession
@@ -67,6 +68,40 @@ class PromiseToPayService(
         return promise
     }
 
+    /** Links a posted ledger payment as explicit promise fulfillment evidence. */
+    suspend fun linkPayment(actor: StaffSession, promiseId: String, operationId: String, amountMinor: Long): PromisePaymentLinkEntity {
+        require(authentication.isSessionValid(actor)) { "La sesión ha caducado." }
+        require(authentication.hasPermission(actor, Permission.PROMISE_TO_PAY_RESOLVE)) { "No tienes permiso para conciliar promesas de pago." }
+        require(amountMinor > 0L) { "El importe vinculado debe ser mayor que cero." }
+        return database.withTransaction {
+            val promise = database.promisesToPay().findById(promiseId) ?: throw IllegalArgumentException("La promesa no existe.")
+            require(promise.status == PromiseToPayStatus.OPEN.name) { "Solo se pueden conciliar promesas abiertas." }
+            if (actor.profile.role == StaffRole.COLLECTOR || actor.profile.role == StaffRole.CASHIER) {
+                require(promise.collectorId == actor.staffId) { "Solo puedes conciliar las promesas que registraste." }
+            }
+            val payment = database.payments().findByOperationId(operationId) ?: throw IllegalArgumentException("El pago no existe en el libro contable.")
+            require(payment.loanId == promise.loanId) { "El pago pertenece a otro préstamo." }
+            require(payment.createdAt >= promise.createdAt) { "El pago fue registrado antes de crear la promesa." }
+            require(database.paymentReversals().findByOriginalOperationId(operationId) == null) { "No se puede vincular un pago reversado." }
+            val loan = database.loans().findById(promise.loanId) ?: throw IllegalArgumentException("El préstamo de la promesa no existe.")
+            require(loan.currency == promise.currency) { "La moneda de la promesa no coincide con el préstamo." }
+            val paymentRemaining = Math.subtractExact(payment.amountMinor, database.promisePaymentLinks().sumForPayment(operationId))
+            require(paymentRemaining >= amountMinor) { "El importe supera el saldo disponible de ese pago." }
+            val linkedToPromise = database.promisePaymentLinks().sumForPromise(promiseId)
+            val promiseRemaining = Math.subtractExact(promise.promisedAmountMinor, linkedToPromise)
+            require(promiseRemaining >= amountMinor) { "El importe supera el saldo pendiente de la promesa." }
+            val link = PromisePaymentLinkEntity(promiseId, operationId, amountMinor, actor.staffId)
+            database.promisePaymentLinks().insert(link)
+            val newLinkedTotal = Math.addExact(linkedToPromise, amountMinor)
+            val fullyKept = newLinkedTotal == promise.promisedAmountMinor
+            if (fullyKept) {
+                val changed = database.promisesToPay().closeOpenPromise(promiseId, PromiseToPayStatus.KEPT.name, promise.note)
+                check(changed == 1) { "No se pudo cerrar la promesa con evidencia de pago." }
+            }
+            database.auditLogs().insert(AuditLogEntity(actorStaffId = actor.staffId, actorUsername = actor.username, action = "PROMISE_PAYMENT_LINKED", targetType = "PROMISE_TO_PAY", targetId = promiseId, details = "operationId=$operationId;amountMinor=$amountMinor;linkedTotal=$newLinkedTotal;fullyKept=$fullyKept"))
+            link
+        }
+    }
     suspend fun resolve(
         actor: StaffSession,
         promiseId: String,
@@ -74,6 +109,9 @@ class PromiseToPayService(
         note: String = ""
     ): Boolean {
         require(status != PromiseToPayStatus.OPEN) { "Estado de cierre inválido." }
+        require(status != PromiseToPayStatus.KEPT) {
+            "Una promesa solo se marca cumplida al vincular pagos reales del libro contable."
+        }
         require(authentication.isSessionValid(actor)) { "La sesión ha caducado." }
         require(authentication.hasPermission(actor, Permission.PROMISE_TO_PAY_RESOLVE)) {
             "No tienes permiso para cerrar promesas de pago."

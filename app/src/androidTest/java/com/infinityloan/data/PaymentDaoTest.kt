@@ -780,6 +780,38 @@ class PaymentDaoTest {
 
 
     @Test
+    @Test
+    fun legacyScheduleStoresRemainingPrincipalPerInstallmentNotRunningLoanBalance() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente calendario legado",
+            documentNumber = "LEGACY-SCHEDULE-PRINCIPAL-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 100000L,
+            balanceMinor = 100000L,
+            currency = "DOP",
+            periodicRate = "0.05",
+            periods = 3,
+            method = "FRENCH",
+            firstDueDate = LocalDate.now().plusDays(10).toString()
+        )
+        database.loans().insert(loan)
+
+        assertEquals(null, database.payments().ensureLegacySchedule(loan))
+
+        val installments = database.installments().findForLoan(loan.id)
+        assertEquals(3, installments.size)
+        assertTrue(installments.all { row ->
+            row.remainingPrincipalMinor == row.principalMinor &&
+                row.paidPrincipalMinor == 0L
+        })
+        assertEquals(100000L, installments.sumOf { it.principalMinor })
+    }
+
     fun futureInstallmentPaymentIsPreservedAsCustomerCredit() = runBlocking {
         val client = ClientEntity(
             fullName = "Cliente pago anticipado",

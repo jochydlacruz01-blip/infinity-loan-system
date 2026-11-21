@@ -711,7 +711,8 @@ private fun AuthenticatedInfinityApp(
     )
 
     if (showPaymentForm) PaymentForm(
-        loans = loans.filter { it.status == "ACTIVE" },
+        loans = loans.filter { it.status.equals("ACTIVE", ignoreCase = true) },
+        clients = clients,
         onDismiss = { showPaymentForm = false },
         onSave = { operationId, loanId, amount, reference ->
             scope.launch {

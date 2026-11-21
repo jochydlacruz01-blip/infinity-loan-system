@@ -1429,4 +1429,104 @@ class PaymentDaoTest {
         )
     }
 
+
+
+    @Test
+    fun cashLoanPaymentPostsFinancialAllocationAndCashReceiptAtomically() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente cobro en caja",
+            documentNumber = "CASH-LOAN-PAYMENT-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0",
+            periods = 1,
+            method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        val session = CashSessionEntity(
+            sessionId = "CASH-LOAN-SESSION-001",
+            staffId = "CASH-LOAN-STAFF-001",
+            currency = "DOP",
+            openingMinor = 2000L,
+            openedAt = 1_800_000_300_000L
+        )
+        database.openCashSession(session)
+
+        val payment = PaymentEntity(
+            operationId = "CASH-LOAN-PAYMENT-OP-001",
+            loanId = loan.id,
+            amountMinor = 2500L,
+            reference = "Recibo integrado caja"
+        )
+        assertEquals(
+            PaymentPostResult.POSTED,
+            database.postCashLoanPayment(payment, session.sessionId)
+        )
+
+        assertEquals(7500L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(payment.operationId, database.payments().findByOperationId(payment.operationId)?.operationId)
+        val allocation = database.paymentAllocations().findForPayment(payment.operationId).single()
+        assertEquals(2500L, allocation.principalPaidMinor)
+        val receipt = database.cashSessions().findMovementByOperation("CASH-PAY-" + payment.operationId)
+        assertEquals("CASH_IN", receipt?.type)
+        assertEquals(2500L, receipt?.amountMinor)
+        assertEquals(session.sessionId, receipt?.sessionId)
+        val reconciliation = database.cashSessions().observeCashReconciliation().first()
+            .single { it.sessionId == session.sessionId }
+        assertEquals(4500L, reconciliation.expectedCashMinor)
+    }
+
+    @Test
+    fun cashLoanPaymentWithWrongCurrencyLeavesPaymentAndCashUnchanged() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente moneda distinta",
+            documentNumber = "CASH-LOAN-CURRENCY-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "USD",
+            periodicRate = "0",
+            periods = 1,
+            method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        val session = CashSessionEntity(
+            sessionId = "CASH-LOAN-WRONG-CURRENCY-001",
+            staffId = "CASH-LOAN-STAFF-002",
+            currency = "DOP",
+            openingMinor = 3000L,
+            openedAt = 1_800_000_400_000L
+        )
+        database.openCashSession(session)
+        val payment = PaymentEntity(
+            operationId = "CASH-LOAN-WRONG-CURRENCY-PAY-001",
+            loanId = loan.id,
+            amountMinor = 1000L,
+            reference = "No debe aceptar moneda distinta"
+        )
+
+        assertEquals(
+            PaymentPostResult.INVALID_SCHEDULE,
+            database.postCashLoanPayment(payment, session.sessionId)
+        )
+        assertEquals(null, database.payments().findByOperationId(payment.operationId))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.cashSessions().findMovementByOperation("CASH-PAY-" + payment.operationId))
+        val reconciliation = database.cashSessions().observeCashReconciliation().first()
+            .single { it.sessionId == session.sessionId }
+        assertEquals(3000L, reconciliation.expectedCashMinor)
+    }
+
 }

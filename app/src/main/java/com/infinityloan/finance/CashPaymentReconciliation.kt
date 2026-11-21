@@ -26,7 +26,8 @@ enum class CashReconciliationIssueType {
     ORPHAN_CASH_MOVEMENT,
     INVALID_PAYMENT,
     DUPLICATE_PAYMENT_OPERATION,
-    INVALID_CASH_MOVEMENT
+    INVALID_CASH_MOVEMENT,
+    DUPLICATE_CASH_MOVEMENT_OPERATION_ID
 }
 
 data class CashReconciliationIssue(
@@ -55,6 +56,7 @@ object CashPaymentReconciliation {
                     "Multiple payment records share the same operation id."
                 )
             }
+        movements.groupBy { it.operationId }.filter { it.key.isNotBlank() && it.value.size > 1 }.toSortedMap().forEach { (id, dupes) -> dupes.drop(1).forEach { d -> issues += CashReconciliationIssue(CashReconciliationIssueType.DUPLICATE_CASH_MOVEMENT_OPERATION_ID, d.linkedPaymentOperationId, id, null, d.amountMinor, "Duplicate movement operation id.") } }
         movements.filter { it.operationId.isBlank() || it.amountMinor <= 0L ||
             it.currency !in supportedCurrencies || it.type.isBlank()
         }.sortedBy { it.operationId }.forEach { movement ->
@@ -64,7 +66,7 @@ object CashPaymentReconciliation {
                 null, movement.amountMinor, "Cash movement has invalid operation id, amount, supported currency, or type."
             )
         }
-        val linked = movements.filter { it.linkedPaymentOperationId != null }
+        val linked = movements.filter { !it.linkedPaymentOperationId.isNullOrBlank() }
             .groupBy { it.linkedPaymentOperationId!! }
 
         payments.sortedBy { it.operationId }.forEach { payment ->
@@ -109,15 +111,15 @@ object CashPaymentReconciliation {
                 )
             }
         }
-        movements.filter { it.linkedPaymentOperationId != null &&
+        movements.filter { it.linkedPaymentOperationId.isNullOrBlank() ||
             (paymentById[it.linkedPaymentOperationId]?.size ?: 0) == 0
         }.sortedBy { it.operationId }.forEach { movement ->
             issues += CashReconciliationIssue(
                 CashReconciliationIssueType.ORPHAN_CASH_MOVEMENT,
                 movement.linkedPaymentOperationId, movement.operationId, null,
-                movement.amountMinor, "Cash movement references a payment not present in the reconciliation input."
+                movement.amountMinor, "Cash movement has no valid payment reference in the reconciliation input."
             )
         }
-        return issues
+        return issues.sortedWith(compareBy<CashReconciliationIssue> { it.type.name }.thenBy { it.paymentOperationId ?: "" }.thenBy { it.cashMovementOperationId ?: "" }.thenBy { it.details })
     }
 }

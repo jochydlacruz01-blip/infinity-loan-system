@@ -908,8 +908,8 @@ interface PaymentDao {
         val allInstallments = findInstallments(loan.id)
         if (allInstallments.isEmpty()) return PaymentPostResult.SCHEDULE_NOT_FOUND
 
-        // Apply received payments to the outstanding contractual installments,
-        // including future installments, to ensure each payment has a traceable allocation.
+        // Apply payments only to installments contractually due today or earlier.
+        // Future-dated amounts remain customer credit until their due date.
         val today = LocalDate.now()
         val dueRows = try {
             allInstallments.filter { row ->

@@ -700,6 +700,7 @@ interface LoanInstallmentDao {
             paidChargesMinor = :charges,
             paidInterestMinor = :interest,
             paidPrincipalMinor = :principal,
+            remainingPrincipalMinor = MAX(0, principalMinor - :principal),
             status = :status
         WHERE loanId = :loanId AND number = :number
     """)

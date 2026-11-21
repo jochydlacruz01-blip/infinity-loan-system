@@ -12,6 +12,9 @@ The pure reconciliation engine in `CashPaymentReconciliation` accepts normalized
 - `DUPLICATE_CASH_MOVEMENT`: more than one movement references the same payment.
 - `ORPHAN_CASH_MOVEMENT`: linked payment ID is absent from the supplied payment snapshot.
 - `INVALID_PAYMENT`: payment has a blank ID/currency or a non-positive amount.
+- `INVALID_CASH_MOVEMENT`: invalid cash movement record.
+- `DUPLICATE_CASH_MOVEMENT_OPERATION_ID`: movement operation ID reused.
+- Movements without a payment link are reported as orphan findings.
 
 ## Integration requirements
 
@@ -24,4 +27,4 @@ The pure reconciliation engine in `CashPaymentReconciliation` accepts normalized
 
 ## Limitations
 
-This is a pure model/algorithm with unit tests, not yet an integrated database query, dashboard, reconciliation workflow, or server-side control. It requires the integration steps above to be completed and verified.
+This is a pure model/algorithm with unit tests, the integration adapter remains read-only; dashboard/workflow exposure and transactional snapshot validation remain follow-up work. It requires the integration steps above to be completed and verified.

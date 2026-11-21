@@ -139,4 +139,34 @@ class PaymentAllocationTest {
         assertEquals(0L, result.principalMinor)
         assertEquals(0L, result.unappliedMinor)
     }
+    @Test
+    fun allocationConservesEveryMinorUnitAcrossBoundaryScenarios() {
+        val scenarios = listOf(
+            longArrayOf(1L, 1L, 0L, 0L, 0L),
+            longArrayOf(2L, 1L, 1L, 0L, 0L),
+            longArrayOf(9L, 1L, 2L, 3L, 3L),
+            longArrayOf(Long.MAX_VALUE, Long.MAX_VALUE - 3L, 1L, 1L, 1L),
+            longArrayOf(Long.MAX_VALUE, 0L, 0L, 0L, 0L)
+        )
+
+        scenarios.forEach { values ->
+            val result = PaymentAllocation.allocate(
+                paymentMinor = values[0],
+                lateFeeDueMinor = values[1],
+                chargesDueMinor = values[2],
+                interestDueMinor = values[3],
+                principalDueMinor = values[4]
+            )
+            val distributed = listOf(
+                result.lateFeeMinor,
+                result.chargesMinor,
+                result.interestMinor,
+                result.principalMinor,
+                result.unappliedMinor
+            ).fold(0L, Math::addExact)
+
+            assertEquals(values[0], distributed)
+        }
+    }
+
 }

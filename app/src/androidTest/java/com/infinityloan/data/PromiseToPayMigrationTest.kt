@@ -58,6 +58,8 @@ class PromiseToPayMigrationTest {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE promises_to_pay (promiseId TEXT NOT NULL PRIMARY KEY)")
                 db.execSQL("CREATE TABLE payments (operationId TEXT NOT NULL PRIMARY KEY)")
+                db.execSQL("CREATE TABLE staff_accounts (id TEXT NOT NULL PRIMARY KEY)")
+                db.execSQL("INSERT INTO staff_accounts(id) VALUES ('collector-15')")
                 db.execSQL("INSERT INTO promises_to_pay(promiseId) VALUES ('promise-15')")
                 db.execSQL("INSERT INTO payments(operationId) VALUES ('payment-15')")
             }
@@ -72,7 +74,7 @@ class PromiseToPayMigrationTest {
             db.execSQL("""
                 INSERT INTO promise_payment_links (
                     promiseId, operationId, amountMinor, linkedByStaffId, createdAt
-                ) VALUES ('promise-15', 'payment-15', 5000, 'collector-1', 100)
+                ) VALUES ('promise-15', 'payment-15', 5000, 'collector-15', 100)
             """.trimIndent())
             db.query("SELECT amountMinor FROM promise_payment_links WHERE promiseId = 'promise-15'").use {
                 assertEquals(true, it.moveToFirst())
@@ -83,12 +85,14 @@ class PromiseToPayMigrationTest {
                 while (it.moveToNext()) indexes.add(it.getString(1))
                 assertEquals(true, "index_promise_payment_links_promiseId" in indexes)
                 assertEquals(true, "index_promise_payment_links_operationId" in indexes)
+                assertEquals(true, "index_promise_payment_links_linkedByStaffId" in indexes)
             }
             db.query("PRAGMA foreign_key_list(promise_payment_links)").use {
                 val keys = mutableSetOf<String>()
                 while (it.moveToNext()) keys.add("${it.getString(2)}:${it.getString(3)}:${it.getString(4)}:${it.getString(6)}")
                 assertEquals(true, "promises_to_pay:promiseId:promiseId:RESTRICT" in keys)
                 assertEquals(true, "payments:operationId:operationId:RESTRICT" in keys)
+                assertEquals(true, "staff_accounts:linkedByStaffId:id:RESTRICT" in keys)
             }
         } finally {
             helper.close()

@@ -1895,9 +1895,12 @@ private fun PaymentsScreen(
                                     ${formatDate(payment.createdAt)}
 
                                     PRÉSTAMO
-                                    ${payment.loanId}
+                                    ${loan?.id?.take(8)?.uppercase() ?: "NO DISPONIBLE"}
 
-                                    ID DE OPERACIÓN
+                                    NÚMERO DE OPERACIÓN
+                                    ${payment.operationId.take(8).uppercase()}
+
+                                    REFERENCIA COMPLETA (CONTROL)
                                     ${payment.operationId}
 
                                     ESTADO
@@ -1937,15 +1940,35 @@ private fun PaymentsScreen(
     if (detailPayment != null && allocationsForPayment != null) {
         AlertDialog(
             onDismissRequest = { allocationPayment = null; allocationsForPayment = null },
-            title = { Text("Distribución · ${detailPayment.reference}") },
+            title = { Text("Distribución del pago") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("ID: ${detailPayment.operationId}")
-                    Text("Préstamo: ${detailPayment.loanId}")
+                Column(
+                    modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val paymentLoan = loans.firstOrNull { it.id == detailPayment.loanId }
+                    val paymentClient = clients.firstOrNull { it.id == paymentLoan?.clientId }
+                    Text("CLIENTE", fontWeight = FontWeight.Bold, color = Gold)
+                    Text(paymentClient?.fullName ?: "Cliente no identificado")
+                    Text("Préstamo: ${detailPayment.loanId.take(8).uppercase()} · ${paymentLoan?.currency ?: ""}")
+                    Text("Recibo: ${detailPayment.reference.ifBlank { "Sin referencia" }}")
+                    Text("Importe pagado: ${money(detailPayment.amountMinor)} ${paymentLoan?.currency ?: ""}", fontWeight = FontWeight.Bold)
+                    Divider()
                     if (allocationsForPayment!!.isEmpty()) Text("No hay distribución por cuotas registrada para este pago.")
                     else allocationsForPayment!!.forEach { allocation ->
-                        Text("Cuota ${allocation.installmentNumber} · Mora: ${money(allocation.lateFeePaidMinor)} · Cargos: ${money(allocation.chargesPaidMinor)} · Intereses: ${money(allocation.interestPaidMinor)} · Capital: ${money(allocation.principalPaidMinor)}")
+                        Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("CUOTA ${allocation.installmentNumber}", color = Gold, fontWeight = FontWeight.Bold)
+                                Text("Mora aplicada: ${money(allocation.lateFeePaidMinor)}")
+                                Text("Cargos aplicados: ${money(allocation.chargesPaidMinor)}")
+                                Text("Intereses pagados: ${money(allocation.interestPaidMinor)}")
+                                Text("Capital pagado: ${money(allocation.principalPaidMinor)}")
+                                val applied = allocation.lateFeePaidMinor + allocation.chargesPaidMinor + allocation.interestPaidMinor + allocation.principalPaidMinor
+                                Text("Total aplicado: ${money(applied)} ${paymentLoan?.currency ?: ""}", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
+                    Text("Código técnico de operación: ${detailPayment.operationId}", fontSize = 10.sp, color = Muted)
                 }
             },
             confirmButton = { TextButton(onClick = { allocationPayment = null; allocationsForPayment = null }) { Text("Cerrar") } }

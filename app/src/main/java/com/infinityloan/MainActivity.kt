@@ -455,6 +455,7 @@ private fun AuthenticatedInfinityApp(
                             loans = loans,
                             clients = clients,
                             collectors = activeCollectors,
+                            currentStaffId = session.staffId,
                             canManage = can(Permission.COLLECTION_VISIT_MANAGE),
                             canAssign = session.profile.role in setOf(StaffRole.ADMINISTRATOR, StaffRole.SUPERVISOR),
                             onSchedule = { loanId, date, collectorId ->

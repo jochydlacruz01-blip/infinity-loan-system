@@ -2056,6 +2056,429 @@ private fun LoanForm(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
 }
 
+private fun moneyTotal(amounts: Iterable<Long>): String = MinorUnitTotals.sum(amounts).setScale(2,RoundingMode.HALF_UP).toPlainString()
+private fun money(minor: Long): String = BigDecimal.valueOf(minor,2).setScale(2,RoundingMode.HALF_UP).toPlainString()
+private fun formatDate(timestamp: Long): String = SimpleDateFormat("dd/MM/yyyy HH:mm",Locale.getDefault()).format(Date(timestamp))
+
+@Composable
+private fun StaffManagementScreen(
+    db: InfinityDatabase,
+    session: StaffSession,
+    onMessage: (String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val service = remember(db) { StaffAuthenticationService(
+            db.staffAccounts(),
+            audit = { db.auditLogs().insert(it) },
+            persistStaffChange = { operation -> db.withTransaction { operation() } }
+        ) }
+    var accounts by remember { mutableStateOf(emptyList<StaffAccountSummary>()) }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    var showCreate by remember { mutableStateOf(false) }
+    var editingAccount by remember { mutableStateOf<StaffAccountSummary?>(null) }
+    var selectedPermissions by remember { mutableStateOf<Set<Permission>>(emptySet()) }
+    var savingPermissions by remember { mutableStateOf(false) }
+    var username by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    val canManage = AccessPolicy.allows(session.profile, Permission.STAFF_MANAGE)
+    val canCustomizePermissions = AccessPolicy.allows(session.profile, Permission.ROLE_PERMISSION_MANAGE)
+    val assignableRoles = StaffRole.values().filter { role ->
+        (role != StaffRole.ADMINISTRATOR || session.profile.role == StaffRole.ADMINISTRATOR) &&
+            AccessPolicy.effectivePermissions(AccessProfile(role)).all {
+                AccessPolicy.allows(session.profile, it)
+            }
+    }
+    var selectedRole by remember { mutableStateOf(assignableRoles.firstOrNull() ?: StaffRole.COLLECTOR) }
+
+    LaunchedEffect(db, refreshKey) {
+        accounts = withContext(Dispatchers.IO) { db.staffAccounts().getAllSummaries() }
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Personal y accesos", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text("${accounts.size} cuentas registradas", color = Muted, fontSize = 12.sp)
+                }
+                if (canManage && assignableRoles.isNotEmpty()) {
+                    Button(
+                        onClick = { showCreate = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Navy)
+                    ) { Text("Nuevo empleado") }
+                }
+            }
+        }
+        items(accounts, key = { it.id }) { account ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(account.displayName, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("@${account.username} · ${account.role}", color = Muted, fontSize = 12.sp)
+                        Text(
+                            if (account.isActive) "Activo" else "Desactivado",
+                            color = if (account.isActive) Gold else Muted,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (canManage && account.id != session.staffId &&
+                        (account.role != StaffRole.ADMINISTRATOR.name ||
+                            session.profile.role == StaffRole.ADMINISTRATOR)
+                    ) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        withContext(Dispatchers.IO) {
+                                            db.withTransaction {
+                                                service.setStaffAccountActive(session, account.id, !account.isActive)
+                                                db.auditLogs().insert(
+                                                AuditLogEntity(
+                                                    actorStaffId = session.staffId,
+                                                    actorUsername = session.username,
+                                                    action = if (account.isActive) "STAFF_ACCOUNT_DISABLED" else "STAFF_ACCOUNT_ENABLED",
+                                                    targetType = "STAFF_ACCOUNT",
+                                                    targetId = account.id,
+                                                    details = "username=${account.username}"
+                                                )
+                                            )
+                                            }
+                                        }
+                                        refreshKey++
+                                        onMessage(if (account.isActive) "Cuenta desactivada." else "Cuenta reactivada.")
+                                    } catch (error: Exception) {
+                                        onMessage(error.message ?: "No se pudo actualizar la cuenta.")
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(if (account.isActive) "Desactivar" else "Activar", color = Gold)
+                        }
+                    }
+                    if (canCustomizePermissions && account.id != session.staffId) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val targetEntity = withContext(Dispatchers.IO) {
+                                            db.staffAccounts().findById(account.id)
+                                        } ?: throw IllegalArgumentException("La cuenta ya no existe.")
+                                        val role = StaffRole.valueOf(targetEntity.role)
+                                        val grants = targetEntity.grants.split('|').mapNotNull {
+                                            runCatching { Permission.valueOf(it) }.getOrNull()
+                                        }.toSet()
+                                        val denials = targetEntity.denials.split('|').mapNotNull {
+                                            runCatching { Permission.valueOf(it) }.getOrNull()
+                                        }.toSet()
+                                        selectedPermissions = AccessPolicy.effectivePermissions(
+                                            AccessProfile(role, grants, denials)
+                                        )
+                                        editingAccount = account
+                                    } catch (error: Exception) {
+                                        onMessage(error.message ?: "No se pudieron cargar los permisos.")
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Permisos", color = Gold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    editingAccount?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (!savingPermissions) editingAccount = null },
+            title = { Text("Permisos · ${target.displayName}") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Activa solo las capacidades necesarias para este empleado.",
+                        color = Muted,
+                        fontSize = 12.sp
+                    )
+                    Permission.entries.forEach { permission ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = permission in selectedPermissions,
+                                onCheckedChange = { checked ->
+                                    selectedPermissions = if (checked) {
+                                        selectedPermissions + permission
+                                    } else {
+                                        selectedPermissions - permission
+                                    }
+                                },
+                                enabled = !savingPermissions
+                            )
+                            Text(permission.name.replace('_', ' '), color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !savingPermissions,
+                    onClick = {
+                        savingPermissions = true
+                        scope.launch {
+                            try {
+                                val targetEntity = withContext(Dispatchers.IO) {
+                                    db.staffAccounts().findById(target.id)
+                                } ?: throw IllegalArgumentException("La cuenta ya no existe.")
+                                val role = StaffRole.valueOf(targetEntity.role)
+                                val defaults = AccessPolicy.defaultPermissions(role)
+                                val grants = selectedPermissions - defaults
+                                val denials = defaults - selectedPermissions
+                                withContext(Dispatchers.IO) {
+                                    db.withTransaction {
+                                        service.updateStaffPermissions(session, target.id, grants, denials)
+                                        db.auditLogs().insert(
+                                            AuditLogEntity(
+                                                actorStaffId = session.staffId,
+                                                actorUsername = session.username,
+                                                action = "STAFF_PERMISSIONS_UPDATED",
+                                                targetType = "STAFF_ACCOUNT",
+                                                targetId = target.id,
+                                                details = "grants=${grants.sortedBy { it.name }.joinToString(",")};denials=${denials.sortedBy { it.name }.joinToString(",")}"
+                                            )
+                                        )
+                                    }
+                                }
+                                refreshKey++
+                                editingAccount = null
+                                onMessage("Permisos actualizados. La cuenta deberá iniciar sesión nuevamente para aplicar los cambios.")
+                            } catch (error: Exception) {
+                                onMessage(error.message ?: "No se pudieron actualizar los permisos.")
+                            } finally {
+                                savingPermissions = false
+                            }
+                        }
+                    }
+                ) { Text(if (savingPermissions) "Guardando…" else "Guardar", color = Gold) }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !savingPermissions,
+                    onClick = { editingAccount = null }
+                ) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showCreate) {
+        AlertDialog(
+            onDismissRequest = { showCreate = false },
+            title = { Text("Crear cuenta de empleado") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = displayName,
+                        onValueChange = { displayName = it },
+                        label = { Text("Nombre completo") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        label = { Text("Nombre de usuario") },
+                        singleLine = true
+                    )
+                    Text("Perfil de acceso", fontWeight = FontWeight.SemiBold)
+                    assignableRoles.forEach { role ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = selectedRole == role,
+                                onClick = { selectedRole = role }
+                            )
+                            Text(role.name, color = Color.White)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Contraseña (mínimo 12 caracteres)") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = displayName.isNotBlank() && username.isNotBlank() && password.length >= 12,
+                    onClick = {
+                        val submittedPassword = password
+                        password = ""
+                        scope.launch {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    db.withTransaction {
+                                    service.createStaffAccount(
+                                        actor = session,
+                                        username = username,
+                                        displayName = displayName,
+                                        role = selectedRole,
+                                        password = submittedPassword.toCharArray()
+                                    )
+                                    db.auditLogs().insert(
+                                        AuditLogEntity(
+                                            actorStaffId = session.staffId,
+                                            actorUsername = session.username,
+                                            action = "STAFF_ACCOUNT_CREATED",
+                                            targetType = "STAFF_ACCOUNT",
+                                            targetId = null,
+                                            details = "username=${username.trim().lowercase(Locale.ROOT)};role=${selectedRole.name}"
+                                        )
+                                    )
+                                    }
+                                }
+                                refreshKey++
+                                showCreate = false
+                                username = ""
+                                displayName = ""
+                                onMessage("Cuenta de empleado creada correctamente.")
+                            } catch (error: Exception) {
+                                onMessage(error.message ?: "No se pudo crear la cuenta.")
+                            }
+                        }
+                    }
+                ) { Text("Crear", color = Gold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreate = false }) { Text("Cancelar") }
+            }
+        )
+    }
+}
+
+
+
+@Composable
+private fun CollectionVisitPerformanceScreen(
+    visits: List<CollectionVisitEntity>,
+    collectors: List<StaffAccountSummary>,
+    canFilterCollectors: Boolean
+) {
+    var periodDays by remember { mutableIntStateOf(30) }
+    var collectorFilter by remember { mutableStateOf("TODOS") }
+    val today = LocalDate.now()
+    val from = today.minusDays((periodDays - 1).toLong())
+    val records = visits.mapNotNull { visit ->
+        val date = runCatching { LocalDate.parse(visit.plannedDate) }.getOrNull()
+        val status = runCatching { CollectionVisitStatus.valueOf(visit.status) }.getOrNull()
+        if (date == null || status == null) null else CollectionVisitRecord(
+            visitId = visit.visitId,
+            loanId = visit.loanId,
+            clientId = visit.clientId,
+            collectorId = visit.collectorId,
+            plannedDate = date,
+            status = status,
+            outcomeNote = visit.outcomeNote
+        )
+    }.filter { !canFilterCollectors || collectorFilter == "TODOS" || it.collectorId == collectorFilter }
+    val summaries = CollectionVisitPerformance.summarize(records, from, today)
+    val totalPlanned = summaries.sumOf { it.planned }
+    val totalCompleted = summaries.sumOf { it.completed }
+    val totalPaid = summaries.sumOf { it.paid }
+    val totalPromises = summaries.sumOf { it.promises }
+    val completionRate = if (totalPlanned == 0) 0 else totalCompleted * 100 / totalPlanned
+    val paidRate = if (totalPlanned == 0) 0 else totalPaid * 100 / totalPlanned
+    val collectorNames = collectors.associate { it.id to it.displayName }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Text("PRODUCTIVIDAD DE COBRANZA", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(
+                "Resultados calculados desde visitas guardadas y sus estados reales. Periodo: $from al $today.",
+                color = Muted,
+                fontSize = 12.sp
+            )
+            OutlinedButton(
+                onClick = { periodDays = when (periodDays) { 7 -> 30; 30 -> 90; else -> 7 } },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Periodo: últimos $periodDays días · Cambiar") }
+            if (canFilterCollectors) {
+                val options = listOf("TODOS") + collectors.map { it.id }
+                OutlinedButton(
+                    onClick = {
+                        val index = options.indexOf(collectorFilter).coerceAtLeast(0)
+                        collectorFilter = options[(index + 1) % options.size]
+                    },
+                    enabled = options.size > 1,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val label = if (collectorFilter == "TODOS") "Todos los cobradores"
+                        else collectorNames[collectorFilter] ?: "Cobrador " + collectorFilter.take(8)
+                    Text("Responsable: $label · Cambiar")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.weight(1f)) { DataCard("PROGRAMADAS", totalPlanned.toString()) }
+                Box(Modifier.weight(1f)) { DataCard("GESTIONADAS", "$totalCompleted · $completionRate%") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.weight(1f)) { DataCard("PAGADAS", "$totalPaid · $paidRate%") }
+                Box(Modifier.weight(1f)) { DataCard("PROMESAS", totalPromises.toString()) }
+            }
+        }
+        if (summaries.isEmpty()) {
+            item {
+                EmptyState(
+                    "Sin actividad en el periodo",
+                    "No hay visitas registradas para este rango y filtro. Cambia el periodo o revisa la agenda de cobranza."
+                )
+            }
+        } else {
+            item { Text("RESULTADOS POR COBRADOR", color = Gold, fontWeight = FontWeight.SemiBold) }
+            items(summaries, key = { it.collectorId }) { row ->
+                val name = collectorNames[row.collectorId] ?: "Cobrador " + row.collectorId.take(8)
+                DataCard(
+                    title = name,
+                    detail = buildString {
+                        append("Programadas: ${row.planned} · Gestionadas: ${row.completed} (${row.completionRatePercent}%)")
+                        append("\nPagadas: ${row.paid} (${row.paidRatePercent}%) · Promesas: ${row.promises} (${row.promiseRatePercent}%)")
+                        append("\nIntentadas: ${row.attempted} · Contactadas: ${row.contacted} · Inubicables: ${row.unreachable}")
+                        if (row.cancelled > 0) append("\nCanceladas: ${row.cancelled}")
+                    }
+                )
+            }
+        }
+        item {
+            DataCard(
+                "Criterio de medición",
+                "Gestionada significa que la visita salió del estado PROGRAMADA y terminó en intento, contacto, promesa, pago o no localizado. Pagada se muestra por separado; una promesa no se cuenta como pago."
+            )
+        }
+    }
+}
+
+
 @Composable
 private fun PaymentForm(
     loans: List<LoanEntity>, clients: List<ClientEntity>, onDismiss: () -> Unit,

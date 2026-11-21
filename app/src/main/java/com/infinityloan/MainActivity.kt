@@ -543,16 +543,32 @@ private fun AuthenticatedInfinityApp(
                                     Text("Dirección: ${profileClient.address}")
                                     Text("Cliente desde: ${formatDate(profileClient.createdAt)}")
                                     val clientLoans = loans.filter { it.clientId == profileClient.id }
-                                    Text("PRÉSTAMOS: ${clientLoans.size}", color = Gold, fontWeight = FontWeight.Bold)
+                                    Text("RESUMEN DE DEUDA DEL CLIENTE", color = Gold, fontWeight = FontWeight.Bold)
                                     if (clientLoans.isEmpty()) Text("No tiene préstamos registrados.")
+                                    clientLoans.groupBy { it.currency }.forEach { (currency, currencyLoans) ->
+                                        val principalBalance = currencyLoans.sumOf { it.balanceMinor }
+                                        val initialPrincipal = currencyLoans.sumOf { it.principalMinor }
+                                        Text("MONEDA: $currency", fontWeight = FontWeight.Bold)
+                                        Text("Capital inicial total: ${money(initialPrincipal)} $currency")
+                                        Text("CAPITAL PENDIENTE TOTAL: ${money(principalBalance)} $currency", color = Gold, fontWeight = FontWeight.Bold)
+                                        Text("Préstamos activos: ${currencyLoans.count { it.status == "ACTIVE" }} · Cerrados: ${currencyLoans.count { it.status == "PAID" }}")
+                                    }
+                                    Text("PRÉSTAMOS: ${clientLoans.size}", color = Gold, fontWeight = FontWeight.Bold)
                                     clientLoans.forEach { profileLoan ->
                                         val loanPayments = payments.filter { it.loanId == profileLoan.id }
                                         val validPayments = loanPayments.filter { it.operationId !in reversedPaymentIds.toSet() }
                                         val loanInstallments = installments.filter { it.loanId == profileLoan.id }
                                         Text("Préstamo ${profileLoan.id}", fontWeight = FontWeight.Bold)
                                         Text("Estado: ${profileLoan.status} · Moneda: ${profileLoan.currency}")
-                                        Text("Principal: ${money(profileLoan.principalMinor)} · Saldo: ${money(profileLoan.balanceMinor)}")
-                                        Text("Cuotas: ${loanInstallments.size} · Pagadas: ${loanInstallments.count { it.status.equals("PAID", true) }} · Pendientes/vencidas: ${loanInstallments.count { !it.status.equals("PAID", true) }}")
+                                        Text("Capital original: ${money(profileLoan.principalMinor)} ${profileLoan.currency}")
+                                        Text("SALDO DE CAPITAL: ${money(profileLoan.balanceMinor)} ${profileLoan.currency}", color = Gold, fontWeight = FontWeight.Bold)
+                                        val paidPrincipalFromSchedule = loanInstallments.sumOf { it.paidPrincipalMinor }
+                                        Text("Capital abonado según cuotas: ${money(paidPrincipalFromSchedule)} ${profileLoan.currency}")
+                                        Text("Cuotas: ${loanInstallments.size} · Pagadas: ${loanInstallments.count { it.status.equals("PAID", true) }} · Pendientes: ${loanInstallments.count { !it.status.equals("PAID", true) }}")
+                                        loanInstallments.sortedBy { it.number }.forEach { installment ->
+                                            val outstanding = OverdueBalance.remainingMinor(installment.totalMinor, installment.paidPrincipalMinor, installment.paidInterestMinor)
+                                            Text("Cuota ${installment.number} · ${installment.dueDate} · ${installment.status} · Pendiente: ${money(outstanding)} ${profileLoan.currency}", fontSize = 12.sp)
+                                        }
                                         Text("Pagos válidos: ${validPayments.size} · Total: ${money(validPayments.sumOf { it.amountMinor })} ${profileLoan.currency}")
                                         validPayments.sortedByDescending { it.createdAt }.take(8).forEach { pay -> Text("• ${formatDate(pay.createdAt)} · ${pay.reference} · ${money(pay.amountMinor)} · Recibo ${pay.operationId}") }
                                         loanPayments.filter { it.operationId in reversedPaymentIds.toSet() }.forEach { pay -> Text("• REVERSADO · ${formatDate(pay.createdAt)} · ${pay.reference} · ${money(pay.amountMinor)}") }

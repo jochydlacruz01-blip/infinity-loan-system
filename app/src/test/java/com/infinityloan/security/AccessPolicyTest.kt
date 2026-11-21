@@ -57,6 +57,15 @@ class AccessPolicyTest {
     }
 
     @Test
+    fun collectionVisitPermissionsMatchOperationalRoles() {
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.ADMINISTRATOR), Permission.COLLECTION_VISIT_MANAGE))
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.SUPERVISOR), Permission.COLLECTION_VISIT_MANAGE))
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.COLLECTOR), Permission.COLLECTION_VISIT_MANAGE))
+        assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.CASHIER), Permission.COLLECTION_VISIT_VIEW))
+        assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.CASHIER), Permission.COLLECTION_VISIT_MANAGE))
+    }
+
+    @Test
     fun collectorCannotManageCashMovementsButCashierCan() {
         assertFalse(AccessPolicy.allows(AccessProfile(StaffRole.COLLECTOR), Permission.CASH_MOVEMENT_MANAGE))
         assertTrue(AccessPolicy.allows(AccessProfile(StaffRole.CASHIER), Permission.CASH_MOVEMENT_MANAGE))

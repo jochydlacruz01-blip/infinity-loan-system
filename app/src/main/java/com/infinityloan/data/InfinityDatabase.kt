@@ -988,7 +988,7 @@ enum class PaymentReversalResult {
     REVERSED, ALREADY_REVERSED, PAYMENT_NOT_FOUND, LOAN_NOT_FOUND, INVALID_AMOUNT,
     INVALID_ACTOR, INVALID_REASON, INVALID_CREDIT_LEDGER, LATER_PAYMENT_EXISTS,
     GENERATED_CREDIT_ALREADY_USED, ORIGINAL_CASH_SESSION_NOT_OPEN, INVALID_CASH_LEDGER,
-    INVALID_ALLOCATION
+    INVALID_ALLOCATION, PAYMENT_LINKED_TO_PROMISE
 }
 
 enum class PaymentPostResult {
@@ -1024,6 +1024,7 @@ enum class CreditPaymentResult {
         PaymentReversalEntity::class,
         CashVarianceReviewEntity::class,
         PromiseToPayEntity::class,
+        PromisePaymentLinkEntity::class,
         CollectionVisitEntity::class
     ],
     version = 15,
@@ -1109,6 +1110,9 @@ abstract class InfinityDatabase : RoomDatabase() {
         }
         val payment = payments().findByOperationId(operationId)
             ?: return@withTransaction PaymentReversalResult.PAYMENT_NOT_FOUND
+        if (promisePaymentLinks().sumForPayment(operationId) > 0L) {
+            return@withTransaction PaymentReversalResult.PAYMENT_LINKED_TO_PROMISE
+        }
         val loan = loans().findById(payment.loanId)
             ?: return@withTransaction PaymentReversalResult.LOAN_NOT_FOUND
         if (payments().countPaymentsAtOrAfter(loan.id, operationId, payment.createdAt) > 0) {

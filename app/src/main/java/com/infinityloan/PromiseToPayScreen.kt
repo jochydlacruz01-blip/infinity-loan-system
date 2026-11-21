@@ -50,7 +50,12 @@ internal fun PromiseToPayScreen(
         else db.promisesToPay().observeForCollector(session.staffId)
     }
     val promises by promiseFlow.collectAsState(initial = emptyList())
-    val linkFlow = remember { db.promisePaymentLinks().observeAll() }
+    val linkFlow = remember(session.staffId, session.profile.role) {
+        if (session.profile.role == com.infinityloan.security.StaffRole.ADMINISTRATOR ||
+            session.profile.role == com.infinityloan.security.StaffRole.SUPERVISOR
+        ) db.promisePaymentLinks().observeAll()
+        else db.promisePaymentLinks().observeForCollector(session.staffId)
+    }
     val paymentLinks by linkFlow.collectAsState(initial = emptyList())
     val names = remember(clients) { clients.associate { it.id to it.fullName } }
     val summary = remember(promises) {

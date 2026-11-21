@@ -31,7 +31,7 @@ object FinancialLedgerAudit {
    if(expected<0||expected!=loan.balanceMinor)
     issues+=LedgerIssue(LedgerIssueType.LOAN_BALANCE_MISMATCH,loan.id,"Saldo guardado ${loan.balanceMinor} difiere del calculado ${expected}.")
   }
-  payments.filter{it.operationId !in reversedIds}.sortedBy{it.operationId}.forEach{p- 
+  payments.filter{it.operationId !in reversedIds}.sortedBy{it.operationId}.forEach{p ->
    val rows=allocations.filter{it.operationId==p.operationId}
    val allocated=rows.fold(0L){a,r->Math.addExact(a,Math.addExact(Math.addExact(r.lateFeeMinor,r.chargesMinor),Math.addExact(r.interestMinor,r.principalMinor)))}
    val credit=excessCredits.filter{it.operationId=="PAYMENT-EXCESS-${p.operationId}"}.fold(0L){a,r->Math.addExact(a,r.amountMinor)}

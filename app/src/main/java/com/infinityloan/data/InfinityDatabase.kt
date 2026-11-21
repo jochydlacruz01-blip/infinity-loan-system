@@ -29,6 +29,55 @@ import com.infinityloan.security.Permission
 import com.infinityloan.security.StaffRole
 
 @Entity(
+    tableName = "collection_visits",
+    foreignKeys = [
+        ForeignKey(entity = LoanEntity::class, parentColumns = ["id"], childColumns = ["loanId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = ClientEntity::class, parentColumns = ["id"], childColumns = ["clientId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = StaffAccountEntity::class, parentColumns = ["id"], childColumns = ["collectorId"], onDelete = ForeignKey.RESTRICT)
+    ],
+    indices = [Index("loanId"), Index("clientId"), Index("collectorId"), Index("status"), Index("plannedDate")]
+)
+data class CollectionVisitEntity(
+    @PrimaryKey val visitId: String,
+    val loanId: String,
+    val clientId: String,
+    val collectorId: String,
+    val plannedDate: String,
+    val status: String = "SCHEDULED",
+    val outcomeNote: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface CollectionVisitDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(visit: CollectionVisitEntity)
+
+    @Query("SELECT * FROM collection_visits ORDER BY plannedDate, createdAt, visitId")
+    fun observeAll(): Flow<List<CollectionVisitEntity>>
+
+    @Query("SELECT * FROM collection_visits WHERE collectorId = :collectorId ORDER BY plannedDate, createdAt, visitId")
+    fun observeForCollector(collectorId: String): Flow<List<CollectionVisitEntity>>
+
+    @Query("SELECT * FROM collection_visits WHERE status NOT IN ('PAID','CANCELLED') ORDER BY plannedDate, createdAt")
+    fun observeOpen(): Flow<List<CollectionVisitEntity>>
+
+    @Query("SELECT * FROM collection_visits WHERE visitId = :visitId LIMIT 1")
+    suspend fun findById(visitId: String): CollectionVisitEntity?
+
+    @Query("""
+        UPDATE collection_visits
+        SET status = :status, outcomeNote = :note, updatedAt = :updatedAt
+        WHERE visitId = :visitId AND status = :expectedStatus
+    """)
+    suspend fun transition(
+        visitId: String, expectedStatus: String, status: String,
+        note: String, updatedAt: Long = System.currentTimeMillis()
+    ): Int
+}
+
+@Entity(
     tableName = "promises_to_pay",
     foreignKeys = [
         ForeignKey(entity = LoanEntity::class, parentColumns = ["id"], childColumns = ["loanId"], onDelete = ForeignKey.RESTRICT),
@@ -1330,7 +1379,7 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun cashSessions(): CashSessionDao
     abstract fun paymentReversals(): PaymentReversalDao
     abstract fun cashVarianceReviews(): CashVarianceReviewDao
-    abstract fun promisesToPay(): PromiseToPayDao
+    abstract fun promisesToPay(): PromiseToPayDao\n    abstract fun collectionVisits(): CollectionVisitDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null
@@ -1657,7 +1706,7 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
                     InfinityDatabase::class.java,
                     "infinity_loan_system.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         installAuditImmutabilityTriggers(db)
@@ -1702,5 +1751,35 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_collectorId ON promises_to_pay(collectorId)")
         database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_status ON promises_to_pay(status)")
         database.execSQL("CREATE INDEX IF NOT EXISTS index_promises_to_pay_promisedDate ON promises_to_pay(promisedDate)")
+    }
+}
+
+
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS collection_visits (
+                visitId TEXT NOT NULL PRIMARY KEY,
+                loanId TEXT NOT NULL,
+                clientId TEXT NOT NULL,
+                collectorId TEXT NOT NULL,
+                plannedDate TEXT NOT NULL,
+                status TEXT NOT NULL,
+                outcomeNote TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                FOREIGN KEY(loanId) REFERENCES loans(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(clientId) REFERENCES clients(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(collectorId) REFERENCES staff_accounts(id)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT
+            )
+        """.trimIndent())
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_loanId ON collection_visits(loanId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_clientId ON collection_visits(clientId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_collectorId ON collection_visits(collectorId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_status ON collection_visits(status)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_collection_visits_plannedDate ON collection_visits(plannedDate)")
     }
 }

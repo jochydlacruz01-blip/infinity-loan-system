@@ -287,6 +287,10 @@ private fun AuthenticatedInfinityApp(
     val openPromiseEntities by db.promisesToPay().observeOpen().collectAsState(initial = emptyList())
     val visitService = remember(db, authenticationService) { CollectionVisitService(db, authenticationService) }
     val collectionVisits by remember(visitService, session) { visitService.observe(session) }.collectAsState(initial = emptyList())
+    var activeCollectors by remember { mutableStateOf(emptyList<StaffAccountSummary>()) }
+    LaunchedEffect(db) {
+        activeCollectors = withContext(Dispatchers.IO) { db.staffAccounts().getActiveCollectorSummaries() }
+    }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -450,11 +454,13 @@ private fun AuthenticatedInfinityApp(
                             visits = collectionVisits,
                             loans = loans,
                             clients = clients,
+                            collectors = activeCollectors,
                             canManage = can(Permission.COLLECTION_VISIT_MANAGE),
-                            onSchedule = { loanId, date ->
+                            canAssign = session.profile.role in setOf(StaffRole.ADMINISTRATOR, StaffRole.SUPERVISOR),
+                            onSchedule = { loanId, date, collectorId ->
                                 scope.launch {
                                     try {
-                                        withContext(Dispatchers.IO) { visitService.create(session, loanId, date) }
+                                        withContext(Dispatchers.IO) { visitService.create(session, loanId, date, collectorId = collectorId) }
                                         message = "Visita programada correctamente."
                                     } catch (e: Exception) {
                                         message = e.message ?: "No se pudo programar la visita."

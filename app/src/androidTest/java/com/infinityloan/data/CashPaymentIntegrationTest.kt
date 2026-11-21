@@ -735,4 +735,136 @@ class CashPaymentIntegrationTest {
         assertEquals(0L, validStaffRow.varianceMinor)
     }
 
+
+    @Test
+    fun cashVarianceReviewRequiresIndependentAuthorizedReviewerAndPersistsImmutableSnapshot() = runBlocking {
+        val sessionId = "CASH-SESSION-VARIANCE-REVIEW"
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = sessionId,
+                staffId = "CASHIER-TEST",
+                currency = "DOP",
+                openingMinor = 5000L,
+                openedAt = 100L
+            )
+        )
+        database.postCashMovement(
+            CashMovementEntity(
+                operationId = "VARIANCE-REVIEW-IN",
+                sessionId = sessionId,
+                type = "CASH_IN",
+                amountMinor = 1500L,
+                reason = "Cobro registrado",
+                createdAt = 101L
+            )
+        )
+        database.closeCashSession(sessionId, countedMinor = 6300L, closedAt = 102L)
+
+        val authentication = com.infinityloan.security.StaffAuthenticationService(database.staffAccounts())
+        val service = CashVarianceReviewService(database, authentication) { 200L }
+        val administrator = com.infinityloan.security.StaffSession(
+            staffId = "ADMIN-001",
+            username = "admin0",
+            displayName = "Administrador de prueba",
+            profile = com.infinityloan.security.AccessProfile(
+                com.infinityloan.security.StaffRole.ADMINISTRATOR
+            )
+        )
+
+        val review = service.review(
+            administrator,
+            sessionId,
+            CashVarianceDecision.APPROVED,
+            "Conteo físico verificado y diferencia justificada."
+        )
+
+        assertEquals(CashVarianceDecision.APPROVED.name, review.decision)
+        assertEquals("DOP", review.currency)
+        assertEquals(6500L, review.expectedCashMinor)
+        assertEquals(6300L, review.countedCashMinor)
+        assertEquals(-200L, review.varianceMinor)
+        assertEquals(
+            review,
+            database.cashVarianceReviews().findForSession(sessionId).single()
+        )
+        val audit = database.auditLogs().findByActor("ADMIN-001", 10)
+            .single { it.action == "CASH_VARIANCE_REVIEWED" }
+        assertEquals(sessionId, audit.targetId)
+        assertTrue(audit.details.contains("reviewId=${review.reviewId}"))
+
+        // A second decision is appended; the first review is never overwritten.
+        val followUp = service.review(
+            administrator,
+            sessionId,
+            CashVarianceDecision.REQUIRES_INVESTIGATION,
+            "Se solicita una segunda comprobación independiente."
+        )
+        assertEquals(2, database.cashVarianceReviews().findForSession(sessionId).size)
+        assertEquals(CashVarianceDecision.APPROVED.name, review.decision)
+        assertEquals(CashVarianceDecision.REQUIRES_INVESTIGATION.name, followUp.decision)
+    }
+
+    @Test
+    fun cashVarianceReviewRejectsCashierAndSessionOwnerWithoutWritingRecords() = runBlocking {
+        val sessionId = "CASH-SESSION-VARIANCE-DENIED"
+        database.openCashSession(
+            CashSessionEntity(
+                sessionId = sessionId,
+                staffId = "CASHIER-TEST",
+                currency = "DOP",
+                openingMinor = 1000L,
+                openedAt = 300L
+            )
+        )
+        database.closeCashSession(sessionId, countedMinor = 900L, closedAt = 301L)
+
+        val authentication = com.infinityloan.security.StaffAuthenticationService(database.staffAccounts())
+        val service = CashVarianceReviewService(database, authentication)
+        val cashier = com.infinityloan.security.StaffSession(
+            staffId = "CASHIER-TEST",
+            username = "cashier",
+            displayName = "Cajero de prueba",
+            profile = com.infinityloan.security.AccessProfile(
+                com.infinityloan.security.StaffRole.CASHIER
+            )
+        )
+        val administrator = com.infinityloan.security.StaffSession(
+            staffId = "ADMIN-001",
+            username = "admin0",
+            displayName = "Administrador de prueba",
+            profile = com.infinityloan.security.AccessProfile(
+                com.infinityloan.security.StaffRole.ADMINISTRATOR
+            )
+        )
+
+        var cashierRejected = false
+        try {
+            service.review(cashier, sessionId, CashVarianceDecision.APPROVED, "Intento sin permiso")
+        } catch (_: IllegalArgumentException) {
+            cashierRejected = true
+        }
+        assertTrue(cashierRejected)
+
+        var ownerRejected = false
+        try {
+            service.review(
+                cashier.copy(
+                    staffId = "CASHIER-TEST",
+                    username = "cashier",
+                    profile = com.infinityloan.security.AccessProfile(
+                        com.infinityloan.security.StaffRole.ADMINISTRATOR
+                    )
+                ),
+                sessionId,
+                CashVarianceDecision.APPROVED,
+                "Intento de auto revisión"
+            )
+        } catch (_: IllegalArgumentException) {
+            ownerRejected = true
+        }
+        assertTrue(ownerRejected)
+        assertTrue(database.cashVarianceReviews().findForSession(sessionId).isEmpty())
+        assertTrue(database.auditLogs().findByActor("ADMIN-001", 10).isEmpty())
+    }
+
 }

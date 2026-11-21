@@ -889,7 +889,7 @@ class CashPaymentIntegrationTest {
         database.openCashSession(
             CashSessionEntity(
                 sessionId = balancedSessionId,
-                staffId = "CASHIER-TEST",
+                staffId = "CASHIER-BALANCED",
                 currency = "DOP",
                 openingMinor = 2000L,
                 openedAt = 401L

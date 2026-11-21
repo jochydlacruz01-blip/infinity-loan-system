@@ -88,7 +88,7 @@ class PaymentReversalPolicyTest {
 
     @Test fun rejectsWhitespaceOnlyActorAndTrimmedReasonOverLimit() {
         assertEquals(PaymentReversalPolicy.Result.INVALID_ACTOR,
-            PaymentReversalPolicy.evaluate(request(actor = "\\t  ")))
+            PaymentReversalPolicy.evaluate(request(actor = "\t  ")))
         assertEquals(PaymentReversalPolicy.Result.INVALID_REASON,
             PaymentReversalPolicy.evaluate(request(reason = " " + "x".repeat(501))))
     }

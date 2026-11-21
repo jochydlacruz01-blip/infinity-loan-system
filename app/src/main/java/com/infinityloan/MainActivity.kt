@@ -278,7 +278,6 @@ private fun StaffAccessGate(
                         }
                     message?.let { Text(it, color = Gold) }
                     }
-                    }
                     Text(
                         "Las credenciales de esta versión se almacenan localmente en este dispositivo. La identidad compartida entre sucursales y dispositivos requiere el backend central.",
                         color = Muted,

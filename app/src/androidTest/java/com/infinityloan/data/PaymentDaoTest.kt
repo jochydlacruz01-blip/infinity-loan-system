@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -47,6 +48,40 @@ class PaymentDaoTest {
     @After
     fun cleanup() {
         database.close()
+    }
+
+    @Test
+    fun cashMovementFlowEmitsWhenMovementIsInsertedWithoutChangingSession() = runBlocking {
+        val session = CashSessionEntity(
+            sessionId = "CASH-FLOW-SESSION-001",
+            staffId = "CASH-FLOW-STAFF-001",
+            currency = "DOP",
+            openingMinor = 5000L,
+            openedAt = 1_800_000_000_000L
+        )
+        database.cashSessions().insertSession(session)
+
+        val movementEmission = async(Dispatchers.Unconfined) {
+            database.cashSessions().observeAllMovements().first { rows ->
+                rows.any { it.operationId == "CASH-FLOW-MOVEMENT-001" }
+            }
+        }
+
+        database.cashSessions().insertMovement(
+            CashMovementEntity(
+                operationId = "CASH-FLOW-MOVEMENT-001",
+                sessionId = session.sessionId,
+                type = "CASH_IN",
+                amountMinor = 1250L,
+                reason = "Prueba de actualización en vivo",
+                createdAt = 1_800_000_000_100L
+            )
+        )
+
+        val observed = movementEmission.await()
+        assertEquals(1, observed.size)
+        assertEquals(1250L, observed.single().amountMinor)
+        assertEquals(session.sessionId, observed.single().sessionId)
     }
 
     @Test

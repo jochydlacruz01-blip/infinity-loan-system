@@ -28,6 +28,7 @@ import com.infinityloan.finance.ClientCollectionRiskBuilder
 import com.infinityloan.finance.ClientCollectionRiskInput
 import com.infinityloan.finance.CollectionVisitRecord
 import com.infinityloan.finance.CollectionVisitStatus
+import com.infinityloan.finance.CollectionVisitPerformance
 import com.infinityloan.finance.CollectionOperationalAlertBuilder
 import com.infinityloan.finance.CollectionAlertSeverity
 import com.infinityloan.finance.PromiseToPayRecord
@@ -77,6 +78,7 @@ private enum class Screen(val label: String, val permission: Permission) {
     PROMISES("Promesas de pago", Permission.PROMISE_TO_PAY_VIEW),
     COLLECTION_ALERTS("Alertas de cobranza", Permission.REPORT_VIEW),
     COLLECTION_VISITS("Agenda de visitas", Permission.COLLECTION_VISIT_VIEW),
+    COLLECTION_PERFORMANCE("Productividad de cobranza", Permission.COLLECTION_VISIT_VIEW),
     CASH("Gestión de caja", Permission.CASH_SESSION_OPEN),
     REPORTS("Informes", Permission.REPORT_VIEW),
     SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE),
@@ -478,6 +480,11 @@ private fun AuthenticatedInfinityApp(
                                     }
                                 }
                             }
+                        )
+                        Screen.COLLECTION_PERFORMANCE -> CollectionVisitPerformanceScreen(
+                            visits = collectionVisits,
+                            collectors = activeCollectors,
+                            canFilterCollectors = session.profile.role in setOf(StaffRole.ADMINISTRATOR, StaffRole.SUPERVISOR)
                         )
                         Screen.COLLECTION_ALERTS -> CollectionAlertsScreen(
                             clients = clients,
@@ -2328,3 +2335,106 @@ private fun AuditLogScreen(db: InfinityDatabase, session: StaffSession) {
         }
     }
 }
+
+@Composable
+private fun CollectionVisitPerformanceScreen(
+    visits: List<CollectionVisitEntity>,
+    collectors: List<StaffAccountSummary>,
+    canFilterCollectors: Boolean
+) {
+    var periodDays by remember { mutableIntStateOf(30) }
+    var collectorFilter by remember { mutableStateOf("TODOS") }
+    val today = LocalDate.now()
+    val from = today.minusDays((periodDays - 1).toLong())
+    val records = visits.mapNotNull { visit ->
+        val date = runCatching { LocalDate.parse(visit.plannedDate) }.getOrNull()
+        val status = runCatching { CollectionVisitStatus.valueOf(visit.status) }.getOrNull()
+        if (date == null || status == null) null else CollectionVisitRecord(
+            visitId = visit.visitId,
+            loanId = visit.loanId,
+            clientId = visit.clientId,
+            collectorId = visit.collectorId,
+            plannedDate = date,
+            status = status,
+            outcomeNote = visit.outcomeNote
+        )
+    }.filter { !canFilterCollectors || collectorFilter == "TODOS" || it.collectorId == collectorFilter }
+    val summaries = CollectionVisitPerformance.summarize(records, from, today)
+    val totalPlanned = summaries.sumOf { it.planned }
+    val totalCompleted = summaries.sumOf { it.completed }
+    val totalPaid = summaries.sumOf { it.paid }
+    val totalPromises = summaries.sumOf { it.promises }
+    val completionRate = if (totalPlanned == 0) 0 else totalCompleted * 100 / totalPlanned
+    val paidRate = if (totalPlanned == 0) 0 else totalPaid * 100 / totalPlanned
+    val collectorNames = collectors.associate { it.id to it.displayName }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Text("PRODUCTIVIDAD DE COBRANZA", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(
+                "Resultados calculados desde visitas guardadas y sus estados reales. Periodo: $from al $today.",
+                color = Muted,
+                fontSize = 12.sp
+            )
+            OutlinedButton(
+                onClick = { periodDays = when (periodDays) { 7 -> 30; 30 -> 90; else -> 7 } },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Periodo: últimos $periodDays días · Cambiar") }
+            if (canFilterCollectors) {
+                val options = listOf("TODOS") + collectors.map { it.id }
+                OutlinedButton(
+                    onClick = {
+                        val index = options.indexOf(collectorFilter).coerceAtLeast(0)
+                        collectorFilter = options[(index + 1) % options.size]
+                    },
+                    enabled = options.size > 1,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val label = if (collectorFilter == "TODOS") "Todos los cobradores"
+                        else collectorNames[collectorFilter] ?: "Cobrador " + collectorFilter.take(8)
+                    Text("Responsable: $label · Cambiar")
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.weight(1f)) { DataCard("PROGRAMADAS", totalPlanned.toString()) }
+                Box(Modifier.weight(1f)) { DataCard("GESTIONADAS", "$totalCompleted · $completionRate%") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.weight(1f)) { DataCard("PAGADAS", "$totalPaid · $paidRate%") }
+                Box(Modifier.weight(1f)) { DataCard("PROMESAS", totalPromises.toString()) }
+            }
+        }
+        if (summaries.isEmpty()) {
+            item {
+                EmptyState(
+                    "Sin actividad en el periodo",
+                    "No hay visitas registradas para este rango y filtro. Cambia el periodo o revisa la agenda de cobranza."
+                )
+            }
+        } else {
+            item { Text("RESULTADOS POR COBRADOR", color = Gold, fontWeight = FontWeight.SemiBold) }
+            items(summaries, key = { it.collectorId }) { row ->
+                val name = collectorNames[row.collectorId] ?: "Cobrador " + row.collectorId.take(8)
+                DataCard(
+                    title = name,
+                    detail = buildString {
+                        append("Programadas: ${row.planned} · Gestionadas: ${row.completed} (${row.completionRatePercent}%)")
+                        append("\\nPagadas: ${row.paid} (${row.paidRatePercent}%) · Promesas: ${row.promises} (${row.promiseRatePercent}%)")
+                        append("\\nIntentadas: ${row.attempted} · Contactadas: ${row.contacted} · Inubicables: ${row.unreachable}")
+                        if (row.cancelled > 0) append("\\nCanceladas: ${row.cancelled}")
+                    }
+                )
+            }
+        }
+        item {
+            DataCard(
+                "Criterio de medición",
+                "Gestionada significa que la visita salió del estado PROGRAMADA y terminó en intento, contacto, promesa, pago o no localizado. Pagada se muestra por separado; una promesa no se cuenta como pago."
+            )
+        }
+    }
+}
+

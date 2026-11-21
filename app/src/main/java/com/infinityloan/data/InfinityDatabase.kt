@@ -901,10 +901,11 @@ interface PaymentDao {
         // Apply received payments to the outstanding contractual installments,
         // including future installments, to ensure each payment has a traceable allocation.
         val dueRows = allInstallments.filter { row ->
-            row.status != "PAID" &&
-                (row.paidInterestMinor < row.interestMinor ||
-                 row.paidPrincipalMinor < row.principalMinor ||
-                 row.paidLateFeeMinor > 0L || row.paidChargesMinor > 0L)
+            // The status label is not authoritative: legacy or previously inconsistent
+            // rows can be marked PAID while contractual amounts remain outstanding.
+            row.paidInterestMinor < row.interestMinor ||
+                row.paidPrincipalMinor < row.principalMinor ||
+                row.paidLateFeeMinor > 0L || row.paidChargesMinor > 0L
         }
 
         fun outstanding(contractual: Long, paid: Long): Long {

@@ -987,10 +987,10 @@ private fun ReportsSummaryScreen(
             }
             currency + " · sesiones: " + matching.size +
                 " (abiertas " + open.size + ", cerradas " + closed.size + ")" +
-                "\\nEsperado en cajas abiertas: " + money(expectedOpen) +
-                "\\nEsperado de cajas cerradas: " + money(expectedClosed) +
-                "\\nConteo físico (cerradas): " + money(counted) +
-                "\\nDiferencia acumulada (cerradas): " + money(variance)
+                "\nEsperado en cajas abiertas: " + money(expectedOpen) +
+                "\nEsperado de cajas cerradas: " + money(expectedClosed) +
+                "\nConteo físico (cerradas): " + money(counted) +
+                "\nDiferencia acumulada (cerradas): " + money(variance)
         }
     }
     LazyColumn(

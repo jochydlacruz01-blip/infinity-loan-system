@@ -799,10 +799,16 @@ interface PaymentDao {
     suspend fun countPaymentsForLoan(loanId: String): Int
 
     @Query("""
-        SELECT COUNT(*) FROM payments
-        WHERE loanId = :loanId AND operationId != :operationId AND createdAt >= :createdAt
+        SELECT COUNT(*)
+        FROM payments AS later
+        WHERE later.loanId = :loanId
+          AND later.rowid > (
+              SELECT original.rowid
+              FROM payments AS original
+              WHERE original.operationId = :operationId
+          )
     """)
-    suspend fun countPaymentsAtOrAfter(loanId: String, operationId: String, createdAt: Long): Int
+    suspend fun countPaymentsAfter(loanId: String, operationId: String): Int
 
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -1179,7 +1185,7 @@ abstract class InfinityDatabase : RoomDatabase() {
         }
         val loan = loans().findById(payment.loanId)
             ?: return@withTransaction PaymentReversalResult.LOAN_NOT_FOUND
-        if (payments().countPaymentsAtOrAfter(loan.id, operationId, payment.createdAt) > 0) {
+        if (payments().countPaymentsAfter(loan.id, operationId) > 0) {
             return@withTransaction PaymentReversalResult.LATER_PAYMENT_EXISTS
         }
 

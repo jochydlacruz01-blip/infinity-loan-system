@@ -315,6 +315,13 @@ private fun AuthenticatedInfinityApp(
     LaunchedEffect(db) {
         activeCollectors = withContext(Dispatchers.IO) { db.staffAccounts().getActiveCollectorSummaries() }
     }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var screen by remember { mutableStateOf(Screen.HOME) }
+    var showClientForm by remember { mutableStateOf(false) }
+    var selectedClient by remember { mutableStateOf<ClientEntity?>(null) }
+    var financialProfileClient by remember { mutableStateOf<ClientEntity?>(null) }
+    var financialCreditByCurrency by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     LaunchedEffect(financialProfileClient?.id, loans, payments, reversedPaymentIds) {
         val clientId = financialProfileClient?.id
         if (clientId == null) {
@@ -332,13 +339,6 @@ private fun AuthenticatedInfinityApp(
             }
         }
     }
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    var screen by remember { mutableStateOf(Screen.HOME) }
-    var showClientForm by remember { mutableStateOf(false) }
-    var selectedClient by remember { mutableStateOf<ClientEntity?>(null) }
-    var financialProfileClient by remember { mutableStateOf<ClientEntity?>(null) }
-    var financialCreditByCurrency by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var showLoanForm by remember { mutableStateOf(false) }
     var showPaymentForm by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }

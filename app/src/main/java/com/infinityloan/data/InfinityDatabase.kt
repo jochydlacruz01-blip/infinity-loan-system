@@ -642,6 +642,9 @@ interface ClientDao {
     @Query("SELECT * FROM clients ORDER BY fullName")
     fun observeAll(): Flow<List<ClientEntity>>
 
+    @Query("SELECT * FROM clients ORDER BY id")
+    suspend fun findAllForIntegrityAudit(): List<ClientEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(client: ClientEntity)
 
@@ -662,6 +665,9 @@ interface ClientDao {
 interface LoanDao {
     @Query("SELECT * FROM loans ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<LoanEntity>>
+
+    @Query("SELECT * FROM loans ORDER BY id")
+    suspend fun findAllForIntegrityAudit(): List<LoanEntity>
 
     @Query("SELECT * FROM loans WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): LoanEntity?
@@ -713,6 +719,9 @@ interface LoanInstallmentDao {
 
 @Dao
 interface PaymentAllocationDao {
+    @Query("SELECT * FROM payment_allocations ORDER BY operationId, loanId, installmentNumber")
+    suspend fun findAllForIntegrityAudit(): List<PaymentAllocationEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(allocations: List<PaymentAllocationEntity>)
 
@@ -742,6 +751,9 @@ data class PromiseEligiblePayment(
 interface PaymentDao {
     @Query("SELECT * FROM payments ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<PaymentEntity>>
+
+    @Query("SELECT * FROM payments ORDER BY operationId")
+    suspend fun findAllForIntegrityAudit(): List<PaymentEntity>
 
     @Query("SELECT * FROM payments WHERE operationId = :operationId LIMIT 1")
     suspend fun findByOperationId(operationId: String): PaymentEntity?

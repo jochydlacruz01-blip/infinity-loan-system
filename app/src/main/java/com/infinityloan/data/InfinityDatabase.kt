@@ -898,11 +898,13 @@ interface PaymentDao {
         val allInstallments = findInstallments(loan.id)
         if (allInstallments.isEmpty()) return PaymentPostResult.SCHEDULE_NOT_FOUND
 
-        val today = LocalDate.now()
+        // Apply received payments to the outstanding contractual installments,
+        // including future installments, to ensure each payment has a traceable allocation.
         val dueRows = allInstallments.filter { row ->
-            val dueDate = try { LocalDate.parse(row.dueDate) }
-            catch (_: Exception) { return PaymentPostResult.INVALID_SCHEDULE }
-            dueDate <= today
+            row.status != "PAID" &&
+                (row.paidInterestMinor < row.interestMinor ||
+                 row.paidPrincipalMinor < row.principalMinor ||
+                 row.paidLateFeeMinor > 0L || row.paidChargesMinor > 0L)
         }
 
         fun outstanding(contractual: Long, paid: Long): Long {

@@ -2422,9 +2422,9 @@ private fun CollectionVisitPerformanceScreen(
                     title = name,
                     detail = buildString {
                         append("Programadas: ${row.planned} · Gestionadas: ${row.completed} (${row.completionRatePercent}%)")
-                        append("\\nPagadas: ${row.paid} (${row.paidRatePercent}%) · Promesas: ${row.promises} (${row.promiseRatePercent}%)")
-                        append("\\nIntentadas: ${row.attempted} · Contactadas: ${row.contacted} · Inubicables: ${row.unreachable}")
-                        if (row.cancelled > 0) append("\\nCanceladas: ${row.cancelled}")
+                        append("\nPagadas: ${row.paid} (${row.paidRatePercent}%) · Promesas: ${row.promises} (${row.promiseRatePercent}%)")
+                        append("\nIntentadas: ${row.attempted} · Contactadas: ${row.contacted} · Inubicables: ${row.unreachable}")
+                        if (row.cancelled > 0) append("\nCanceladas: ${row.cancelled}")
                     }
                 )
             }

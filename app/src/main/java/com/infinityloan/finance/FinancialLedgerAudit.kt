@@ -23,8 +23,14 @@ object FinancialLedgerAudit {
     if(row.paidPrincipalMinor<0||row.paidInterestMinor<0||row.paidPrincipalMinor>row.principalMinor||row.paidInterestMinor>row.interestMinor)
      issues+=LedgerIssue(LedgerIssueType.INVALID_PAID_AMOUNT,"${loan.id}:${row.number}","Importes pagados fuera de límites contractuales.")
     val fully=row.paidPrincipalMinor==row.principalMinor&&row.paidInterestMinor==row.interestMinor
-    if(row.status.equals("PAID",true)!=fully)
-     issues+=LedgerIssue(LedgerIssueType.INSTALLMENT_STATUS_MISMATCH,"${loan.id}:${row.number}","Estado ${row.status} no coincide con importes pagados.")
+    val hasPayment=row.paidPrincipalMinor>0L||row.paidInterestMinor>0L
+    val expectedStatus=when {
+     fully -> "PAID"
+     hasPayment -> "PARTIAL"
+     else -> "PENDING"
+    }
+    if(row.status.uppercase() in setOf("PAID","PARTIAL","PENDING") && !row.status.equals(expectedStatus,true))
+     issues+=LedgerIssue(LedgerIssueType.INSTALLMENT_STATUS_MISMATCH,"${loan.id}:${row.number}","Estado ${row.status} no coincide con importes pagados; esperado ${expectedStatus}.")
    }
    val paid=rows.fold(0L){a,r->Math.addExact(a,r.paidPrincipalMinor)}
    val expected=Math.subtractExact(loan.principalMinor,paid)

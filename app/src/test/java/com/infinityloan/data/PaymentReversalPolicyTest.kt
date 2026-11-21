@@ -90,7 +90,7 @@ class PaymentReversalPolicyTest {
         assertEquals(PaymentReversalPolicy.Result.INVALID_ACTOR,
             PaymentReversalPolicy.evaluate(request(actor = "\\t  ")))
         assertEquals(PaymentReversalPolicy.Result.INVALID_REASON,
-            PaymentReversalPolicy.evaluate(request(reason = " " + "x".repeat(500))))
+            PaymentReversalPolicy.evaluate(request(reason = " " + "x".repeat(501))))
     }
 
     @Test fun cashReversalRequiresTheOriginalSessionToRemainOpen() {

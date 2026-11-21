@@ -699,7 +699,7 @@ private fun AuthenticatedInfinityApp(
                             principalMinor = item.principal.movePointRight(2).longValueExact(),
                             interestMinor = item.interest.movePointRight(2).longValueExact(),
                             totalMinor = item.total.movePointRight(2).longValueExact(),
-                            remainingPrincipalMinor = item.remainingPrincipal.movePointRight(2).longValueExact()
+                            remainingPrincipalMinor = item.principal.movePointRight(2).longValueExact()
                         )
                     }
                     require(rows.fold(0L) { total, row -> Math.addExact(total, row.principalMinor) } == minor) {

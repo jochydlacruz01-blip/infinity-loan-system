@@ -1050,6 +1050,16 @@ private fun CollectionVisitsScreen(
     val loanById = loans.associateBy { it.id }
     val collectorById = collectors.associateBy { it.id }
     val statuses = listOf("TODAS", "SCHEDULED", "ATTEMPTED", "CONTACTED", "PROMISE_TO_PAY", "UNREACHABLE", "PAID", "CANCELLED")
+    val statusLabels = mapOf(
+        "TODAS" to "Todas",
+        "SCHEDULED" to "Programada",
+        "ATTEMPTED" to "Visita intentada",
+        "CONTACTED" to "Cliente contactado",
+        "PROMISE_TO_PAY" to "Promesa de pago",
+        "UNREACHABLE" to "No localizado",
+        "PAID" to "Pago reportado en visita",
+        "CANCELLED" to "Visita cancelada"
+    )
     val filteredVisits = visits.filter { visit ->
         val clientName = clientById[visit.clientId]?.fullName.orEmpty()
         val matchesClient = clientFilter.isBlank() ||
@@ -1166,7 +1176,7 @@ private fun CollectionVisitsScreen(
                     statusFilter = statuses[(index + 1) % statuses.size]
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Estado: ${statusFilter.replace("_", " ")} · Cambiar") }
+            ) { Text("Estado: ${statusLabels[statusFilter] ?: statusFilter} · Cambiar") }
             Text("VISITAS MOSTRADAS · ${filteredVisits.size} DE ${visits.size}", color = Gold, fontWeight = FontWeight.SemiBold)
         }
         if (filteredVisits.isEmpty()) {
@@ -1184,7 +1194,7 @@ private fun CollectionVisitsScreen(
                 val clientVisitCount = visits.count { it.clientId == visit.clientId }
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     DataCard(
-                        title = "$clientName · ${visit.status.replace("_", " ")}",
+                        title = "$clientName · ${statusLabels[visit.status] ?: visit.status}",
                         detail = buildString {
                             append("Fecha: ${visit.plannedDate}")
                             append("\nPréstamo: ${visit.loanId.take(8)}")
@@ -1218,7 +1228,14 @@ private fun CollectionVisitsScreen(
                                             visitNotes = visitNotes - visit.visitId
                                         },
                                         modifier = Modifier.weight(1f)
-                                    ) { Text(next.name.replace("_", " "), fontSize = 10.sp) }
+                                    ) {
+                                        val actionLabel = when (next) {
+                                            CollectionVisitStatus.PAID -> "Pago reportado"
+                                            CollectionVisitStatus.CANCELLED -> "Cancelar visita"
+                                            else -> statusLabels[next.name] ?: next.name.replace("_", " ")
+                                        }
+                                        Text(actionLabel, fontSize = 10.sp)
+                                    }
                                 }
                                 if (row.size == 1) Spacer(Modifier.weight(1f))
                             }

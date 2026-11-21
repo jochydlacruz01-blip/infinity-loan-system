@@ -1,7 +1,8 @@
 package com.infinityloan.cash
 
 /**
- * Modelo puro de caja: no sustituye todavía el almacenamiento persistente.
+ * Modelo de dominio de caja utilizado por la capa Room para validar operaciones,
+ * cierres y conciliaciones dentro de transacciones persistentes.
  * Los movimientos se registran como cantidades positivas con dirección explícita.
  */
 enum class CashMovementType { CASH_IN, CASH_OUT }

@@ -125,6 +125,9 @@ interface PromisePaymentLinkDao {
     @Query("SELECT * FROM promise_payment_links ORDER BY createdAt, promiseId, operationId")
     fun observeAll(): Flow<List<PromisePaymentLinkEntity>>
 
+    @Query("SELECT promise_payment_links.* FROM promise_payment_links INNER JOIN promises_to_pay ON promises_to_pay.promiseId = promise_payment_links.promiseId WHERE promises_to_pay.collectorId = :collectorId ORDER BY promise_payment_links.createdAt, promise_payment_links.promiseId, promise_payment_links.operationId")
+    fun observeForCollector(collectorId: String): Flow<List<PromisePaymentLinkEntity>>
+
     @Query("SELECT COALESCE(SUM(amountMinor), 0) FROM promise_payment_links WHERE promiseId = :promiseId")
     suspend fun sumForPromise(promiseId: String): Long
 

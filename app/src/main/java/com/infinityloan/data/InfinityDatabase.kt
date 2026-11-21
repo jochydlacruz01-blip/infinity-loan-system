@@ -73,7 +73,7 @@ interface CollectionVisitDao {
     """)
     suspend fun transition(
         visitId: String, expectedStatus: String, status: String,
-        note: String, updatedAt: Long = System.currentTimeMillis()
+        note: String, updatedAt: Long
     ): Int
 }
 

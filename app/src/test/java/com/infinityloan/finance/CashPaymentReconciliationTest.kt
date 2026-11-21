@@ -72,4 +72,17 @@ class CashPaymentReconciliationTest {
         }
     }
 
+
+    @Test fun detectsDuplicateMovementIdsAndUnlinkedMovements() {
+        val issues = CashPaymentReconciliation.reconcile(
+            listOf(ReconciliationPayment("p-1", 500, "DOP")),
+            listOf(
+                ReconciliationCashMovement("c-1", "p-1", 500, "DOP", "IN"),
+                ReconciliationCashMovement("c-1", "p-1", 500, "DOP", "IN"),
+                ReconciliationCashMovement("unlinked", null, 200, "DOP", "IN")
+            )
+        )
+        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.DUPLICATE_CASH_MOVEMENT_OPERATION_ID })
+        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.ORPHAN_CASH_MOVEMENT })
+    }
 }

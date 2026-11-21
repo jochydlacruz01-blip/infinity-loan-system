@@ -771,6 +771,9 @@ class PaymentDaoTest {
         assertEquals(0L, allocations[1].principalPaidMinor)
         assertEquals("PAID", installments[0].status)
         assertEquals("PARTIAL", installments[1].status)
+        // Keep the installment-level remaining principal in sync with posted allocation.
+        assertEquals(0L, installments[0].remainingPrincipalMinor)
+        assertEquals(800L, installments[1].remainingPrincipalMinor)
         assertEquals(800L, updatedLoan?.balanceMinor)
         assertEquals(0L, database.customerCredits().getBalance(client.id, "DOP"))
     }

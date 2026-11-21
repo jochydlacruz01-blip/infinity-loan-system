@@ -68,5 +68,16 @@ class FinancialLedgerAuditTest {
    emptyList(),emptyList(),emptyList()
   )
   assertTrue(findings.none{it.type==LedgerIssueType.INSTALLMENT_STATUS_MISMATCH})
+ } 
+ @Test fun detectsDuplicatePaymentsMissingLoanAndNegativeCredit(){
+  val findings=FinancialLedgerAudit.audit(
+   emptyList(),emptyList(),
+   listOf(LedgerPayment("DUP","NO-LOAN",100),LedgerPayment("DUP","NO-LOAN",100)),
+   emptyList(),listOf(LedgerCredit("PAYMENT-EXCESS-DUP","NO-LOAN",-1))
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.DUPLICATE_PAYMENT})
+  assertTrue(findings.any{it.type==LedgerIssueType.PAYMENT_LOAN_NOT_FOUND})
+  assertTrue(findings.any{it.type==LedgerIssueType.INVALID_CREDIT_AMOUNT})
  }
+
 }

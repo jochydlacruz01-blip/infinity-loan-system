@@ -78,6 +78,21 @@ class PaymentReversalPolicyTest {
             )))
     }
 
+    @Test fun acceptsGeneratedCreditAtExactAvailableBalanceBoundary() {
+        assertEquals(PaymentReversalPolicy.Result.ELIGIBLE,
+            PaymentReversalPolicy.evaluate(request(
+                generatedCredit = 2_500L,
+                availableCredit = 2_500L
+            )))
+    }
+
+    @Test fun rejectsWhitespaceOnlyActorAndTrimmedReasonOverLimit() {
+        assertEquals(PaymentReversalPolicy.Result.INVALID_ACTOR,
+            PaymentReversalPolicy.evaluate(request(actor = "\\t  ")))
+        assertEquals(PaymentReversalPolicy.Result.INVALID_REASON,
+            PaymentReversalPolicy.evaluate(request(reason = " " + "x".repeat(500))))
+    }
+
     @Test fun cashReversalRequiresTheOriginalSessionToRemainOpen() {
         assertEquals(PaymentReversalPolicy.Result.ORIGINAL_CASH_SESSION_NOT_OPEN,
             PaymentReversalPolicy.evaluate(request(cashReceipt = true)))

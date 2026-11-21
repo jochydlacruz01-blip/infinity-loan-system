@@ -1467,7 +1467,7 @@ class PaymentDaoTest {
         )
         assertEquals(
             PaymentPostResult.POSTED,
-            database.postCashLoanPayment(payment, session.sessionId)
+            database.postCashLoanPayment(payment, session.sessionId, session.staffId)
         )
 
         assertEquals(7500L, database.loans().findById(loan.id)?.balanceMinor)
@@ -1527,6 +1527,53 @@ class PaymentDaoTest {
         val reconciliation = database.cashSessions().observeCashReconciliation().first()
             .single { it.sessionId == session.sessionId }
         assertEquals(3000L, reconciliation.expectedCashMinor)
+    }
+
+
+    @Test
+    fun cashLoanPaymentCannotUseAnotherEmployeesOpenCashSession() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente caja de otro empleado",
+            documentNumber = "CASH-LOAN-ACTOR-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0",
+            periods = 1,
+            method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        val session = CashSessionEntity(
+            sessionId = "CASH-LOAN-OTHER-STAFF-001",
+            staffId = "CASH-LOAN-OWNER-001",
+            currency = "DOP",
+            openingMinor = 4000L,
+            openedAt = 1_800_000_500_000L
+        )
+        database.openCashSession(session)
+        val payment = PaymentEntity(
+            operationId = "CASH-LOAN-OTHER-STAFF-PAY-001",
+            loanId = loan.id,
+            amountMinor = 1500L,
+            reference = "Intento de usar caja ajena"
+        )
+
+        assertEquals(
+            PaymentPostResult.INVALID_SCHEDULE,
+            database.postCashLoanPayment(payment, session.sessionId, "CASH-LOAN-ATTACKER-001")
+        )
+        assertEquals(null, database.payments().findByOperationId(payment.operationId))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.cashSessions().findMovementByOperation("CASH-PAY-" + payment.operationId))
+        val reconciliation = database.cashSessions().observeCashReconciliation().first()
+            .single { it.sessionId == session.sessionId }
+        assertEquals(4000L, reconciliation.expectedCashMinor)
     }
 
 }

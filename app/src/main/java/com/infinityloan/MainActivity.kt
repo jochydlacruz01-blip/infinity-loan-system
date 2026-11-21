@@ -2367,7 +2367,7 @@ private fun StaffManagementScreen(
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text("Contraseña (mínimo 12 caracteres)") },
+                        label = { Text("Contraseña (mínimo 6 caracteres)") },
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true
                     )
@@ -2375,7 +2375,7 @@ private fun StaffManagementScreen(
             },
             confirmButton = {
                 TextButton(
-                    enabled = displayName.isNotBlank() && username.isNotBlank() && password.length >= 12,
+                    enabled = displayName.isNotBlank() && username.isNotBlank() && password.length >= 6,
                     onClick = {
                         val submittedPassword = password
                         password = ""

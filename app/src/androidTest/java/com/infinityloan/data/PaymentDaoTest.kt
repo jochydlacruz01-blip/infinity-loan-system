@@ -131,6 +131,43 @@ class PaymentDaoTest {
     }
 
     @Test
+    fun cashReconciliationProjectionReflectsPhysicalCloseAndVariance() = runBlocking {
+        val session = CashSessionEntity(
+            sessionId = "CASH-RECON-CLOSE-001",
+            staffId = "CASH-RECON-CLOSE-STAFF",
+            currency = "DOP",
+            openingMinor = 10000L,
+            openedAt = 1_800_000_200_000L
+        )
+        database.openCashSession(session)
+        database.postCashMovement(
+            CashMovementEntity(
+                operationId = "CASH-RECON-CLOSE-IN-001",
+                sessionId = session.sessionId,
+                type = "CASH_IN",
+                amountMinor = 2500L,
+                reason = "Ingreso para prueba de cierre",
+                createdAt = 1_800_000_200_100L
+            )
+        )
+
+        database.closeCashSession(
+            sessionId = session.sessionId,
+            countedMinor = 12000L,
+            closedAt = 1_800_000_200_200L
+        )
+
+        val row = database.cashSessions().observeCashReconciliation().first { rows ->
+            rows.any { it.sessionId == session.sessionId && it.closedAt != null }
+        }.single { it.sessionId == session.sessionId }
+
+        assertEquals(12500L, row.expectedCashMinor)
+        assertEquals(12000L, row.countedClosingMinor)
+        assertEquals(1_800_000_200_200L, row.closedAt)
+        assertEquals(-500L, Math.subtractExact(row.countedClosingMinor!!, row.expectedCashMinor))
+    }
+
+    @Test
     fun duplicatePaymentDoesNotReduceBalanceTwice() = runBlocking {
 
         val client = ClientEntity(

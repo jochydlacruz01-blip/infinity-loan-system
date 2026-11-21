@@ -105,9 +105,10 @@ data class PromiseToPayEntity(
     primaryKeys = ["promiseId", "operationId"],
     foreignKeys = [
         ForeignKey(entity = PromiseToPayEntity::class, parentColumns = ["promiseId"], childColumns = ["promiseId"], onDelete = ForeignKey.RESTRICT),
-        ForeignKey(entity = PaymentEntity::class, parentColumns = ["operationId"], childColumns = ["operationId"], onDelete = ForeignKey.RESTRICT)
+        ForeignKey(entity = PaymentEntity::class, parentColumns = ["operationId"], childColumns = ["operationId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = StaffAccountEntity::class, parentColumns = ["id"], childColumns = ["linkedByStaffId"], onDelete = ForeignKey.RESTRICT)
     ],
-    indices = [Index("promiseId"), Index("operationId")]
+    indices = [Index("promiseId"), Index("operationId"), Index("linkedByStaffId")]
 )
 data class PromisePaymentLinkEntity(
     val promiseId: String,
@@ -1853,10 +1854,13 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
                 FOREIGN KEY(promiseId) REFERENCES promises_to_pay(promiseId)
                     ON UPDATE NO ACTION ON DELETE RESTRICT,
                 FOREIGN KEY(operationId) REFERENCES payments(operationId)
+                    ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(linkedByStaffId) REFERENCES staff_accounts(id)
                     ON UPDATE NO ACTION ON DELETE RESTRICT
             )
         """.trimIndent())
         database.execSQL("CREATE INDEX IF NOT EXISTS index_promise_payment_links_promiseId ON promise_payment_links(promiseId)")
         database.execSQL("CREATE INDEX IF NOT EXISTS index_promise_payment_links_operationId ON promise_payment_links(operationId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_promise_payment_links_linkedByStaffId ON promise_payment_links(linkedByStaffId)")
     }
 }

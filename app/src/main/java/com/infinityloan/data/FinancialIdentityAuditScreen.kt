@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.infinityloan.security.StaffSession
-import com.infinityloan.AuditLogScreen
 
 @Composable
 fun FinancialIdentityAuditScreen(db: InfinityDatabase, session: StaffSession) {
@@ -35,7 +34,7 @@ fun FinancialIdentityAuditScreen(db: InfinityDatabase, session: StaffSession) {
             Button(onClick = { historyMode = false }) { Text("Integridad") }
             OutlinedButton(onClick = { historyMode = true }) { Text("Historial de auditoría") }
         }
-        if (historyMode) { AuditLogScreen(db, session) } else {
+        if (historyMode) { Text("Historial disponible desde el módulo Auditoría principal.") } else {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Integridad financiera", style = MaterialTheme.typography.titleLarge)
             OutlinedButton(onClick = { refreshKey++ }, enabled = !loading) { Text("Actualizar") }
@@ -79,4 +78,5 @@ fun FinancialIdentityAuditScreen(db: InfinityDatabase, session: StaffSession) {
             }
         }
     }
+}
 }

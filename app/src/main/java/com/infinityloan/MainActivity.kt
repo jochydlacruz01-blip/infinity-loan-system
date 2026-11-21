@@ -957,16 +957,34 @@ private fun CollectionVisitsScreen(
     visits: List<CollectionVisitEntity>,
     loans: List<LoanEntity>,
     clients: List<ClientEntity>,
+    collectors: List<StaffAccountSummary>,
+    currentStaffId: String,
     canManage: Boolean,
-    onSchedule: (String, LocalDate) -> Unit,
+    canAssign: Boolean,
+    onSchedule: (String, LocalDate, String) -> Unit,
     onStatus: (String, CollectionVisitStatus, String) -> Unit
 ) {
     var showLoanPicker by remember { mutableStateOf(false) }
     var selectedLoanId by remember { mutableStateOf<String?>(null) }
     var plannedDateText by remember { mutableStateOf(LocalDate.now().toString()) }
-    var outcomeNote by remember { mutableStateOf("") }
+    var scheduleMessage by remember { mutableStateOf("") }
+    var dateFilter by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf("TODAS") }
+    var selectedCollectorId by remember(collectors, currentStaffId) {
+        mutableStateOf(collectors.firstOrNull()?.id ?: currentStaffId)
+    }
+    var visitNotes by remember { mutableStateOf(emptyMap<String, String>()) }
     val clientById = clients.associateBy { it.id }
     val loanById = loans.associateBy { it.id }
+    val collectorById = collectors.associateBy { it.id }
+    val statuses = listOf("TODAS", "SCHEDULED", "ATTEMPTED", "CONTACTED", "PROMISE_TO_PAY", "UNREACHABLE", "PAID", "CANCELLED")
+    val filteredVisits = visits.filter { visit ->
+        (statusFilter == "TODAS" || visit.status == statusFilter) &&
+            (dateFilter.isBlank() || visit.plannedDate.contains(dateFilter.trim()))
+    }
+    val today = LocalDate.now().toString()
+    val todayCount = visits.count { it.plannedDate == today }
+    val openCount = visits.count { it.status !in listOf("PAID", "CANCELLED") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -975,19 +993,40 @@ private fun CollectionVisitsScreen(
         item {
             Text("AGENDA DE COBRANZA", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("Visitas persistentes vinculadas a préstamos y responsables. Los cambios quedan auditados.", color = Muted, fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.weight(1f)) { DataCard("HOY", todayCount.toString()) }
+                Box(Modifier.weight(1f)) { DataCard("ABIERTAS", openCount.toString()) }
+                Box(Modifier.weight(1f)) { DataCard("TOTAL", visits.size.toString()) }
+            }
         }
         if (canManage) {
             item {
                 DataCard(
                     title = "Programar nueva visita",
-                    detail = "Selecciona un préstamo activo y define la fecha de visita."
+                    detail = "Selecciona un préstamo activo, fecha y responsable."
                 )
-                Button(
-                    onClick = { showLoanPicker = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Seleccionar préstamo") }
+                Button(onClick = { showLoanPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Seleccionar préstamo")
+                }
                 selectedLoanId?.let { id ->
                     Text("Préstamo seleccionado: ${id.take(8)}", color = Gold, fontSize = 12.sp)
+                }
+                if (canAssign) {
+                    val selectedCollector = collectorById[selectedCollectorId]
+                    OutlinedButton(
+                        onClick = {
+                            if (collectors.isNotEmpty()) {
+                                val currentIndex = collectors.indexOfFirst { it.id == selectedCollectorId }
+                                selectedCollectorId = collectors[(currentIndex + 1).mod(collectors.size)].id
+                            }
+                        },
+                        enabled = collectors.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Asignar a: ${selectedCollector?.displayName ?: "Sin cobradores activos"} · Cambiar")
+                    }
+                } else {
+                    Text("Responsable: tú (cobrador asignado)", color = Muted, fontSize = 12.sp)
                 }
                 OutlinedTextField(
                     value = plannedDateText,
@@ -1000,43 +1039,69 @@ private fun CollectionVisitsScreen(
                     onClick = {
                         val date = runCatching { LocalDate.parse(plannedDateText) }.getOrNull()
                         if (selectedLoanId == null || date == null) {
-                            outcomeNote = "Selecciona un préstamo y una fecha válida."
+                            scheduleMessage = "Selecciona un préstamo y una fecha válida."
+                        } else if (canAssign && selectedCollectorId !in collectors.map { it.id }) {
+                            scheduleMessage = "No hay cobradores activos disponibles para asignar."
                         } else {
-                            onSchedule(selectedLoanId!!, date)
+                            onSchedule(selectedLoanId!!, date, if (canAssign) selectedCollectorId else currentStaffId)
                             selectedLoanId = null
+                            scheduleMessage = ""
                         }
                     },
-                    enabled = selectedLoanId != null,
+                    enabled = selectedLoanId != null && (!canAssign || collectors.isNotEmpty()),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Guardar visita") }
-                if (outcomeNote.isNotBlank()) Text(outcomeNote, color = Gold, fontSize = 12.sp)
+                if (scheduleMessage.isNotBlank()) Text(scheduleMessage, color = Gold, fontSize = 12.sp)
             }
         }
         item {
-            Text("VISITAS REGISTRADAS · ${visits.size}", color = Gold, fontWeight = FontWeight.SemiBold)
+            Text("FILTRAR AGENDA", color = Gold, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = dateFilter,
+                onValueChange = { dateFilter = it.take(10) },
+                label = { Text("Fecha contiene (AAAA-MM-DD)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedButton(
+                onClick = {
+                    val index = statuses.indexOf(statusFilter).coerceAtLeast(0)
+                    statusFilter = statuses[(index + 1) % statuses.size]
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Estado: ${statusFilter.replace("_", " ")} · Cambiar") }
+            Text("VISITAS MOSTRADAS · ${filteredVisits.size} DE ${visits.size}", color = Gold, fontWeight = FontWeight.SemiBold)
         }
-        if (visits.isEmpty()) {
-            item { EmptyState("Agenda vacía", "Todavía no hay visitas de cobranza programadas.") }
+        if (filteredVisits.isEmpty()) {
+            item {
+                EmptyState(
+                    if (visits.isEmpty()) "Agenda vacía" else "Sin resultados",
+                    if (visits.isEmpty()) "Todavía no hay visitas de cobranza programadas." else "No hay visitas que coincidan con los filtros."
+                )
+            }
         } else {
-            items(visits, key = { it.visitId }) { visit ->
+            items(filteredVisits, key = { it.visitId }) { visit ->
                 val clientName = clientById[visit.clientId]?.fullName ?: "Cliente no disponible"
                 val loan = loanById[visit.loanId]
+                val collectorName = collectorById[visit.collectorId]?.displayName ?: "Responsable ${visit.collectorId.take(8)}"
+                val clientVisitCount = visits.count { it.clientId == visit.clientId }
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     DataCard(
-                        title = "$clientName · ${visit.status}",
+                        title = "$clientName · ${visit.status.replace("_", " ")}",
                         detail = buildString {
                             append("Fecha: ${visit.plannedDate}")
                             append("\nPréstamo: ${visit.loanId.take(8)}")
-                            append("\nCobrador: ${visit.collectorId.take(8)}")
+                            append("\nCobrador: $collectorName")
+                            append("\nHistorial del cliente: $clientVisitCount visitas")
                             if (visit.outcomeNote.isNotBlank()) append("\nResultado: ${visit.outcomeNote}")
                             if (loan == null) append("\nPréstamo no disponible")
                         }
                     )
                     if (canManage && visit.status !in listOf("PAID", "CANCELLED")) {
                         OutlinedTextField(
-                            value = outcomeNote,
-                            onValueChange = { outcomeNote = it.take(2000) },
-                            label = { Text("Nota del resultado") },
+                            value = visitNotes[visit.visitId] ?: "",
+                            onValueChange = { visitNotes = visitNotes + (visit.visitId to it.take(2000)) },
+                            label = { Text("Nota de esta visita") },
                             modifier = Modifier.fillMaxWidth()
                         )
                         val nextStatuses = when (visit.status) {
@@ -1052,13 +1117,11 @@ private fun CollectionVisitsScreen(
                                 row.forEach { next ->
                                     OutlinedButton(
                                         onClick = {
-                                            onStatus(visit.visitId, next, outcomeNote)
-                                            outcomeNote = ""
+                                            onStatus(visit.visitId, next, visitNotes[visit.visitId].orEmpty())
+                                            visitNotes = visitNotes - visit.visitId
                                         },
                                         modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text(next.name.replace("_", " "), fontSize = 10.sp)
-                                    }
+                                    ) { Text(next.name.replace("_", " "), fontSize = 10.sp) }
                                 }
                                 if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
@@ -1085,12 +1148,10 @@ private fun CollectionVisitsScreen(
                                 onClick = {
                                     selectedLoanId = loan.id
                                     showLoanPicker = false
-                                    outcomeNote = ""
+                                    scheduleMessage = ""
                                 },
                                 modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("$name · ${loan.currency} · ${loan.id.take(8)}")
-                            }
+                            ) { Text("$name · ${loan.currency} · ${loan.id.take(8)}") }
                         }
                     }
                 }

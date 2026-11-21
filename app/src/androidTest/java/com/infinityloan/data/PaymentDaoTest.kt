@@ -85,6 +85,52 @@ class PaymentDaoTest {
     }
 
     @Test
+    fun cashReconciliationProjectionRecalculatesAfterCashMovements() = runBlocking {
+        val session = CashSessionEntity(
+            sessionId = "CASH-RECON-SESSION-001",
+            staffId = "CASH-RECON-STAFF-001",
+            currency = "DOP",
+            openingMinor = 5000L,
+            openedAt = 1_800_000_100_000L
+        )
+        database.cashSessions().insertSession(session)
+
+        val reconciled = async(Dispatchers.Unconfined) {
+            database.cashSessions().observeCashReconciliation().first { rows ->
+                rows.any { it.sessionId == session.sessionId && it.expectedCashMinor == 5750L }
+            }
+        }
+
+        database.cashSessions().insertMovement(
+            CashMovementEntity(
+                operationId = "CASH-RECON-IN-001",
+                sessionId = session.sessionId,
+                type = "CASH_IN",
+                amountMinor = 1250L,
+                reason = "Ingreso de prueba",
+                createdAt = 1_800_000_100_100L
+            )
+        )
+        database.cashSessions().insertMovement(
+            CashMovementEntity(
+                operationId = "CASH-RECON-OUT-001",
+                sessionId = session.sessionId,
+                type = "CASH_OUT",
+                amountMinor = 500L,
+                reason = "Egreso de prueba",
+                createdAt = 1_800_000_100_200L
+            )
+        )
+
+        val row = reconciled.await().single { it.sessionId == session.sessionId }
+        assertEquals("DOP", row.currency)
+        assertEquals(5000L, row.openingMinor)
+        assertEquals(5750L, row.expectedCashMinor)
+        assertEquals(null, row.closedAt)
+        assertEquals(null, row.countedClosingMinor)
+    }
+
+    @Test
     fun duplicatePaymentDoesNotReduceBalanceTwice() = runBlocking {
 
         val client = ClientEntity(

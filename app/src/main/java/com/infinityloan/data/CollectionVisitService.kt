@@ -102,7 +102,8 @@ class CollectionVisitService(
                 visitId = visitId,
                 expectedStatus = existing.status,
                 status = changed.status.name,
-                note = changed.outcomeNote
+                note = changed.outcomeNote,
+                updatedAt = System.currentTimeMillis()
             )
             if (rows != 1) return@withTransaction false
             database.auditLogs().insert(AuditLogEntity(

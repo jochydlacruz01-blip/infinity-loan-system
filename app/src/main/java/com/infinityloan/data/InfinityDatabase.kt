@@ -1392,7 +1392,7 @@ abstract class InfinityDatabase : RoomDatabase() {
         if (loan.status != "ACTIVE") return@withTransaction PaymentPostResult.LOAN_NOT_ACTIVE
         val session = cashSessions().findSession(sessionId) ?: return@withTransaction PaymentPostResult.INVALID_SCHEDULE
         if (session.closedAt != null || session.currency != loan.currency || session.staffId != actorStaffId) return@withTransaction PaymentPostResult.INVALID_SCHEDULE
-        if (cashSessions().findOpenSession(session.staffId, session.currency)?.sessionId != sessionId) return@withTransaction PaymentPostResult.INVALID_SCHEDULE { "La sesión no es la caja abierta del empleado." }
+        if (cashSessions().findOpenSession(session.staffId, session.currency)?.sessionId != sessionId) return@withTransaction PaymentPostResult.INVALID_SCHEDULE
         val result = payments().postPayment(payment)
         if (result != PaymentPostResult.POSTED) return@withTransaction result
         val cashOperationId = "CASH-PAY-" + payment.operationId

@@ -1040,6 +1040,7 @@ private fun CollectionVisitsScreen(
     var plannedDateText by remember { mutableStateOf(LocalDate.now().toString()) }
     var scheduleMessage by remember { mutableStateOf("") }
     var dateFilter by remember { mutableStateOf("") }
+    var clientFilter by remember { mutableStateOf("") }
     var statusFilter by remember { mutableStateOf("TODAS") }
     var selectedCollectorId by remember(collectors, currentStaffId) {
         mutableStateOf(collectors.firstOrNull()?.id ?: currentStaffId)
@@ -1050,8 +1051,13 @@ private fun CollectionVisitsScreen(
     val collectorById = collectors.associateBy { it.id }
     val statuses = listOf("TODAS", "SCHEDULED", "ATTEMPTED", "CONTACTED", "PROMISE_TO_PAY", "UNREACHABLE", "PAID", "CANCELLED")
     val filteredVisits = visits.filter { visit ->
+        val clientName = clientById[visit.clientId]?.fullName.orEmpty()
+        val matchesClient = clientFilter.isBlank() ||
+            clientName.contains(clientFilter.trim(), ignoreCase = true) ||
+            visit.loanId.contains(clientFilter.trim(), ignoreCase = true)
         (statusFilter == "TODAS" || visit.status == statusFilter) &&
-            (dateFilter.isBlank() || visit.plannedDate.contains(dateFilter.trim()))
+            (dateFilter.isBlank() || visit.plannedDate.contains(dateFilter.trim())) &&
+            matchesClient
     }
     val today = LocalDate.now().toString()
     val todayCount = visits.count { it.plannedDate == today }
@@ -1144,6 +1150,13 @@ private fun CollectionVisitsScreen(
                 value = dateFilter,
                 onValueChange = { dateFilter = it.take(10) },
                 label = { Text("Fecha contiene (AAAA-MM-DD)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = clientFilter,
+                onValueChange = { clientFilter = it.take(100) },
+                label = { Text("Buscar por cliente o ID de préstamo") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

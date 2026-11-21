@@ -13,6 +13,16 @@ import kotlinx.coroutines.flow.Flow
 /** Read-only projection used to audit persisted loan payments against cash receipts. */
 data class PersistedPaymentForReconciliation(val operationId: String, val amountMinor: Long, val currency: String)
 
+/** Live per-session cash balance projection calculated from the persisted ledger. */
+data class CashSessionReconciliationRow(
+    val sessionId: String,
+    val currency: String,
+    val openingMinor: Long,
+    val closedAt: Long?,
+    val countedClosingMinor: Long?,
+    val expectedCashMinor: Long
+)
+
 data class PersistedCashSessionForAudit(
     val sessionId: String,
     val staffId: String,
@@ -94,6 +104,31 @@ interface CashSessionDao {
     /** Emits on either session changes or cash movement changes for live reconciliation screens. */
     @Query("SELECT * FROM cash_movements ORDER BY createdAt, operationId")
     fun observeAllMovements(): Flow<List<CashMovementEntity>>
+
+    /**
+     * Emits a reconciled balance per session. Room invalidates this query when either
+     * cash_sessions or cash_movements changes, avoiding stale snapshots and N+1 reads.
+     */
+    @Query("""
+        SELECT
+            s.sessionId AS sessionId,
+            s.currency AS currency,
+            s.openingMinor AS openingMinor,
+            s.closedAt AS closedAt,
+            s.countedClosingMinor AS countedClosingMinor,
+            s.openingMinor + COALESCE(SUM(
+                CASE
+                    WHEN m.type = 'CASH_IN' THEN m.amountMinor
+                    WHEN m.type = 'CASH_OUT' THEN -m.amountMinor
+                    ELSE 0
+                END
+            ), 0) AS expectedCashMinor
+        FROM cash_sessions AS s
+        LEFT JOIN cash_movements AS m ON m.sessionId = s.sessionId
+        GROUP BY s.sessionId, s.currency, s.openingMinor, s.closedAt, s.countedClosingMinor
+        ORDER BY s.sessionId
+    """)
+    fun observeCashReconciliation(): Flow<List<CashSessionReconciliationRow>>
 
     @Query("SELECT * FROM cash_movements WHERE sessionId = :sessionId ORDER BY createdAt, operationId")
     fun observeMovements(sessionId: String): Flow<List<CashMovementEntity>>

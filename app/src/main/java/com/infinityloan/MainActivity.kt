@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,11 +65,30 @@ private val Gold = Color(0xFFD6AD55)
 private val Muted = Color(0xFF9EADC4)
 
 class MainActivity : ComponentActivity() {
+    private var retainedSession: StaffSession? = null
+    override fun onRetainCustomNonConfigurationInstance(): Any? = retainedSession
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = InfinityDatabase.get(this)
-        setContent { InfinityApp(db) }
+        retainedSession = lastCustomNonConfigurationInstance as? StaffSession
+        setContent { InfinityApp(db, retainedSession, onSessionChanged = { retainedSession = it }) }
     }
+}
+
+private fun screenIcon(screen: Screen) = when (screen) {
+    Screen.HOME -> Icons.Filled.Dashboard
+    Screen.CLIENTS -> Icons.Filled.People
+    Screen.LOANS -> Icons.Filled.AccountBalance
+    Screen.PAYMENTS -> Icons.Filled.Payments
+    Screen.PROMISES -> Icons.Filled.EventAvailable
+    Screen.COLLECTION_ALERTS -> Icons.Filled.NotificationsActive
+    Screen.COLLECTION_VISITS -> Icons.Filled.LocationOn
+    Screen.COLLECTION_PERFORMANCE -> Icons.Filled.Insights
+    Screen.CASH -> Icons.Filled.PointOfSale
+    Screen.REPORTS -> Icons.Filled.Assessment
+    Screen.SETTINGS -> Icons.Filled.Settings
+    Screen.STAFF -> Icons.Filled.ManageAccounts
+    Screen.AUDIT -> Icons.Filled.Security
 }
 
 private enum class Screen(val label: String, val permission: Permission) {
@@ -87,8 +108,8 @@ private enum class Screen(val label: String, val permission: Permission) {
 }
 
 @Composable
-private fun InfinityApp(db: InfinityDatabase) {
-    var session by remember { mutableStateOf<StaffSession?>(null) }
+private fun InfinityApp(db: InfinityDatabase, retained: StaffSession?, onSessionChanged: (StaffSession?) -> Unit) {
+    var session by remember { mutableStateOf(retained) }
     var accountCount by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(db) {
@@ -105,13 +126,13 @@ private fun InfinityApp(db: InfinityDatabase) {
             persistStaffChange = { operation -> db.withTransaction { operation() } }
         ) },
             db = db,
-            onAuthenticated = { session = it }
+            onAuthenticated = { session = it; onSessionChanged(it) }
         )
     } else {
         AuthenticatedInfinityApp(
             db = db,
             session = currentSession,
-            onLogout = { session = null }
+            onLogout = { session = null; onSessionChanged(null) }
         )
     }
 }
@@ -322,14 +343,16 @@ private fun AuthenticatedInfinityApp(
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
-                ModalDrawerSheet(drawerContainerColor = Panel) {
+                ModalDrawerSheet(drawerContainerColor = Panel, modifier = Modifier.widthIn(max = 320.dp)) {
                     Text("INFINITY", color = Gold, fontWeight = FontWeight.Bold,
                         fontSize = 20.sp, modifier = Modifier.padding(20.dp))
                     Text("LOAN SYSTEM", color = Color.White,
                         modifier = Modifier.padding(start = 20.dp, bottom = 18.dp))
+                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                     availableScreens.forEach { item ->
                         NavigationDrawerItem(
-                            label = { Text(item.label) },
+                            icon = { Icon(screenIcon(item), contentDescription = item.label) },
+                            label = { Text(item.label, maxLines = 1) },
                             selected = screen == item,
                             onClick = {
                                 screen = item
@@ -342,6 +365,7 @@ private fun AuthenticatedInfinityApp(
                                 unselectedTextColor = Color.White
                             )
                         )
+                    }
                     }
                 }
             }

@@ -110,7 +110,8 @@ object CashPaymentReconciliation {
                     movement.operationId, payment.amountMinor, movement.amountMinor,
                     "A payment receipt must be recorded as an incoming cash movement (IN)."
                 )
-            }\n            if (movement.currency != payment.currency) {
+            }
+            if (movement.currency != payment.currency) {
                 issues += CashReconciliationIssue(
                     CashReconciliationIssueType.CURRENCY_MISMATCH, payment.operationId,
                     movement.operationId, payment.amountMinor, movement.amountMinor,

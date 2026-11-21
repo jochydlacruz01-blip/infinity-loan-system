@@ -526,7 +526,8 @@ private fun AuthenticatedInfinityApp(
                             session = session,
                             onMessage = { message = it }
                         )
-                        Screen.AUDIT -> AuditLogScreen(db, session)
+                        Screen.AUDIT -> FinancialIdentityAuditScreen(db)
+                        // Audit-log access remains available from audit history in its existing workflow.
                     }
                     message?.let {
                         Spacer(Modifier.height(8.dp))

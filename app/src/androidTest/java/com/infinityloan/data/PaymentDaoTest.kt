@@ -829,6 +829,7 @@ class PaymentDaoTest {
 
         val installment = database.installments().findForLoan(loan.id).single()
         assertEquals(0L, installment.paidPrincipalMinor)
+        assertEquals(10000L, installment.remainingPrincipalMinor)
         assertEquals("PENDING", installment.status)
     }
 
@@ -1109,6 +1110,7 @@ class PaymentDaoTest {
         )
         assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
         assertEquals(1000L, database.customerCredits().getBalance(client.id, "DOP"))
+        assertEquals(9000L, database.installments().findForLoan(loan.id).single().remainingPrincipalMinor)
 
         assertEquals(
             PaymentReversalResult.REVERSED,

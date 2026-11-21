@@ -1052,6 +1052,85 @@ class PaymentDaoTest {
     }
 
 
+
+    @Test
+    fun reversalUsesInsertionOrderWhenPaymentsShareTheSameTimestamp() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente pagos mismo instante",
+            documentNumber = "REVERSAL-SAME-TIME-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id,
+            principalMinor = 10000L,
+            balanceMinor = 10000L,
+            currency = "DOP",
+            periodicRate = "0",
+            periods = 1,
+            method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        val admin = StaffAccountEntity(
+            id = "REVERSAL-SAME-TIME-ADMIN",
+            username = "reversal-same-time-admin",
+            displayName = "Admin prueba orden",
+            role = "ADMINISTRATOR",
+            passwordAlgorithm = "PBKDF2_SHA256_V1",
+            passwordIterations = 210000,
+            passwordSaltBase64 = "c2FsdA==",
+            passwordHashBase64 = "aGFzaA=="
+        )
+        database.staffAccounts().insert(admin)
+
+        val sharedTimestamp = 1_800_000_000_000L
+        val firstPayment = PaymentEntity(
+            operationId = "REVERSAL-SAME-TIME-FIRST",
+            loanId = loan.id,
+            amountMinor = 1000L,
+            reference = "Primer pago",
+            createdAt = sharedTimestamp
+        )
+        val secondPayment = PaymentEntity(
+            operationId = "REVERSAL-SAME-TIME-SECOND",
+            loanId = loan.id,
+            amountMinor = 1500L,
+            reference = "Segundo pago",
+            createdAt = sharedTimestamp
+        )
+
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(firstPayment))
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(secondPayment))
+        assertEquals(7500L, database.loans().findById(loan.id)?.balanceMinor)
+
+        assertEquals(
+            PaymentReversalResult.REVERSED,
+            database.reversePayment(
+                operationId = secondPayment.operationId,
+                actorStaffId = admin.id,
+                actorUsername = admin.username,
+                reason = "Reverso del segundo pago"
+            )
+        )
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        val installment = database.installments().findForLoan(loan.id).single()
+        assertEquals(1000L, installment.paidPrincipalMinor)
+        assertEquals(9000L, installment.remainingPrincipalMinor)
+        assertEquals("PARTIAL", installment.status)
+
+        assertEquals(
+            PaymentReversalResult.LATER_PAYMENT_EXISTS,
+            database.reversePayment(
+                operationId = firstPayment.operationId,
+                actorStaffId = admin.id,
+                actorUsername = admin.username,
+                reason = "No debe revertir el primer pago"
+            )
+        )
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+    }
+
     @Test
     fun reversalIsBlockedEvenWhenPromiseLinkAmountIsZero() = runBlocking {
         val client = ClientEntity(

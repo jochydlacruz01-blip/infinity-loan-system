@@ -19,7 +19,9 @@ class CollectionVisitService(
     private val authentication: StaffAuthenticationService
 ) {
     fun observe(actor: StaffSession) =
-        if (authentication.hasPermission(actor, Permission.COLLECTION_VISIT_VIEW)) {
+        if (!authentication.isSessionValid(actor)) {
+            throw SecurityException("La sesión ha caducado.")
+        } else if (authentication.hasPermission(actor, Permission.COLLECTION_VISIT_VIEW)) {
             if (actor.profile.role == StaffRole.COLLECTOR) {
                 database.collectionVisits().observeForCollector(actor.staffId)
             } else database.collectionVisits().observeAll()

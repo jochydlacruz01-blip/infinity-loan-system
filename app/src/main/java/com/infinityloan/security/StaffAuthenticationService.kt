@@ -97,8 +97,8 @@ class StaffAuthenticationService(
                 "El usuario debe tener entre 3 y 64 caracteres."
             }
             require(displayName.isNotBlank()) { "El nombre no puede estar vacío." }
-            require(password.size >= 12) {
-                "La contraseña debe tener al menos 12 caracteres."
+            require(password.size >= 6) {
+                "La contraseña debe tener al menos 6 caracteres."
             }
 
             val hash = PasswordHasher.hash(password)

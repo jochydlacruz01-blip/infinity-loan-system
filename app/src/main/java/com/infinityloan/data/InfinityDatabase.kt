@@ -1434,7 +1434,8 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun cashSessions(): CashSessionDao
     abstract fun paymentReversals(): PaymentReversalDao
     abstract fun cashVarianceReviews(): CashVarianceReviewDao
-    abstract fun promisesToPay(): PromiseToPayDao\n    abstract fun promisePaymentLinks(): PromisePaymentLinkDao
+    abstract fun promisesToPay(): PromiseToPayDao
+    abstract fun promisePaymentLinks(): PromisePaymentLinkDao
     abstract fun collectionVisits(): CollectionVisitDao
 
     companion object {

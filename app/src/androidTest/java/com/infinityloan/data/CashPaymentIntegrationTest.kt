@@ -943,4 +943,49 @@ class CashPaymentIntegrationTest {
         assertTrue(database.auditLogs().findByActor("ADMIN-001", 10).isEmpty())
     }
 
+    @Test
+    fun cashVarianceReviewRejectsInvalidCommentsAndMissingSessionsWithoutAuditWrites() = runBlocking {
+        val sessionId = "CASH-VARIANCE-VALIDATION"
+        database.openCashSession(
+            CashSessionEntity(sessionId, "CASHIER-VALIDATION", "DOP", 1500L, 500L)
+        )
+        database.closeCashSession(sessionId, countedMinor = 1400L, closedAt = 501L)
+
+        val service = CashVarianceReviewService(
+            database,
+            com.infinityloan.security.StaffAuthenticationService(database.staffAccounts())
+        )
+        val administrator = com.infinityloan.security.StaffSession(
+            staffId = "ADMIN-001",
+            username = "admin0",
+            displayName = "Administrador de prueba",
+            profile = com.infinityloan.security.AccessProfile(
+                com.infinityloan.security.StaffRole.ADMINISTRATOR
+            )
+        )
+
+        val invalidRequests = listOf(
+            sessionId to "   ",
+            sessionId to "x".repeat(1001),
+            "CASH-VARIANCE-MISSING" to "Revisión de sesión inexistente"
+        )
+        invalidRequests.forEach { (targetSessionId, comment) ->
+            var rejected = false
+            try {
+                service.review(
+                    administrator,
+                    targetSessionId,
+                    CashVarianceDecision.APPROVED,
+                    comment
+                )
+            } catch (_: IllegalArgumentException) {
+                rejected = true
+            }
+            assertTrue("Debe rechazarse la revisión inválida: $targetSessionId", rejected)
+        }
+
+        assertTrue(database.cashVarianceReviews().findForSession(sessionId).isEmpty())
+        assertTrue(database.auditLogs().findByActor("ADMIN-001", 10).isEmpty())
+    }
+
 }

@@ -1017,4 +1017,51 @@ class PaymentDaoTest {
             )
         )
     }
+
+
+    @Test
+    fun reversalIsBlockedEvenWhenPromiseLinkAmountIsZero() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente vínculo promesa",
+            documentNumber = "TEST-PROMISE-LINK-ZERO-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id, principalMinor = 10000L, balanceMinor = 10000L,
+            currency = "DOP", periodicRate = "0", periods = 1, method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        val admin = StaffAccountEntity(
+            id = "PROMISE-LINK-ADMIN-001", username = "promise-link-admin",
+            displayName = "Admin de prueba", role = "ADMINISTRATOR",
+            passwordAlgorithm = "PBKDF2_SHA256_V1", passwordIterations = 210000,
+            passwordSaltBase64 = "c2FsdA==", passwordHashBase64 = "aGFzaA=="
+        )
+        database.staffAccounts().insert(admin)
+        val payment = PaymentEntity(
+            operationId = "PROMISE-LINK-PAYMENT-ZERO-001", loanId = loan.id,
+            amountMinor = 1000L, reference = "Pago con vínculo"
+        )
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+        val promise = PromiseToPayEntity(
+            promiseId = "PROMISE-LINK-ZERO-001", loanId = loan.id, clientId = client.id,
+            collectorId = admin.id, promisedAmountMinor = 1000L, currency = "DOP",
+            promisedDate = LocalDate.now().toString()
+        )
+        database.promisesToPay().insert(promise)
+        database.promisePaymentLinks().insert(
+            PromisePaymentLinkEntity(
+                promiseId = promise.promiseId, operationId = payment.operationId,
+                amountMinor = 0L, linkedByStaffId = admin.id
+            )
+        )
+        assertEquals(
+            PaymentReversalResult.PAYMENT_LINKED_TO_PROMISE,
+            database.reversePayment(payment.operationId, admin.id, admin.username, "Prueba")
+        )
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(1000L, database.installments().findForLoan(loan.id).single().paidPrincipalMinor)
+    }
 }

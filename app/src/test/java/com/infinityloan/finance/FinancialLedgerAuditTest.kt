@@ -37,4 +37,20 @@ class FinancialLedgerAuditTest {
   assertTrue(findings.none{it.type==LedgerIssueType.ALLOCATION_SUM_MISMATCH})
  }
 
+ @Test fun detectsPendingStatusWhenInstallmentHasPartialPayment(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",1000,900)),
+   listOf(LedgerInstallment("L1",1,1000,100,1100,100,0,"PENDING")),
+   emptyList(),emptyList(),emptyList()
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.INSTALLMENT_STATUS_MISMATCH})
+ }
+ @Test fun detectsPartialStatusWhenInstallmentIsUnpaid(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",1000,1000)),
+   listOf(LedgerInstallment("L1",1,1000,100,1100,0,0,"PARTIAL")),
+   emptyList(),emptyList(),emptyList()
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.INSTALLMENT_STATUS_MISMATCH})
+ }
 }

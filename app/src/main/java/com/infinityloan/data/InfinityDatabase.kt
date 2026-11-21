@@ -900,12 +900,18 @@ interface PaymentDao {
 
         // Apply received payments to the outstanding contractual installments,
         // including future installments, to ensure each payment has a traceable allocation.
-        val dueRows = allInstallments.filter { row ->
-            // The status label is not authoritative: legacy or previously inconsistent
-            // rows can be marked PAID while contractual amounts remain outstanding.
-            row.paidInterestMinor < row.interestMinor ||
-                row.paidPrincipalMinor < row.principalMinor ||
-                row.paidLateFeeMinor > 0L || row.paidChargesMinor > 0L
+        val today = LocalDate.now()
+        val dueRows = try {
+            allInstallments.filter { row ->
+                // Advance payments must remain client credit until the installment
+                // reaches its contractual due date. Status alone is not authoritative.
+                LocalDate.parse(row.dueDate) <= today &&
+                    (row.paidInterestMinor < row.interestMinor ||
+                        row.paidPrincipalMinor < row.principalMinor ||
+                        row.paidLateFeeMinor > 0L || row.paidChargesMinor > 0L)
+            }
+        } catch (_: Exception) {
+            return PaymentPostResult.INVALID_SCHEDULE
         }
 
         fun outstanding(contractual: Long, paid: Long): Long {

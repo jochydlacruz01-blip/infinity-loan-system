@@ -27,7 +27,9 @@ enum class Permission {
     CUSTOMER_CREDIT_APPLY,
     PROMISE_TO_PAY_VIEW,
     PROMISE_TO_PAY_CREATE,
-    PROMISE_TO_PAY_RESOLVE,\n    COLLECTION_VISIT_VIEW,\n    COLLECTION_VISIT_MANAGE,
+    PROMISE_TO_PAY_RESOLVE,
+    COLLECTION_VISIT_VIEW,
+    COLLECTION_VISIT_MANAGE,
     CASH_SESSION_OPEN,
     CASH_SESSION_CLOSE,
     CASH_MOVEMENT_MANAGE,
@@ -55,7 +57,8 @@ object AccessPolicy {
         Permission.CLIENT_UPDATE, Permission.LOAN_VIEW, Permission.LOAN_CREATE,
         Permission.LOAN_UPDATE, Permission.PAYMENT_VIEW, Permission.PAYMENT_REGISTER,
         Permission.CUSTOMER_CREDIT_VIEW, Permission.PROMISE_TO_PAY_VIEW,
-        Permission.PROMISE_TO_PAY_CREATE, Permission.PROMISE_TO_PAY_RESOLVE,\n        Permission.COLLECTION_VISIT_VIEW, Permission.COLLECTION_VISIT_MANAGE,
+        Permission.PROMISE_TO_PAY_CREATE, Permission.PROMISE_TO_PAY_RESOLVE,
+        Permission.COLLECTION_VISIT_VIEW, Permission.COLLECTION_VISIT_MANAGE,
         Permission.CASH_SESSION_OPEN, Permission.CASH_SESSION_CLOSE,
         Permission.CASH_MOVEMENT_MANAGE, Permission.REPORT_VIEW, Permission.REPORT_EXPORT,
         Permission.STAFF_VIEW, Permission.AUDIT_LOG_VIEW, Permission.CASH_VARIANCE_REVIEW
@@ -66,6 +69,7 @@ object AccessPolicy {
         Permission.PAYMENT_VIEW, Permission.PAYMENT_REGISTER,
         Permission.CUSTOMER_CREDIT_VIEW, Permission.CUSTOMER_CREDIT_APPLY,
         Permission.PROMISE_TO_PAY_VIEW, Permission.PROMISE_TO_PAY_CREATE,
+        Permission.COLLECTION_VISIT_VIEW,
         Permission.CASH_SESSION_OPEN, Permission.CASH_SESSION_CLOSE,
         Permission.CASH_MOVEMENT_MANAGE
     )
@@ -73,7 +77,8 @@ object AccessPolicy {
     private val collector = setOf(
         Permission.DASHBOARD_VIEW, Permission.CLIENT_VIEW, Permission.LOAN_VIEW,
         Permission.PAYMENT_VIEW, Permission.PAYMENT_REGISTER,
-        Permission.PROMISE_TO_PAY_VIEW, Permission.PROMISE_TO_PAY_CREATE
+        Permission.PROMISE_TO_PAY_VIEW, Permission.PROMISE_TO_PAY_CREATE,
+        Permission.COLLECTION_VISIT_VIEW, Permission.COLLECTION_VISIT_MANAGE
     )
 
     fun defaultPermissions(role: StaffRole): Set<Permission> = when (role) {

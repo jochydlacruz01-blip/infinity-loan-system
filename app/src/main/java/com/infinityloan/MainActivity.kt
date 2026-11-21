@@ -314,12 +314,30 @@ private fun AuthenticatedInfinityApp(
     LaunchedEffect(db) {
         activeCollectors = withContext(Dispatchers.IO) { db.staffAccounts().getActiveCollectorSummaries() }
     }
+    LaunchedEffect(financialProfileClient?.id, loans, payments, reversedPaymentIds) {
+        val clientId = financialProfileClient?.id
+        if (clientId == null) {
+            financialCreditByCurrency = emptyMap()
+        } else {
+            val currencies = loans.asSequence()
+                .filter { it.clientId == clientId }
+                .map { it.currency }
+                .distinct()
+                .toList()
+            financialCreditByCurrency = withContext(Dispatchers.IO) {
+                currencies.associateWith { currency ->
+                    db.customerCredits().getBalance(clientId, currency)
+                }
+            }
+        }
+    }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf(Screen.HOME) }
     var showClientForm by remember { mutableStateOf(false) }
     var selectedClient by remember { mutableStateOf<ClientEntity?>(null) }
     var financialProfileClient by remember { mutableStateOf<ClientEntity?>(null) }
+    var financialCreditByCurrency by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var showLoanForm by remember { mutableStateOf(false) }
     var showPaymentForm by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -552,6 +570,21 @@ private fun AuthenticatedInfinityApp(
                                         Text("Capital inicial total: ${money(initialPrincipal)} $currency")
                                         Text("CAPITAL PENDIENTE TOTAL: ${money(principalBalance)} $currency", color = Gold, fontWeight = FontWeight.Bold)
                                         Text("Préstamos activos: ${currencyLoans.count { it.status == "ACTIVE" }} · Cerrados: ${currencyLoans.count { it.status == "PAID" }}")
+                                        val availableCustomerCredit = financialCreditByCurrency[currency]
+                                        if (availableCustomerCredit != null) {
+                                            Text(
+                                                "CRÉDITO DISPONIBLE DEL CLIENTE: ${money(availableCustomerCredit)} $currency",
+                                                color = if (availableCustomerCredit < 0L) Color(0xFFFF6B6B) else Gold,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            if (availableCustomerCredit < 0L) {
+                                                Text(
+                                                    "ALERTA: el libro de crédito presenta un saldo negativo. Requiere conciliación.",
+                                                    color = Color(0xFFFF6B6B),
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                        }
                                     }
                                     Text("PRÉSTAMOS: ${clientLoans.size}", color = Gold, fontWeight = FontWeight.Bold)
                                     clientLoans.forEach { profileLoan ->

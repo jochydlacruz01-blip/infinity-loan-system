@@ -1383,7 +1383,7 @@ abstract class InfinityDatabase : RoomDatabase() {
      * Amounts are stored in minor units (integer cents/centavos).
      */
     /** Atomically posts a loan payment and its cash receipt against an open session. */
-    suspend fun postCashLoanPayment(payment: PaymentEntity, sessionId: String): PaymentPostResult = withTransaction {
+    suspend fun postCashLoanPayment(payment: PaymentEntity, sessionId: String, actorStaffId: String): PaymentPostResult = withTransaction {
         if (payment.operationId.isBlank()) return@withTransaction PaymentPostResult.INVALID_OPERATION_ID
         if (payment.reference.isBlank()) return@withTransaction PaymentPostResult.INVALID_REFERENCE
         if (payment.amountMinor <= 0L) return@withTransaction PaymentPostResult.INVALID_AMOUNT
@@ -1391,8 +1391,8 @@ abstract class InfinityDatabase : RoomDatabase() {
         val loan = loans().findById(payment.loanId) ?: return@withTransaction PaymentPostResult.LOAN_NOT_FOUND
         if (loan.status != "ACTIVE") return@withTransaction PaymentPostResult.LOAN_NOT_ACTIVE
         val session = cashSessions().findSession(sessionId) ?: return@withTransaction PaymentPostResult.INVALID_SCHEDULE
-        if (session.closedAt != null || session.currency != loan.currency) return@withTransaction PaymentPostResult.INVALID_SCHEDULE
-        check(cashSessions().findOpenSession(session.staffId, session.currency)?.sessionId == sessionId) { "La sesión no es la caja abierta del empleado." }
+        if (session.closedAt != null || session.currency != loan.currency || session.staffId != actorStaffId) return@withTransaction PaymentPostResult.INVALID_SCHEDULE
+        if (cashSessions().findOpenSession(session.staffId, session.currency)?.sessionId != sessionId) return@withTransaction PaymentPostResult.INVALID_SCHEDULE { "La sesión no es la caja abierta del empleado." }
         val result = payments().postPayment(payment)
         if (result != PaymentPostResult.POSTED) return@withTransaction result
         val cashOperationId = "CASH-PAY-" + payment.operationId

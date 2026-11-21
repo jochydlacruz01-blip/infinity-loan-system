@@ -51,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
@@ -965,7 +966,10 @@ private fun ReportsSummaryScreen(
     val clientById = remember(clients) { clients.associateBy { it.id } }
     var cashSummary by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(db) {
-        db.cashSessions().observeSessions().collect { rows ->
+        combine(
+            db.cashSessions().observeSessions(),
+            db.cashSessions().observeAllMovements()
+        ) { rows, _ -> rows }.collect { rows ->
             cashSummary = withContext(Dispatchers.IO) {
                 val summaries = mutableListOf<String>()
                 for (currency in currencies) {

@@ -945,6 +945,156 @@ private fun ReportsSummaryScreen(
 }
 
 @Composable
+private fun CollectionVisitsScreen(
+    visits: List<CollectionVisitEntity>,
+    loans: List<LoanEntity>,
+    clients: List<ClientEntity>,
+    canManage: Boolean,
+    onSchedule: (String, LocalDate) -> Unit,
+    onStatus: (String, CollectionVisitStatus, String) -> Unit
+) {
+    var showLoanPicker by remember { mutableStateOf(false) }
+    var selectedLoanId by remember { mutableStateOf<String?>(null) }
+    var plannedDateText by remember { mutableStateOf(LocalDate.now().toString()) }
+    var outcomeNote by remember { mutableStateOf("") }
+    val clientById = clients.associateBy { it.id }
+    val loanById = loans.associateBy { it.id }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Text("AGENDA DE COBRANZA", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Visitas persistentes vinculadas a préstamos y responsables. Los cambios quedan auditados.", color = Muted, fontSize = 12.sp)
+        }
+        if (canManage) {
+            item {
+                DataCard(
+                    title = "Programar nueva visita",
+                    detail = "Selecciona un préstamo activo y define la fecha de visita."
+                )
+                Button(
+                    onClick = { showLoanPicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Seleccionar préstamo") }
+                selectedLoanId?.let { id ->
+                    Text("Préstamo seleccionado: ${id.take(8)}", color = Gold, fontSize = 12.sp)
+                }
+                OutlinedTextField(
+                    value = plannedDateText,
+                    onValueChange = { plannedDateText = it },
+                    label = { Text("Fecha (AAAA-MM-DD)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = {
+                        val date = runCatching { LocalDate.parse(plannedDateText) }.getOrNull()
+                        if (selectedLoanId == null || date == null) {
+                            outcomeNote = "Selecciona un préstamo y una fecha válida."
+                        } else {
+                            onSchedule(selectedLoanId!!, date)
+                            selectedLoanId = null
+                        }
+                    },
+                    enabled = selectedLoanId != null,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Guardar visita") }
+                if (outcomeNote.isNotBlank()) Text(outcomeNote, color = Gold, fontSize = 12.sp)
+            }
+        }
+        item {
+            Text("VISITAS REGISTRADAS · ${visits.size}", color = Gold, fontWeight = FontWeight.SemiBold)
+        }
+        if (visits.isEmpty()) {
+            item { EmptyState("Agenda vacía", "Todavía no hay visitas de cobranza programadas.") }
+        } else {
+            items(visits, key = { it.visitId }) { visit ->
+                val clientName = clientById[visit.clientId]?.fullName ?: "Cliente no disponible"
+                val loan = loanById[visit.loanId]
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    DataCard(
+                        title = "$clientName · ${visit.status}",
+                        detail = buildString {
+                            append("Fecha: ${visit.plannedDate}")
+                            append("\nPréstamo: ${visit.loanId.take(8)}")
+                            append("\nCobrador: ${visit.collectorId.take(8)}")
+                            if (visit.outcomeNote.isNotBlank()) append("\nResultado: ${visit.outcomeNote}")
+                            if (loan == null) append("\nPréstamo no disponible")
+                        }
+                    )
+                    if (canManage && visit.status !in listOf("PAID", "CANCELLED")) {
+                        OutlinedTextField(
+                            value = outcomeNote,
+                            onValueChange = { outcomeNote = it.take(2000) },
+                            label = { Text("Nota del resultado") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        val nextStatuses = when (visit.status) {
+                            "SCHEDULED" -> listOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
+                            "ATTEMPTED" -> listOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE)
+                            "CONTACTED" -> listOf(CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE)
+                            "PROMISE_TO_PAY" -> listOf(CollectionVisitStatus.PAID, CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.UNREACHABLE)
+                            "UNREACHABLE" -> listOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.CANCELLED)
+                            else -> emptyList()
+                        }
+                        nextStatuses.chunked(2).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { next ->
+                                    OutlinedButton(
+                                        onClick = {
+                                            onStatus(visit.visitId, next, outcomeNote)
+                                            outcomeNote = ""
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(next.name.replace("_", " "), fontSize = 10.sp)
+                                    }
+                                }
+                                if (row.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showLoanPicker) {
+        AlertDialog(
+            onDismissRequest = { showLoanPicker = false },
+            title = { Text("Seleccionar préstamo") },
+            text = {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val activeLoans = loans.filter { it.status == "ACTIVE" }
+                    if (activeLoans.isEmpty()) {
+                        item { Text("No hay préstamos activos disponibles.") }
+                    } else {
+                        items(activeLoans, key = { it.id }) { loan ->
+                            val name = clientById[loan.clientId]?.fullName ?: "Cliente"
+                            TextButton(
+                                onClick = {
+                                    selectedLoanId = loan.id
+                                    showLoanPicker = false
+                                    outcomeNote = ""
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("$name · ${loan.currency} · ${loan.id.take(8)}")
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLoanPicker = false }) { Text("Cerrar") }
+            }
+        )
+    }
+}
+
+@Composable
 private fun CollectionAlertsScreen(
     clients: List<ClientEntity>,
     loans: List<LoanEntity>,

@@ -477,8 +477,22 @@ class StaffAuthenticationServiceTest {
         assertNull(dao.accounts.getValue("admin").lockedUntil)
     }
 
+    @Test
+    fun acceptsSixCharacterInitialAdministratorPassword() = runBlocking {
+        val dao = FakeStaffAccountDao()
+        val service = StaffAuthenticationService(dao)
+        val created = service.createInitialAdministrator(
+            "admin", "Administración", "abc123".toCharArray()
+        )
+        assertTrue(created)
+        assertEquals(
+            AuthenticationResult.AUTHENTICATED,
+            service.authenticate("admin", "abc123".toCharArray()).first
+        )
+    }
+
     @Test(expected = IllegalArgumentException::class)
-    fun requiresStrongInitialPassword() {
+    fun requiresAtLeastSixInitialPasswordCharacters() {
         runBlocking {
             StaffAuthenticationService(FakeStaffAccountDao()).createInitialAdministrator(
                 "admin",

@@ -2,6 +2,7 @@ package com.infinityloan.data
 
 import androidx.room.withTransaction
 import com.infinityloan.finance.CollectionVisitRecord
+import com.infinityloan.finance.CollectionVisitAssignmentPolicy
 import com.infinityloan.finance.CollectionVisitStatus
 import com.infinityloan.finance.CollectionVisitWorkflow
 import com.infinityloan.security.AccessPolicy
@@ -41,22 +42,15 @@ class CollectionVisitService(
             val loan = database.loans().findById(loanId)
                 ?: throw IllegalArgumentException("El préstamo no existe.")
             require(loan.status == "ACTIVE") { "El préstamo no está activo." }
-            val assignedCollectorId = if (actor.profile.role == StaffRole.COLLECTOR) {
-                require(collectorId == actor.staffId) {
-                    "Un cobrador solo puede programar visitas para sí mismo."
-                }
-                actor.staffId
-            } else {
-                require(actor.profile.role in setOf(StaffRole.ADMINISTRATOR, StaffRole.SUPERVISOR)) {
-                    "Tu perfil no puede asignar visitas a otros cobradores."
-                }
-                val target = database.staffAccounts().findById(collectorId)
-                    ?: throw IllegalArgumentException("El cobrador seleccionado no existe.")
-                require(target.isActive && target.role == StaffRole.COLLECTOR.name) {
-                    "Solo puedes asignar visitas a cobradores activos."
-                }
-                target.id
-            }
+            val target = if (actor.profile.role == StaffRole.COLLECTOR) null
+                else database.staffAccounts().findById(collectorId)
+            val assignedCollectorId = CollectionVisitAssignmentPolicy.resolve(
+                actorRole = actor.profile.role,
+                actorStaffId = actor.staffId,
+                requestedCollectorId = collectorId,
+                targetRole = target?.role,
+                targetIsActive = target?.isActive == true
+            )
             val record = CollectionVisitRecord(
                 loanId = loan.id,
                 clientId = loan.clientId,

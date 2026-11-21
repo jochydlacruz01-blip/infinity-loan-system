@@ -179,7 +179,7 @@ private fun StaffAccessGate(
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it },
-                            label = { Text(if (firstRun) "Contraseña (mínimo 12 caracteres)" else "Contraseña") },
+                            label = { Text(if (firstRun) "Contraseña (mínimo 6 caracteres)" else "Contraseña") },
                             visualTransformation = PasswordVisualTransformation(),
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),

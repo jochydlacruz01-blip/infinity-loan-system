@@ -84,4 +84,18 @@ class CollectionVisitWorkflowTest {
         } catch (_: IllegalArgumentException) {}
     }
 
+    @Test fun acceptsMaximumLengthOutcomeNoteAndNormalizesWhitespace() {
+        val maxNote = "x".repeat(2000)
+        val accepted = CollectionVisitWorkflow.transition(
+            visit(), CollectionVisitStatus.ATTEMPTED, "  $maxNote  "
+        )
+        assertEquals(2000, accepted.outcomeNote.length)
+        assertEquals(maxNote, accepted.outcomeNote)
+
+        val blank = CollectionVisitWorkflow.transition(
+            visit(), CollectionVisitStatus.ATTEMPTED, "   "
+        )
+        assertEquals("", blank.outcomeNote)
+    }
+
 }

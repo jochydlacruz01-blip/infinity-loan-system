@@ -780,7 +780,6 @@ class PaymentDaoTest {
 
 
     @Test
-    @Test
     fun legacyScheduleStoresRemainingPrincipalPerInstallmentNotRunningLoanBalance() = runBlocking {
         val client = ClientEntity(
             fullName = "Cliente calendario legado",
@@ -812,6 +811,7 @@ class PaymentDaoTest {
         assertEquals(100000L, installments.sumOf { it.principalMinor })
     }
 
+    @Test
     fun futureInstallmentPaymentIsPreservedAsCustomerCredit() = runBlocking {
         val client = ClientEntity(
             fullName = "Cliente pago anticipado",

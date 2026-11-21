@@ -26,6 +26,7 @@ import com.infinityloan.finance.CollectionPriority
 import com.infinityloan.finance.CollectionPriorityRecord
 import com.infinityloan.finance.ClientCollectionRiskBuilder
 import com.infinityloan.finance.ClientCollectionRiskInput
+import com.infinityloan.finance.CollectionVisitRecord
 import com.infinityloan.finance.CollectionVisitStatus
 import com.infinityloan.finance.CollectionOperationalAlertBuilder
 import com.infinityloan.finance.CollectionAlertSeverity
@@ -475,7 +476,8 @@ private fun AuthenticatedInfinityApp(
                             clients = clients,
                             loans = loans,
                             installments = installments,
-                            promiseEntities = openPromiseEntities
+                            promiseEntities = openPromiseEntities,
+                            visitEntities = collectionVisits
                         )
                         Screen.CASH -> CashManagementScreen(db, session, can, onMessage = { message = it })
                         Screen.REPORTS -> ReportsSummaryScreen(db, clients, loans, PaymentReporting.effectivePayments(payments, reversedPaymentIds.toSet()), installments)
@@ -1099,7 +1101,8 @@ private fun CollectionAlertsScreen(
     clients: List<ClientEntity>,
     loans: List<LoanEntity>,
     installments: List<LoanInstallmentEntity>,
-    promiseEntities: List<PromiseToPayEntity>
+    promiseEntities: List<PromiseToPayEntity>,
+    visitEntities: List<CollectionVisitEntity>
 ) {
     val today = LocalDate.now()
     val loanById = loans.associateBy { it.id }
@@ -1122,14 +1125,23 @@ private fun CollectionAlertsScreen(
             currency = entity.currency, promisedDate = date, status = status, note = entity.note
         )
     }
+    val visits = visitEntities.mapNotNull { entity ->
+        val date = runCatching { LocalDate.parse(entity.plannedDate) }.getOrNull() ?: return@mapNotNull null
+        val status = runCatching { CollectionVisitStatus.valueOf(entity.status) }.getOrNull() ?: return@mapNotNull null
+        CollectionVisitRecord(
+            visitId = entity.visitId, loanId = entity.loanId, clientId = entity.clientId,
+            collectorId = entity.collectorId, plannedDate = date, status = status,
+            outcomeNote = entity.outcomeNote
+        )
+    }
     val risks = ClientCollectionRiskBuilder.build(overdueInputs, promises, today)
-    val alerts = CollectionOperationalAlertBuilder.build(risks, emptyList(), promises, today)
+    val alerts = CollectionOperationalAlertBuilder.build(risks, visits, promises, today)
     val clientById = clients.associateBy { it.id }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
         item {
             Text("CENTRO DE ALERTAS", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("Alertas calculadas con cuotas y promesas abiertas guardadas en este dispositivo.", color = Muted, fontSize = 12.sp)
+            Text("Alertas calculadas con cuotas, visitas y promesas guardadas en este dispositivo.", color = Muted, fontSize = 12.sp)
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

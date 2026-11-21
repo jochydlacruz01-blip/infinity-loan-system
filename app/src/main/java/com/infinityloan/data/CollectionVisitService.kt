@@ -30,7 +30,8 @@ class CollectionVisitService(
         actor: StaffSession,
         loanId: String,
         plannedDate: LocalDate,
-        note: String = ""
+        note: String = "",
+        collectorId: String = actor.staffId
     ): CollectionVisitEntity {
         require(authentication.isSessionValid(actor)) { "La sesión ha caducado." }
         require(authentication.hasPermission(actor, Permission.COLLECTION_VISIT_MANAGE)) {
@@ -40,10 +41,26 @@ class CollectionVisitService(
             val loan = database.loans().findById(loanId)
                 ?: throw IllegalArgumentException("El préstamo no existe.")
             require(loan.status == "ACTIVE") { "El préstamo no está activo." }
+            val assignedCollectorId = if (actor.profile.role == StaffRole.COLLECTOR) {
+                require(collectorId == actor.staffId) {
+                    "Un cobrador solo puede programar visitas para sí mismo."
+                }
+                actor.staffId
+            } else {
+                require(actor.profile.role in setOf(StaffRole.ADMINISTRATOR, StaffRole.SUPERVISOR)) {
+                    "Tu perfil no puede asignar visitas a otros cobradores."
+                }
+                val target = database.staffAccounts().findById(collectorId)
+                    ?: throw IllegalArgumentException("El cobrador seleccionado no existe.")
+                require(target.isActive && target.role == StaffRole.COLLECTOR.name) {
+                    "Solo puedes asignar visitas a cobradores activos."
+                }
+                target.id
+            }
             val record = CollectionVisitRecord(
                 loanId = loan.id,
                 clientId = loan.clientId,
-                collectorId = actor.staffId,
+                collectorId = assignedCollectorId,
                 plannedDate = plannedDate,
                 outcomeNote = note.trim()
             )
@@ -64,7 +81,7 @@ class CollectionVisitService(
                 action = "COLLECTION_VISIT_CREATED",
                 targetType = "COLLECTION_VISIT",
                 targetId = entity.visitId,
-                details = "loanId=${entity.loanId};plannedDate=${entity.plannedDate}"
+                details = "loanId=${entity.loanId};plannedDate=${entity.plannedDate};collectorId=${entity.collectorId}"
             ))
             entity
         }

@@ -980,9 +980,10 @@ enum class CreditPaymentResult {
         CashMovementEntity::class,
         PaymentReversalEntity::class,
         CashVarianceReviewEntity::class,
-        PromiseToPayEntity::class
+        PromiseToPayEntity::class,
+        CollectionVisitEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 
@@ -1379,7 +1380,8 @@ abstract class InfinityDatabase : RoomDatabase() {
     abstract fun cashSessions(): CashSessionDao
     abstract fun paymentReversals(): PaymentReversalDao
     abstract fun cashVarianceReviews(): CashVarianceReviewDao
-    abstract fun promisesToPay(): PromiseToPayDao\n    abstract fun collectionVisits(): CollectionVisitDao
+    abstract fun promisesToPay(): PromiseToPayDao
+    abstract fun collectionVisits(): CollectionVisitDao
 
     companion object {
         @Volatile private var INSTANCE: InfinityDatabase? = null

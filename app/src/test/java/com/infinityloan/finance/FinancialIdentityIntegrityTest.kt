@@ -20,7 +20,16 @@ class FinancialIdentityIntegrityTest {
         assertEquals(1,issues.count{it.type==IdentityIntegrityIssueType.ALLOCATION_LOAN_MISMATCH})
         assertEquals(1,issues.count{it.type==IdentityIntegrityIssueType.ALLOCATION_PAYMENT_MISSING})
     }
-    @Test fun detectsDuplicateAllocationsAndInvalidInstallmentNumbers() {\n        val issues=FinancialIdentityIntegrity.audit(\n            listOf(IdentityClient("c")), listOf(IdentityLoan("l","c","DOP")),\n            listOf(IdentityPayment("p","l","DOP")),\n            listOf(IdentityAllocation("p","l",1),IdentityAllocation("p","l",1),IdentityAllocation("p","l",0))\n        )\n        assertEquals(1,issues.count{it.type==IdentityIntegrityIssueType.DUPLICATE_ALLOCATION})\n        assertEquals(1,issues.count{it.type==IdentityIntegrityIssueType.INVALID_INSTALLMENT_NUMBER})\n    }\n    @Test fun deterministicAndDetectsDuplicatePaymentIds() {
+    @Test fun detectsDuplicateAllocationsAndInvalidInstallmentNumbers() {
+        val issues=FinancialIdentityIntegrity.audit(
+            listOf(IdentityClient("c")), listOf(IdentityLoan("l","c","DOP")),
+            listOf(IdentityPayment("p","l","DOP")),
+            listOf(IdentityAllocation("p","l",1),IdentityAllocation("p","l",1),IdentityAllocation("p","l",0))
+        )
+        assertEquals(1,issues.count{it.type==IdentityIntegrityIssueType.DUPLICATE_ALLOCATION})
+        assertEquals(1,issues.count{it.type==IdentityIntegrityIssueType.INVALID_INSTALLMENT_NUMBER})
+    }
+    @Test fun deterministicAndDetectsDuplicatePaymentIds() {
         val payments=listOf(IdentityPayment("p","l","DOP"),IdentityPayment("p","missing","DOP"))
         val inputs=listOf(IdentityClient("c"),IdentityClient("other"))
         val loans=listOf(IdentityLoan("l","c","DOP"))

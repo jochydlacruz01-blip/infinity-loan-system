@@ -446,6 +446,7 @@ private fun AuthenticatedInfinityApp(
                                         PaymentReversalResult.INVALID_CREDIT_LEDGER -> "El libro de crédito requiere conciliación antes del reverso."
                                         PaymentReversalResult.INVALID_CASH_LEDGER -> "El movimiento de caja no coincide con el pago original."
                                         PaymentReversalResult.INVALID_ALLOCATION -> "Las asignaciones o saldos no cuadran; el reverso fue bloqueado."
+                                        PaymentReversalResult.PAYMENT_LINKED_TO_PROMISE -> "No se puede revertir: este pago respalda una promesa conciliada. Requiere revisión del supervisor."
                                         PaymentReversalResult.INVALID_AMOUNT -> "El importe del pago original no es válido."
                                     }
                                 }

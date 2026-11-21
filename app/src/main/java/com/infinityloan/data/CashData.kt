@@ -91,6 +91,10 @@ interface CashSessionDao {
     @Query("SELECT * FROM cash_sessions ORDER BY openedAt DESC")
     fun observeSessions(): Flow<List<CashSessionEntity>>
 
+    /** Emits on either session changes or cash movement changes for live reconciliation screens. */
+    @Query("SELECT * FROM cash_movements ORDER BY createdAt, operationId")
+    fun observeAllMovements(): Flow<List<CashMovementEntity>>
+
     @Query("SELECT * FROM cash_movements WHERE sessionId = :sessionId ORDER BY createdAt, operationId")
     fun observeMovements(sessionId: String): Flow<List<CashMovementEntity>>
 

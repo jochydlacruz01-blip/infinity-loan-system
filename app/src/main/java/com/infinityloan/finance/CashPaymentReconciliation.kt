@@ -27,7 +27,8 @@ enum class CashReconciliationIssueType {
     INVALID_PAYMENT,
     DUPLICATE_PAYMENT_OPERATION,
     INVALID_CASH_MOVEMENT,
-    DUPLICATE_CASH_MOVEMENT_OPERATION_ID
+    DUPLICATE_CASH_MOVEMENT_OPERATION_ID,
+    PAYMENT_MOVEMENT_NOT_IN
 }
 
 data class CashReconciliationIssue(
@@ -103,7 +104,7 @@ object CashPaymentReconciliation {
                     "Cash movement amount differs from payment amount."
                 )
             }
-            if (movement.currency != payment.currency) {
+            if (movement.type != "IN") {\n                issues += CashReconciliationIssue(\n                    CashReconciliationIssueType.PAYMENT_MOVEMENT_NOT_IN, payment.operationId,\n                    movement.operationId, payment.amountMinor, movement.amountMinor,\n                    "A payment receipt must be recorded as an incoming cash movement (IN)."\n                )\n            }\n            if (movement.currency != payment.currency) {
                 issues += CashReconciliationIssue(
                     CashReconciliationIssueType.CURRENCY_MISMATCH, payment.operationId,
                     movement.operationId, payment.amountMinor, movement.amountMinor,

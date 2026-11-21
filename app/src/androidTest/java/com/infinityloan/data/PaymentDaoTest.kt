@@ -745,7 +745,7 @@ class PaymentDaoTest {
                     loanId = loan.id, number = 2,
                     dueDate = LocalDate.now().minusDays(1).toString(),
                     principalMinor = 800L, interestMinor = 200L,
-                    totalMinor = 1000L, remainingPrincipalMinor = 0L
+                    totalMinor = 1000L, remainingPrincipalMinor = 800L
                 )
             )
         )

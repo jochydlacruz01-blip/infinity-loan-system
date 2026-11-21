@@ -37,6 +37,21 @@ class CollectionVisitPerformanceTest {
         assertThrows(IllegalArgumentException::class.java) { CollectionVisitPerformance.summarize(emptyList(),day,day.minusDays(1)) }
     }
 
+    @Test fun scheduledVisitsRemainPlannedButNotCompleted() {
+        val result = CollectionVisitPerformance.summarize(
+            listOf(
+                row("scheduled", "c", CollectionVisitStatus.SCHEDULED),
+                row("attempted", "c", CollectionVisitStatus.ATTEMPTED)
+            ),
+            day,
+            day
+        ).single()
+        assertEquals(2, result.planned)
+        assertEquals(1, result.completed)
+        assertEquals(50, result.completionRatePercent)
+        assertEquals(0, result.paidRatePercent)
+    }
+
     @Test fun zeroPlannedVisitsDoesNotDivideByZero() {
         val result=CollectionVisitPerformance.summarize(listOf(row("x","c",CollectionVisitStatus.CANCELLED)),day,day)
         assertEquals(0,result.single().planned)

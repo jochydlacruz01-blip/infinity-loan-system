@@ -1248,11 +1248,15 @@ private fun CollectionVisitsScreen(
 
     if (showLoanPicker) {
         var loanSearchText by remember { mutableStateOf("") }
+        val normalizedSearch = loanSearchText.trim()
         val activeLoans = loans.filter { it.status.equals("ACTIVE", ignoreCase = true) }
             .filter { loan ->
-                val clientName = clientById[loan.clientId]?.fullName.orEmpty()
-                clientName.contains(loanSearchText.trim(), ignoreCase = true) ||
-                    loan.id.contains(loanSearchText.trim(), ignoreCase = true)
+                val client = clientById[loan.clientId]
+                normalizedSearch.isBlank() ||
+                    client?.fullName.orEmpty().contains(normalizedSearch, ignoreCase = true) ||
+                    client?.documentNumber.orEmpty().contains(normalizedSearch, ignoreCase = true) ||
+                    loan.clientId.contains(normalizedSearch, ignoreCase = true) ||
+                    loan.id.contains(normalizedSearch, ignoreCase = true)
             }.sortedBy { clientById[it.clientId]?.fullName.orEmpty() }
         AlertDialog(
             onDismissRequest = { showLoanPicker = false },
@@ -1262,7 +1266,7 @@ private fun CollectionVisitsScreen(
                     OutlinedTextField(
                         value = loanSearchText,
                         onValueChange = { loanSearchText = it },
-                        label = { Text("Buscar por cliente o ID") },
+                        label = { Text("Buscar por ID de cliente, nombre, documento o préstamo") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1294,7 +1298,7 @@ private fun CollectionVisitsScreen(
                                 ) {
                                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                         Text(name, color = Gold, fontWeight = FontWeight.Bold)
-                                        Text("${loan.currency} · ID ${loan.id.take(8)}", color = Muted, fontSize = 12.sp)
+                                        Text("Cliente ID: ${loan.clientId} · Documento: ${clientById[loan.clientId]?.documentNumber.orEmpty()} · Préstamo: ${loan.id} · ${loan.currency}", color = Muted, fontSize = 11.sp)
                                         Text("Tocar para seleccionar", fontSize = 11.sp)
                                     }
                                 }

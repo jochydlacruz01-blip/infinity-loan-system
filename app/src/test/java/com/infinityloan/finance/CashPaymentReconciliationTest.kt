@@ -5,7 +5,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CashPaymentReconciliationTest {
-    @Test fun linkedOutgoingMovementIsRejectedAsPaymentReceipt() {\n        val issues = CashPaymentReconciliation.reconcile(\n            listOf(ReconciliationPayment(\"p-1\", 1200, \"DOP\")),\n            listOf(ReconciliationCashMovement(\"c-1\", \"p-1\", 1200, \"DOP\", \"OUT\"))\n        )\n        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.PAYMENT_MOVEMENT_NOT_IN })\n    }\n\n    @Test fun cleanPaymentAndCashMovementProduceNoIssues() {
+    @Test fun linkedOutgoingMovementIsRejectedAsPaymentReceipt() {
+        val issues = CashPaymentReconciliation.reconcile(
+            listOf(ReconciliationPayment(\"p-1\", 1200, \"DOP\")),
+            listOf(ReconciliationCashMovement(\"c-1\", \"p-1\", 1200, \"DOP\", \"OUT\"))
+        )
+        assertEquals(1, issues.count { it.type == CashReconciliationIssueType.PAYMENT_MOVEMENT_NOT_IN })
+    }
+
+    @Test fun cleanPaymentAndCashMovementProduceNoIssues() {
         assertTrue(CashPaymentReconciliation.reconcile(
             listOf(ReconciliationPayment("p-1", 1200, "DOP")),
             listOf(ReconciliationCashMovement("c-1", "p-1", 1200, "DOP", "IN"))

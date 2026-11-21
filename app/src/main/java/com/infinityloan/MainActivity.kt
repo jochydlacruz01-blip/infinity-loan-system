@@ -26,6 +26,7 @@ import com.infinityloan.finance.CollectionPriority
 import com.infinityloan.finance.CollectionPriorityRecord
 import com.infinityloan.finance.ClientCollectionRiskBuilder
 import com.infinityloan.finance.ClientCollectionRiskInput
+import com.infinityloan.finance.CollectionVisitStatus
 import com.infinityloan.finance.CollectionOperationalAlertBuilder
 import com.infinityloan.finance.CollectionAlertSeverity
 import com.infinityloan.finance.PromiseToPayRecord
@@ -74,6 +75,7 @@ private enum class Screen(val label: String, val permission: Permission) {
     PAYMENTS("Pagos", Permission.PAYMENT_VIEW),
     PROMISES("Promesas de pago", Permission.PROMISE_TO_PAY_VIEW),
     COLLECTION_ALERTS("Alertas de cobranza", Permission.REPORT_VIEW),
+    COLLECTION_VISITS("Agenda de visitas", Permission.COLLECTION_VISIT_VIEW),
     CASH("Gestión de caja", Permission.CASH_SESSION_OPEN),
     REPORTS("Informes", Permission.REPORT_VIEW),
     SETTINGS("Configuración", Permission.SYSTEM_SETTINGS_MANAGE),
@@ -282,6 +284,8 @@ private fun AuthenticatedInfinityApp(
     val reversedPaymentIds by db.paymentReversals().observeReversedOperationIds().collectAsState(initial = emptyList())
     val installments by db.installments().observeAll().collectAsState(initial = emptyList())
     val openPromiseEntities by db.promisesToPay().observeOpen().collectAsState(initial = emptyList())
+    val visitService = remember(db, authenticationService) { CollectionVisitService(db, authenticationService) }
+    val collectionVisits by remember(visitService, session) { visitService.observe(session) }.collectAsState(initial = emptyList())
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var screen by remember { mutableStateOf(Screen.HOME) }
@@ -441,6 +445,32 @@ private fun AuthenticatedInfinityApp(
                             }
                         )
                         Screen.PROMISES -> PromiseToPayScreen(db, session, authenticationService, clients, loans, can(Permission.PROMISE_TO_PAY_CREATE), can(Permission.PROMISE_TO_PAY_RESOLVE), onMessage = { message = it })
+                        Screen.COLLECTION_VISITS -> CollectionVisitsScreen(
+                            visits = collectionVisits,
+                            loans = loans,
+                            clients = clients,
+                            canManage = can(Permission.COLLECTION_VISIT_MANAGE),
+                            onSchedule = { loanId, date ->
+                                scope.launch {
+                                    try {
+                                        withContext(Dispatchers.IO) { visitService.create(session, loanId, date) }
+                                        message = "Visita programada correctamente."
+                                    } catch (e: Exception) {
+                                        message = e.message ?: "No se pudo programar la visita."
+                                    }
+                                }
+                            },
+                            onStatus = { visitId, status, note ->
+                                scope.launch {
+                                    try {
+                                        val changed = withContext(Dispatchers.IO) { visitService.changeStatus(session, visitId, status, note) }
+                                        message = if (changed) "Visita actualizada." else "La visita cambió en otra operación. Actualiza la pantalla."
+                                    } catch (e: Exception) {
+                                        message = e.message ?: "No se pudo actualizar la visita."
+                                    }
+                                }
+                            }
+                        )
                         Screen.COLLECTION_ALERTS -> CollectionAlertsScreen(
                             clients = clients,
                             loans = loans,

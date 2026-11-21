@@ -6,7 +6,7 @@ data class LedgerInstallment(val loanId:String,val number:Int,val principalMinor
 data class LedgerPayment(val operationId:String,val loanId:String,val amountMinor:Long)
 data class LedgerAllocation(val operationId:String,val loanId:String,val installmentNumber:Int,val lateFeeMinor:Long,val chargesMinor:Long,val interestMinor:Long,val principalMinor:Long)
 data class LedgerCredit(val operationId:String,val loanId:String,val amountMinor:Long)
-enum class LedgerIssueType { SCHEDULE_PRINCIPAL_MISMATCH, INSTALLMENT_TOTAL_MISMATCH, INVALID_PAID_AMOUNT, INSTALLMENT_STATUS_MISMATCH, LOAN_BALANCE_MISMATCH, PAYMENT_WITHOUT_ALLOCATION, ALLOCATION_EXCEEDS_PAYMENT, ALLOCATION_INSTALLMENT_MISSING, ALLOCATION_SUM_MISMATCH }
+enum class LedgerIssueType { SCHEDULE_PRINCIPAL_MISMATCH, INSTALLMENT_TOTAL_MISMATCH, INVALID_PAID_AMOUNT, INSTALLMENT_STATUS_MISMATCH, LOAN_BALANCE_MISMATCH, PAYMENT_WITHOUT_ALLOCATION, ALLOCATION_EXCEEDS_PAYMENT, ALLOCATION_INSTALLMENT_MISSING, ALLOCATION_SUM_MISMATCH, NEGATIVE_ALLOCATION, PAYMENT_LOAN_MISMATCH, DUPLICATE_ALLOCATION }
 data class LedgerIssue(val type:LedgerIssueType,val key:String,val details:String)
 
 /** Diagnostic only: never modifies financial records. */
@@ -38,7 +38,12 @@ object FinancialLedgerAudit {
    if(rows.isEmpty()&&p.amountMinor>0&&credit==0L) issues+=LedgerIssue(LedgerIssueType.PAYMENT_WITHOUT_ALLOCATION,p.operationId,"Pago sin distribución ni crédito excedente identificado.")
    if(allocated>p.amountMinor) issues+=LedgerIssue(LedgerIssueType.ALLOCATION_EXCEEDS_PAYMENT,p.operationId,"La distribución supera el importe del pago.")
    if(Math.addExact(allocated,credit)!=p.amountMinor) issues+=LedgerIssue(LedgerIssueType.ALLOCATION_SUM_MISMATCH,p.operationId,"Distribución más crédito excedente no coincide con el pago.")
-   rows.forEach{a->if(installments.none{it.loanId==a.loanId&&it.number==a.installmentNumber}) issues+=LedgerIssue(LedgerIssueType.ALLOCATION_INSTALLMENT_MISSING,p.operationId,"Asignación apunta a cuota inexistente ${a.loanId}:${a.installmentNumber}.")}
+   rows.forEach{a->
+   if(installments.none{it.loanId==a.loanId&&it.number==a.installmentNumber}) issues+=LedgerIssue(LedgerIssueType.ALLOCATION_INSTALLMENT_MISSING,p.operationId,"Asignación apunta a cuota inexistente ${a.loanId}:${a.installmentNumber}.")
+   if(a.loanId!=p.loanId) issues+=LedgerIssue(LedgerIssueType.PAYMENT_LOAN_MISMATCH,p.operationId,"La distribución está vinculada a otro préstamo.")
+   if(listOf(a.lateFeeMinor,a.chargesMinor,a.interestMinor,a.principalMinor).any{it<0L}) issues+=LedgerIssue(LedgerIssueType.NEGATIVE_ALLOCATION,p.operationId,"La distribución contiene importes negativos.")
+  }
+  if(rows.groupBy{it.loanId to it.installmentNumber}.any{it.value.size>1}) issues+=LedgerIssue(LedgerIssueType.DUPLICATE_ALLOCATION,p.operationId,"Hay distribuciones duplicadas para una misma cuota.")
   }
   return issues.distinct().sortedWith(compareBy<LedgerIssue>{it.type.name}.thenBy{it.key})
  }

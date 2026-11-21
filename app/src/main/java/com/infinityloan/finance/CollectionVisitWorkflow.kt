@@ -27,7 +27,8 @@ object CollectionVisitWorkflow {
 
     fun transition(record: CollectionVisitRecord, next: CollectionVisitStatus, note: String = record.outcomeNote): CollectionVisitRecord {
         validate(record)
-        require(note.length <= 2000) { "La nota excede el límite" }
+        val normalizedNote = note.trim()
+        require(normalizedNote.length <= 2000) { "La nota excede el límite" }
         val allowed = when (record.status) {
             CollectionVisitStatus.SCHEDULED -> setOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.CANCELLED, CollectionVisitStatus.UNREACHABLE)
             CollectionVisitStatus.ATTEMPTED -> setOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
@@ -37,6 +38,6 @@ object CollectionVisitWorkflow {
             CollectionVisitStatus.PAID, CollectionVisitStatus.CANCELLED -> emptySet()
         }
         require(next in allowed) { "Transición no permitida: ${record.status} → $next" }
-        return record.copy(status = next, outcomeNote = note.trim())
+        return record.copy(status = next, outcomeNote = normalizedNote)
     }
 }

@@ -30,7 +30,12 @@ fun FinancialIdentityAuditScreen(db: InfinityDatabase, session: StaffSession) {
         } finally { loading = false }
     }
 
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {\n        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n            Button(onClick = { historyMode = false }) { Text("Integridad") }\n            OutlinedButton(onClick = { historyMode = true }) { Text("Historial de auditoría") }\n        }\n        if (historyMode) { AuditLogScreen(db, session) } else {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { historyMode = false }) { Text("Integridad") }
+            OutlinedButton(onClick = { historyMode = true }) { Text("Historial de auditoría") }
+        }
+        if (historyMode) { AuditLogScreen(db, session) } else {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Integridad financiera", style = MaterialTheme.typography.titleLarge)
             OutlinedButton(onClick = { refreshKey++ }, enabled = !loading) { Text("Actualizar") }

@@ -1080,7 +1080,20 @@ private fun CollectionVisitsScreen(
                     Text("Seleccionar préstamo")
                 }
                 selectedLoanId?.let { id ->
-                    Text("Préstamo seleccionado: ${id.take(8)}", color = Gold, fontSize = 12.sp)
+                    val selectedLoan = loanById[id]
+                    val selectedClientName = selectedLoan?.let { clientById[it.clientId]?.fullName }
+                        ?: "Cliente no disponible"
+                    Text(
+                        "Cliente seleccionado: $selectedClientName",
+                        color = Gold,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "Préstamo: ${id.take(8)} · ${selectedLoan?.currency ?: "—"}",
+                        color = Muted,
+                        fontSize = 11.sp
+                    )
                 }
                 if (canAssign) {
                     val selectedCollector = collectorById[selectedCollectorId]

@@ -2,7 +2,7 @@ package com.infinityloan.finance
 
 /** Read-only ledger inputs for auditing principal, installment status and payment allocations. */
 data class LedgerLoan(val id:String,val principalMinor:Long,val balanceMinor:Long)
-data class LedgerInstallment(val loanId:String,val number:Int,val principalMinor:Long,val interestMinor:Long,val totalMinor:Long,val paidPrincipalMinor:Long,val paidInterestMinor:Long,val status:String)
+data class LedgerInstallment(val loanId:String,val number:Int,val principalMinor:Long,val interestMinor:Long,val totalMinor:Long,val paidPrincipalMinor:Long,val paidInterestMinor:Long,val status:String,val paidLateFeeMinor:Long=0L,val paidChargesMinor:Long=0L)
 data class LedgerPayment(val operationId:String,val loanId:String,val amountMinor:Long)
 data class LedgerAllocation(val operationId:String,val loanId:String,val installmentNumber:Int,val lateFeeMinor:Long,val chargesMinor:Long,val interestMinor:Long,val principalMinor:Long)
 data class LedgerCredit(val operationId:String,val loanId:String,val amountMinor:Long)
@@ -22,8 +22,8 @@ object FinancialLedgerAudit {
      issues+=LedgerIssue(LedgerIssueType.INSTALLMENT_TOTAL_MISMATCH,"${loan.id}:${row.number}","El total no equivale a capital más interés.")
     if(row.paidPrincipalMinor<0||row.paidInterestMinor<0||row.paidPrincipalMinor>row.principalMinor||row.paidInterestMinor>row.interestMinor)
      issues+=LedgerIssue(LedgerIssueType.INVALID_PAID_AMOUNT,"${loan.id}:${row.number}","Importes pagados fuera de límites contractuales.")
-    val fully=row.paidPrincipalMinor==row.principalMinor&&row.paidInterestMinor==row.interestMinor
-    val hasPayment=row.paidPrincipalMinor>0L||row.paidInterestMinor>0L
+    val fully=row.paidLateFeeMinor==0L&&row.paidChargesMinor==0L&&row.paidPrincipalMinor==row.principalMinor&&row.paidInterestMinor==row.interestMinor
+    val hasPayment=row.paidLateFeeMinor>0L||row.paidChargesMinor>0L||row.paidPrincipalMinor>0L||row.paidInterestMinor>0L
     val expectedStatus=when {
      fully -> "PAID"
      hasPayment -> "PARTIAL"

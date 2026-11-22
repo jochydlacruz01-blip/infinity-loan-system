@@ -98,4 +98,12 @@ class FinancialLedgerAuditTest {
   assertTrue(findings.any{it.type==LedgerIssueType.INSTALLMENT_TOTAL_MISMATCH})
  }
 
+ @Test fun auditReportsOverflowInsteadOfCrashing(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",Long.MAX_VALUE,Long.MAX_VALUE)),
+   listOf(LedgerInstallment("L1",1,Long.MAX_VALUE,0,Long.MAX_VALUE,0,0,"PENDING"),LedgerInstallment("L1",2,1,0,1,0,0,"PENDING")),
+   emptyList(),emptyList(),emptyList()
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.ARITHMETIC_OVERFLOW})
+ }
 }

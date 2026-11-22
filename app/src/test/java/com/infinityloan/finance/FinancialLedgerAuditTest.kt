@@ -112,7 +112,8 @@ class FinancialLedgerAuditTest {
   assertTrue(findings.any{it.type==LedgerIssueType.ORPHAN_ALLOCATION})
   val reversed=FinancialLedgerAudit.audit(listOf(LedgerLoan("L1",1000,1000)),listOf(LedgerInstallment("L1",1,1000,0,1000,0,0,"PENDING")),emptyList(),listOf(orphan),emptyList(),setOf("ORPHAN"))
   assertTrue(reversed.none{it.type==LedgerIssueType.ORPHAN_ALLOCATION})
- }\n @Test fun activeAllocationTotalsMustMatchInstallmentPaidCounters(){
+ }
+ @Test fun activeAllocationTotalsMustMatchInstallmentPaidCounters(){
   val findings=FinancialLedgerAudit.audit(
    listOf(LedgerLoan("L1",1000,900)),
    listOf(LedgerInstallment("L1",1,1000,100,1100,100,0,"PARTIAL")),

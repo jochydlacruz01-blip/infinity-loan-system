@@ -6,12 +6,13 @@ data class LedgerInstallment(val loanId:String,val number:Int,val principalMinor
 data class LedgerPayment(val operationId:String,val loanId:String,val amountMinor:Long)
 data class LedgerAllocation(val operationId:String,val loanId:String,val installmentNumber:Int,val lateFeeMinor:Long,val chargesMinor:Long,val interestMinor:Long,val principalMinor:Long)
 data class LedgerCredit(val operationId:String,val loanId:String,val amountMinor:Long)
-enum class LedgerIssueType { SCHEDULE_PRINCIPAL_MISMATCH, INSTALLMENT_TOTAL_MISMATCH, INVALID_PAID_AMOUNT, INSTALLMENT_STATUS_MISMATCH, LOAN_BALANCE_MISMATCH, PAYMENT_WITHOUT_ALLOCATION, ALLOCATION_EXCEEDS_PAYMENT, ALLOCATION_INSTALLMENT_MISSING, ALLOCATION_SUM_MISMATCH, NEGATIVE_ALLOCATION, PAYMENT_LOAN_MISMATCH, DUPLICATE_ALLOCATION, DUPLICATE_PAYMENT, PAYMENT_LOAN_NOT_FOUND, INVALID_CREDIT_AMOUNT, INVALID_PAYMENT_AMOUNT, INVALID_PAID_FEES }
+enum class LedgerIssueType { SCHEDULE_PRINCIPAL_MISMATCH, INSTALLMENT_TOTAL_MISMATCH, INVALID_PAID_AMOUNT, INSTALLMENT_STATUS_MISMATCH, LOAN_BALANCE_MISMATCH, PAYMENT_WITHOUT_ALLOCATION, ALLOCATION_EXCEEDS_PAYMENT, ALLOCATION_INSTALLMENT_MISSING, ALLOCATION_SUM_MISMATCH, NEGATIVE_ALLOCATION, PAYMENT_LOAN_MISMATCH, DUPLICATE_ALLOCATION, DUPLICATE_PAYMENT, PAYMENT_LOAN_NOT_FOUND, INVALID_CREDIT_AMOUNT, INVALID_PAYMENT_AMOUNT, INVALID_PAID_FEES, ARITHMETIC_OVERFLOW }
 data class LedgerIssue(val type:LedgerIssueType,val key:String,val details:String)
 
 /** Diagnostic only: never modifies financial records. */
 object FinancialLedgerAudit {
  fun audit(loans:List<LedgerLoan>,installments:List<LedgerInstallment>,payments:List<LedgerPayment>,allocations:List<LedgerAllocation>,excessCredits:List<LedgerCredit>,reversedIds:Set<String> = emptySet()):List<LedgerIssue>{
+  try {
   val issues=mutableListOf<LedgerIssue>()
   payments.groupBy{it.operationId}.filter{it.value.size>1}.keys.sorted().forEach { id ->
    issues+=LedgerIssue(LedgerIssueType.DUPLICATE_PAYMENT,id,"La operación de pago aparece más de una vez.")
@@ -69,5 +70,8 @@ object FinancialLedgerAudit {
   if(rows.groupBy{it.loanId to it.installmentNumber}.any{it.value.size>1}) issues+=LedgerIssue(LedgerIssueType.DUPLICATE_ALLOCATION,p.operationId,"Hay distribuciones duplicadas para una misma cuota.")
   }
   return issues.distinct().sortedWith(compareBy<LedgerIssue>{it.type.name}.thenBy{it.key})
+  } catch (_: ArithmeticException) {
+   return listOf(LedgerIssue(LedgerIssueType.ARITHMETIC_OVERFLOW, "AUDIT", "Desbordamiento aritmético durante la auditoría; revisar importes y totales."))
+  }
  }
 }

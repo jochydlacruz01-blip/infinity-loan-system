@@ -106,4 +106,13 @@ class FinancialLedgerAuditTest {
   )
   assertTrue(findings.any{it.type==LedgerIssueType.ARITHMETIC_OVERFLOW})
  }
+ @Test fun activeAllocationTotalsMustMatchInstallmentPaidCounters(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",1000,900)),
+   listOf(LedgerInstallment("L1",1,1000,100,1100,100,0,"PARTIAL")),
+   listOf(LedgerPayment("P1","L1",100)),
+   listOf(LedgerAllocation("P1","L1",1,0,0,0,50)),emptyList()
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.INSTALLMENT_ALLOCATION_LEDGER_MISMATCH})
+ }
 }

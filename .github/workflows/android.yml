@@ -88,16 +88,6 @@ jobs:
           adb shell getprop sys.boot_completed || true
           adb logcat -d -t 3000 || true
 
-      - name: Upload debug APK
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: infinity-loan-system-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload release Android App Bundle (unsigned)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: infinity-loan-system-release-aab-unsigned
-          path: app/build/outputs/bundle/release/app-release.aab
+      # APK/AAB outputs are intentionally not uploaded as Actions artifacts.
+      # This avoids exhausting GitHub Actions artifact storage quota.
+      # External APK delivery will be configured separately (Codemagic).

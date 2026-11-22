@@ -6,7 +6,7 @@ data class LedgerInstallment(val loanId:String,val number:Int,val principalMinor
 data class LedgerPayment(val operationId:String,val loanId:String,val amountMinor:Long)
 data class LedgerAllocation(val operationId:String,val loanId:String,val installmentNumber:Int,val lateFeeMinor:Long,val chargesMinor:Long,val interestMinor:Long,val principalMinor:Long)
 data class LedgerCredit(val operationId:String,val loanId:String,val amountMinor:Long)
-enum class LedgerIssueType { SCHEDULE_PRINCIPAL_MISMATCH, INSTALLMENT_TOTAL_MISMATCH, INVALID_PAID_AMOUNT, INSTALLMENT_STATUS_MISMATCH, LOAN_BALANCE_MISMATCH, PAYMENT_WITHOUT_ALLOCATION, ALLOCATION_EXCEEDS_PAYMENT, ALLOCATION_INSTALLMENT_MISSING, ALLOCATION_SUM_MISMATCH, NEGATIVE_ALLOCATION, PAYMENT_LOAN_MISMATCH, DUPLICATE_ALLOCATION, DUPLICATE_PAYMENT, PAYMENT_LOAN_NOT_FOUND, INVALID_CREDIT_AMOUNT }
+enum class LedgerIssueType { SCHEDULE_PRINCIPAL_MISMATCH, INSTALLMENT_TOTAL_MISMATCH, INVALID_PAID_AMOUNT, INSTALLMENT_STATUS_MISMATCH, LOAN_BALANCE_MISMATCH, PAYMENT_WITHOUT_ALLOCATION, ALLOCATION_EXCEEDS_PAYMENT, ALLOCATION_INSTALLMENT_MISSING, ALLOCATION_SUM_MISMATCH, NEGATIVE_ALLOCATION, PAYMENT_LOAN_MISMATCH, DUPLICATE_ALLOCATION, DUPLICATE_PAYMENT, PAYMENT_LOAN_NOT_FOUND, INVALID_CREDIT_AMOUNT, INVALID_PAYMENT_AMOUNT, INVALID_PAID_FEES }
 data class LedgerIssue(val type:LedgerIssueType,val key:String,val details:String)
 
 /** Diagnostic only: never modifies financial records. */
@@ -20,6 +20,9 @@ object FinancialLedgerAudit {
   payments.filter{it.loanId !in loanIds}.sortedBy{it.operationId}.forEach { p ->
    issues+=LedgerIssue(LedgerIssueType.PAYMENT_LOAN_NOT_FOUND,p.operationId,"El pago referencia un préstamo inexistente en el conjunto auditado.")
   }
+  payments.filter{it.amountMinor<=0L}.forEach { p ->
+   issues+=LedgerIssue(LedgerIssueType.INVALID_PAYMENT_AMOUNT,p.operationId,"El pago debe tener un importe positivo.")
+  }
   excessCredits.filter{it.amountMinor<0L}.forEach { credit ->
    issues+=LedgerIssue(LedgerIssueType.INVALID_CREDIT_AMOUNT,credit.operationId,"El crédito excedente contiene importe negativo.")
   }
@@ -30,6 +33,10 @@ object FinancialLedgerAudit {
    rows.sortedBy{it.number}.forEach { row ->
     if(row.totalMinor!=Math.addExact(row.principalMinor,row.interestMinor))
      issues+=LedgerIssue(LedgerIssueType.INSTALLMENT_TOTAL_MISMATCH,"${loan.id}:${row.number}","El total no equivale a capital más interés.")
+    if(row.principalMinor<0L||row.interestMinor<0L||row.totalMinor<0L)
+     issues+=LedgerIssue(LedgerIssueType.INSTALLMENT_TOTAL_MISMATCH,"${loan.id}:${row.number}","La cuota contiene importes contractuales negativos.")
+    if(row.paidLateFeeMinor<0L||row.paidChargesMinor<0L)
+     issues+=LedgerIssue(LedgerIssueType.INVALID_PAID_FEES,"${loan.id}:${row.number}","Los pagos de mora o cargos no pueden ser negativos.")
     if(row.paidPrincipalMinor<0||row.paidInterestMinor<0||row.paidPrincipalMinor>row.principalMinor||row.paidInterestMinor>row.interestMinor)
      issues+=LedgerIssue(LedgerIssueType.INVALID_PAID_AMOUNT,"${loan.id}:${row.number}","Importes pagados fuera de límites contractuales.")
     val fully=row.paidLateFeeMinor==0L&&row.paidChargesMinor==0L&&row.paidPrincipalMinor==row.principalMinor&&row.paidInterestMinor==row.interestMinor

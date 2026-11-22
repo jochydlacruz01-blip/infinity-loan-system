@@ -80,4 +80,22 @@ class FinancialLedgerAuditTest {
   assertTrue(findings.any{it.type==LedgerIssueType.INVALID_CREDIT_AMOUNT})
  }
 
+ @Test fun flagsNegativePaymentsAndPaidFees(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",1000,1000)),
+   listOf(LedgerInstallment("L1",1,1000,100,1100,0,0,"PENDING",paidLateFeeMinor=-1)),
+   listOf(LedgerPayment("P-NEG","L1",-5)),emptyList(),emptyList()
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.INVALID_PAYMENT_AMOUNT})
+  assertTrue(findings.any{it.type==LedgerIssueType.INVALID_PAID_FEES})
+ }
+ @Test fun flagsNegativeContractualInstallmentAmounts(){
+  val findings=FinancialLedgerAudit.audit(
+   listOf(LedgerLoan("L1",0,0)),
+   listOf(LedgerInstallment("L1",1,-10,0,-10,0,0,"PENDING")),
+   emptyList(),emptyList(),emptyList()
+  )
+  assertTrue(findings.any{it.type==LedgerIssueType.INSTALLMENT_TOTAL_MISMATCH})
+ }
+
 }

@@ -9,11 +9,11 @@ Esta documentación distingue los cimientos ya implementados de los controles qu
 - `StaffRole` define administrador, supervisor, cajero y cobrador.
 - `Permission` define capacidades individuales y `AccessPolicy` aplica denegaciones explícitas antes de concesiones y permisos predeterminados.
 - `PasswordHasher` implementa hashes versionados PBKDF2-HMAC-SHA256, sal aleatoria de 16 bytes y comparación en tiempo constante.
-- Room v10 persiste cuentas de empleados, intentos fallidos y bloqueos temporales; el primer inicio permite crear el administrador sin contraseña predeterminada.
+- Room v15 persiste cuentas de empleados, intentos fallidos y bloqueos temporales; el primer inicio permite crear el administrador sin contraseña predeterminada.
 - La interfaz Android exige autenticación antes de abrir el panel y mantiene la sesión en memoria.
 - La navegación y las acciones principales se filtran por permisos; `StaffAuthenticationService.hasPermission` vuelve a validar la cuenta persistida, el estado activo y el perfil antes de ejecutar las operaciones protegidas integradas.
 - Existe administración local de empleados, restricciones contra escalamiento de privilegios y protección del último administrador. Los permisos individuales permiten concesiones y denegaciones; las denegaciones prevalecen.
-- Room v10 incluye un registro de auditoría de solo inserción y una tabla de reversos de pagos con unicidad por pago original e integridad referencial. La interfaz muestra eventos recientes a perfiles autorizados.
+- Room v15 incluye un registro de auditoría de solo inserción y una tabla de reversos de pagos con unicidad por pago original e integridad referencial. La interfaz muestra eventos recientes a perfiles autorizados.
 - Se registran operaciones principales de clientes, préstamos, pagos y administración de empleados.
 - Las operaciones integradas de clientes, préstamos, pagos y caja consultan el servicio de autorización local antes de escribir; el cobro se registra transaccionalmente con el movimiento de caja. Esto sigue siendo una protección local del cliente, no una frontera segura frente a manipulación del APK.
 
@@ -50,3 +50,8 @@ Los permisos predeterminados son una base conservadora, no una política final a
 - Añadir autorización en todos los endpoints y pruebas de seguridad.
 - Revisar privacidad, protección de datos y requisitos regulatorios aplicables.
 - Completar pruebas de migración, integridad financiera, caja y recuperación de errores.
+
+
+## Validación de integración añadida
+
+La prueba instrumentada `CollectionVisitServiceIntegrationTest` verifica que el cierre de visita requiera evidencia de pago del préstamo correcto, que un pago reversado o duplicado no cierre una visita, que una visita cancelada no pueda cerrarse, que una cuenta desactivada no pueda operar con una sesión antigua y que el cliente asociado a la visita coincida con el cliente del préstamo. La ejecución de CI debe confirmarse antes de considerar aprobada esta ampliación.

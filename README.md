@@ -30,11 +30,7 @@ GitHub Actions ejecuta:
 - Compilación de Android App Bundle (AAB) release sin firma.
 - Pruebas instrumentadas en emulador Android.
 
-Los artefactos se publican en la sección **Actions** de GitHub cuando el workflow termina correctamente:
-- `infinity-loan-system-debug`
-- `infinity-loan-system-release-aab-unsigned`
-
-Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar en Google Play**. La firma de producción debe configurarse con una clave de carga protegida, fuera del repositorio.
+El workflow compila un APK debug y un AAB release sin firma para validar el código. Por política de almacenamiento, no publica APK/AAB como artefactos de Actions. No se debe afirmar que existe un instalador descargable hasta verificar una distribución externa. Un AAB sin firma **no se puede publicar en Google Play**; la firma requiere una clave protegida fuera del repositorio.
 
 ## Funciones pendientes antes de producción
 
@@ -42,7 +38,7 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 - Completar autorización en cada caso de uso/operación sensible; migrar la identidad local a sesiones seguras y autenticación centralizada en backend para varios dispositivos.
 - Sincronización segura entre dispositivos, manejo de conflictos y operación sin conexión.
 - Caja local: sesiones persistidas, movimientos de entrada/salida, validación de saldo disponible, cierre con arqueo físico; los cobros desde el formulario de pagos requieren una sesión abierta en la moneda del préstamo y se vinculan transaccionalmente a entradas de caja, con auditoría. Requiere ampliar conciliación/reportes y controles operativos antes de producción.
-- Reversos de pagos: flujo con motivo obligatorio, permiso específico, protección contra duplicados y validación de dependencias; restaura cuotas, principal, crédito y caja cuando corresponde. La migración 9→10 y sus restricciones se validan en emulador. Procedimiento documentado en `docs/CASH_RECONCILIATION.md`.
+- Reversos de pagos: flujo con motivo obligatorio, permiso específico, protección contra duplicados y validación de dependencias; restaura cuotas, principal, crédito y caja cuando corresponde. Las migraciones del esquema Room versión 15 deben seguir validándose en emulador desde todas las versiones históricas admitidas. Procedimiento documentado en `docs/CASH_RECONCILIATION.md`.
 - Mora y cargos: pendientes de política contractual aprobada; no se aplican cargos automáticos. Recibos formales, refinanciamientos y reglas completas de pagos anticipados también requieren diseño y validación.
 - GPS y geolocalización de cobradores: todavía no implementados. La agenda local de visitas ya permite asignación, seguimiento de estados y cierre únicamente con evidencia de un pago válido; el uso de GPS requiere permisos, controles de privacidad y auditoría.
 - Portal del cliente y pasarela de pagos digitales.

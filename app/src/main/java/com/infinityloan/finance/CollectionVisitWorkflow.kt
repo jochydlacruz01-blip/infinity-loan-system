@@ -40,4 +40,20 @@ object CollectionVisitWorkflow {
         require(next in allowed) { "Transición no permitida: ${record.status} → $next" }
         return record.copy(status = next, outcomeNote = normalizedNote)
     }
+    fun completeWithPayment(
+        record: CollectionVisitRecord,
+        paymentMatchesLoan: Boolean,
+        paymentIsReversed: Boolean,
+        note: String = record.outcomeNote
+    ): CollectionVisitRecord {
+        validate(record)
+        require(record.status !in setOf(CollectionVisitStatus.PAID, CollectionVisitStatus.CANCELLED)) {
+            "La visita ya está cerrada."
+        }
+        require(paymentMatchesLoan) { "El pago no corresponde al préstamo de la visita." }
+        require(!paymentIsReversed) { "No se puede cerrar la visita con un pago reversado." }
+        val normalizedNote = note.trim()
+        require(normalizedNote.length <= 2000) { "La nota excede el límite" }
+        return record.copy(status = CollectionVisitStatus.PAID, outcomeNote = normalizedNote)
+    }
 }

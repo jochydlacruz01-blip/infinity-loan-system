@@ -128,4 +128,62 @@ class CollectionVisitService(
             true
         }
     }
+    suspend fun markPaid(
+        actor: StaffSession,
+        visitId: String,
+        paymentOperationId: String,
+        note: String = ""
+    ): Boolean {
+        require(authentication.isSessionValid(actor)) { "La sesión ha caducado." }
+        require(authentication.hasPermission(actor, Permission.COLLECTION_VISIT_MANAGE)) {
+            "No tienes permiso para actualizar visitas."
+        }
+        require(paymentOperationId.isNotBlank()) { "Debe indicar el pago registrado." }
+        return database.withTransaction {
+            val existing = database.collectionVisits().findById(visitId)
+                ?: throw IllegalArgumentException("La visita no existe.")
+            if (actor.profile.role == StaffRole.COLLECTOR) {
+                require(existing.collectorId == actor.staffId) {
+                    "Solo puedes actualizar tus propias visitas."
+                }
+            }
+            val payment = database.payments().findByOperationId(paymentOperationId)
+                ?: throw IllegalArgumentException("El pago indicado no existe.")
+            require(payment.amountMinor > 0L) { "El pago no tiene un importe válido." }
+            val reversed = database.paymentReversals()
+                .findByOriginalOperationId(paymentOperationId) != null
+            val record = CollectionVisitRecord(
+                visitId = existing.visitId,
+                loanId = existing.loanId,
+                clientId = existing.clientId,
+                collectorId = existing.collectorId,
+                plannedDate = LocalDate.parse(existing.plannedDate),
+                status = CollectionVisitStatus.valueOf(existing.status),
+                outcomeNote = existing.outcomeNote
+            )
+            val changed = CollectionVisitWorkflow.completeWithPayment(
+                record = record,
+                paymentMatchesLoan = payment.loanId == existing.loanId,
+                paymentIsReversed = reversed,
+                note = note
+            )
+            val rows = database.collectionVisits().transition(
+                visitId = visitId,
+                expectedStatus = existing.status,
+                status = changed.status.name,
+                note = changed.outcomeNote,
+                updatedAt = System.currentTimeMillis()
+            )
+            if (rows != 1) return@withTransaction false
+            database.auditLogs().insert(AuditLogEntity(
+                actorStaffId = actor.staffId,
+                actorUsername = actor.username,
+                action = "COLLECTION_VISIT_MARKED_PAID",
+                targetType = "COLLECTION_VISIT",
+                targetId = visitId,
+                details = "paymentOperationId=$paymentOperationId;loanId=${existing.loanId}"
+            ))
+            true
+        }
+    }
 }

@@ -73,6 +73,22 @@ class CollectionVisitWorkflowTest {
         }
     }
 
+    @Test fun paymentCompletionRequiresMatchingUnreversedPayment() {
+        val original = visit(CollectionVisitStatus.CONTACTED)
+        try {
+            CollectionVisitWorkflow.completeWithPayment(original, false, false)
+            fail("A payment from another loan must be rejected")
+        } catch (_: IllegalArgumentException) {}
+        try {
+            CollectionVisitWorkflow.completeWithPayment(original, true, true)
+            fail("A reversed payment must be rejected")
+        } catch (_: IllegalArgumentException) {}
+        val paid = CollectionVisitWorkflow.completeWithPayment(original, true, false, "  Pago confirmado  ")
+        assertEquals(CollectionVisitStatus.PAID, paid.status)
+        assertEquals("Pago confirmado", paid.outcomeNote)
+        assertEquals(original.visitId, paid.visitId)
+    }
+
     @Test fun transitionTrimsOutcomeNoteAndKeepsRecordIdentity() {
         val original = visit()
         val updated = CollectionVisitWorkflow.transition(original, CollectionVisitStatus.ATTEMPTED, "  Cliente no estaba  ")

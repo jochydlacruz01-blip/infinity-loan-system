@@ -9,7 +9,7 @@ Aplicación Android nativa en desarrollo para gestión de préstamos. El proyect
 - Android nativo: Kotlin + Jetpack Compose.
 - Android Gradle Plugin 8.7.3, Kotlin 2.0.21, Gradle 8.9 y JDK 17.
 - `compileSdk 35`, `targetSdk 35`, `minSdk 26`.
-- Persistencia local Room, esquema versión 10, con cuentas de empleados, auditoría local, bloqueo temporal tras cinco intentos fallidos y migraciones 1→10, incluida la tabla de reversos de pagos con índices y claves foráneas.
+- Persistencia local Room, esquema versión 15, con cuentas de empleados, auditoría local, bloqueo temporal tras cinco intentos fallidos, visitas de cobranza y libros de pagos/reversos. Las migraciones deben seguir validándose en emulador al introducir cambios de esquema.
 - Diseño corporativo azul marino y dorado.
 - Monedas modeladas: DOP, USD y EUR.
 - Motor financiero con amortización francesa, italiana y americana.
@@ -44,13 +44,13 @@ Un AAB sin firma sirve para validar la compilación, pero **no se puede publicar
 - Caja local: sesiones persistidas, movimientos de entrada/salida, validación de saldo disponible, cierre con arqueo físico; los cobros desde el formulario de pagos requieren una sesión abierta en la moneda del préstamo y se vinculan transaccionalmente a entradas de caja, con auditoría. Requiere ampliar conciliación/reportes y controles operativos antes de producción.
 - Reversos de pagos: flujo con motivo obligatorio, permiso específico, protección contra duplicados y validación de dependencias; restaura cuotas, principal, crédito y caja cuando corresponde. La migración 9→10 y sus restricciones se validan en emulador. Procedimiento documentado en `docs/CASH_RECONCILIATION.md`.
 - Mora y cargos: pendientes de política contractual aprobada; no se aplican cargos automáticos. Recibos formales, refinanciamientos y reglas completas de pagos anticipados también requieren diseño y validación.
-- GPS y visitas de cobradores con permisos, controles de privacidad y auditoría.
+- GPS y geolocalización de cobradores: todavía no implementados. La agenda local de visitas ya permite asignación, seguimiento de estados y cierre únicamente con evidencia de un pago válido; el uso de GPS requiere permisos, controles de privacidad y auditoría.
 - Portal del cliente y pasarela de pagos digitales.
-- Informes financieros y operativos completos.
+- Informes financieros y operativos completos; los paneles y reportes actuales son parciales y requieren conciliación integral.
 - Revisión de seguridad, privacidad, protección de datos y requisitos regulatorios aplicables en República Dominicana.
 - Firma de release, pruebas internas/ cerradas y preparación de ficha de Google Play.
 
-## Reglas de integridad financiera
+## Funciones locales ya integradas\n\n- Agenda de visitas de cobranza ligada a cliente y préstamo, con asignación por cobrador, filtros y auditoría. El estado pagada exige un pago existente, positivo, del mismo préstamo y no reversado; no puede marcarse manualmente.\n- Los pagos en efectivo se registran dentro de una transacción junto con su entrada de caja y distribución por cuotas.\n- La pantalla de pagos muestra cliente, recibo, referencia completa de operación, estado de reverso y distribución aplicada a cuotas.\n- Los reversos validan actor, permiso, dependencias, crédito disponible y caja original; conservan el pago original y registran movimientos compensatorios.\n\n## Reglas de integridad financiera
 
 - Los importes se almacenan en unidades menores enteras (por ejemplo, centavos) y se convierten a `BigDecimal` para cálculos.
 - La tasa guardada es la tasa decimal por período: `0.05` representa 5% por cuota/período. La periodicidad y tasa contractual deben coincidir.

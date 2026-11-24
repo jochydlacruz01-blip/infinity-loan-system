@@ -1,7 +1,6 @@
 package com.infinityloan.finance
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import com.infinityloan.data.PaymentEntity
 import org.junit.Test
 import java.time.ZoneId

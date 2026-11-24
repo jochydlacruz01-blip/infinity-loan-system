@@ -89,7 +89,7 @@ class CashPaymentIntegrationTest {
                     principalMinor = 10000L,
                     interestMinor = 0L,
                     totalMinor = 10000L,
-                    remainingPrincipalMinor = 0L
+                    remainingPrincipalMinor = 10000L
                 )
             )
         )

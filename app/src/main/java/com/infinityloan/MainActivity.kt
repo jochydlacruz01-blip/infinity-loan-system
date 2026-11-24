@@ -1137,11 +1137,14 @@ private fun CollectionVisitsScreen(
         "PAID" to "Pagada · pago verificado",
         "CANCELLED" to "Visita cancelada"
     )
+    val normalizedClientFilter = clientFilter.trim()
     val filteredVisits = visits.filter { visit ->
-        val clientName = clientById[visit.clientId]?.fullName.orEmpty()
-        val matchesClient = clientFilter.isBlank() ||
-            clientName.contains(clientFilter.trim(), ignoreCase = true) ||
-            visit.loanId.contains(clientFilter.trim(), ignoreCase = true)
+        val client = clientById[visit.clientId]
+        val matchesClient = normalizedClientFilter.isBlank() ||
+            client?.fullName.orEmpty().contains(normalizedClientFilter, ignoreCase = true) ||
+            client?.documentNumber.orEmpty().contains(normalizedClientFilter, ignoreCase = true) ||
+            client?.phone.orEmpty().contains(normalizedClientFilter, ignoreCase = true) ||
+            visit.loanId.contains(normalizedClientFilter, ignoreCase = true)
         (statusFilter == "TODAS" || visit.status == statusFilter) &&
             (dateFilter.isBlank() || visit.plannedDate.contains(dateFilter.trim())) &&
             matchesClient
@@ -1243,7 +1246,7 @@ private fun CollectionVisitsScreen(
             OutlinedTextField(
                 value = clientFilter,
                 onValueChange = { clientFilter = it.take(100) },
-                label = { Text("Buscar por cliente o ID de préstamo") },
+                label = { Text("Buscar por nombre, documento, teléfono o préstamo") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1265,7 +1268,8 @@ private fun CollectionVisitsScreen(
             }
         } else {
             items(filteredVisits, key = { it.visitId }) { visit ->
-                val clientName = clientById[visit.clientId]?.fullName ?: "Cliente no disponible"
+                val client = clientById[visit.clientId]
+                val clientName = client?.fullName ?: "Cliente no disponible"
                 val loan = loanById[visit.loanId]
                 val collectorName = collectorById[visit.collectorId]?.displayName ?: "Responsable ${visit.collectorId.take(8)}"
                 val clientVisitCount = visits.count { it.clientId == visit.clientId }
@@ -1274,6 +1278,8 @@ private fun CollectionVisitsScreen(
                         title = "$clientName · ${statusLabels[visit.status] ?: visit.status}",
                         detail = buildString {
                             append("Fecha: ${visit.plannedDate}")
+                            if (!client?.documentNumber.isNullOrBlank()) append("\nDocumento: ${client?.documentNumber}")
+                            if (!client?.phone.isNullOrBlank()) append("\nTeléfono: ${client?.phone}")
                             append("\nPréstamo: ${visit.loanId.take(8)}")
                             append("\nCobrador: $collectorName")
                             append("\nHistorial del cliente: $clientVisitCount visitas")

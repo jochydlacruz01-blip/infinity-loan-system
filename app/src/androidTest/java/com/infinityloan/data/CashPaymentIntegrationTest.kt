@@ -1065,4 +1065,43 @@ class CashPaymentIntegrationTest {
         assertTrue(database.auditLogs().findByActor("ADMIN-001", 10).isEmpty())
     }
 
+
+    @Test
+    fun partialPromisePaymentLinksAccumulateForSameLedgerPayment() = runBlocking {
+        val loan = createDueLoan()
+        val authentication = com.infinityloan.security.StaffAuthenticationService(database.staffAccounts())
+        val service = PromiseToPayService(database, authentication)
+        val administrator = com.infinityloan.security.StaffSession(
+            staffId = "ADMIN-001",
+            username = "admin0",
+            displayName = "Administrador de prueba",
+            profile = com.infinityloan.security.AccessProfile(
+                com.infinityloan.security.StaffRole.ADMINISTRATOR
+            )
+        )
+        val promise = service.create(
+            administrator,
+            loan.id,
+            promisedAmountMinor = 1000L,
+            promisedDate = LocalDate.now().plusDays(1)
+        )
+        val payment = PaymentEntity(
+            operationId = "PROMISE-PARTIAL-PAYMENT",
+            loanId = loan.id,
+            amountMinor = 1000L,
+            reference = "Pago parcial de promesa",
+            createdAt = System.currentTimeMillis() + 1000L
+        )
+        assertEquals(PaymentPostResult.POSTED, database.payments().postPayment(payment))
+
+        service.linkPayment(administrator, promise.promiseId, payment.operationId, 400L)
+        service.linkPayment(administrator, promise.promiseId, payment.operationId, 600L)
+
+        val links = database.promisePaymentLinks().findForPromise(promise.promiseId)
+        assertEquals(1, links.size)
+        assertEquals(1000L, links.single().amountMinor)
+        assertEquals(PromiseToPayStatus.KEPT.name, database.promisesToPay().findById(promise.promiseId)?.status)
+        assertEquals(1000L, database.promisePaymentLinks().sumForPayment(payment.operationId))
+    }
+
 }

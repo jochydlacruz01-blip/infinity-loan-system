@@ -117,8 +117,23 @@ class PromiseToPayService(
             val linkedToPromise = database.promisePaymentLinks().sumForPromise(promiseId)
             val promiseRemaining = Math.subtractExact(promise.promisedAmountMinor, linkedToPromise)
             require(promiseRemaining >= amountMinor) { "El importe supera el saldo pendiente de la promesa." }
-            val link = PromisePaymentLinkEntity(promiseId, operationId, amountMinor, actor.staffId)
-            database.promisePaymentLinks().insert(link)
+            val linksDao = database.promisePaymentLinks()
+            val existingLink = linksDao.findForPromiseAndPayment(promiseId, operationId)
+            val link = if (existingLink == null) {
+                PromisePaymentLinkEntity(promiseId, operationId, amountMinor, actor.staffId).also {
+                    linksDao.insert(it)
+                }
+            } else {
+                val accumulatedAmount = Math.addExact(existingLink.amountMinor, amountMinor)
+                val updated = linksDao.updateAmountIfUnchanged(
+                    promiseId = promiseId,
+                    operationId = operationId,
+                    expectedAmountMinor = existingLink.amountMinor,
+                    newAmountMinor = accumulatedAmount
+                )
+                check(updated == 1) { "El vínculo de pago cambió durante la conciliación." }
+                existingLink.copy(amountMinor = accumulatedAmount)
+            }
             val newLinkedTotal = Math.addExact(linkedToPromise, amountMinor)
             val fullyKept = newLinkedTotal == promise.promisedAmountMinor
             if (fullyKept) {

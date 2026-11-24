@@ -131,6 +131,25 @@ class CollectionVisitServiceIntegrationTest {
         assertTrue(service.markPaid(actor, "VISIT-VALID", "VISIT-PAYMENT-VALID", "Cobro verificado"))
 
         assertEquals("PAID", database.collectionVisits().findById("VISIT-VALID")?.status)
+
+        // The visit is evidence of a real posted payment, not a substitute for accounting.
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        val installment = database.installments().findForLoan(loan.id).single()
+        assertEquals(1000L, installment.paidPrincipalMinor)
+        assertEquals(9000L, installment.remainingPrincipalMinor)
+        val allocation = database.paymentAllocations()
+            .findForPayment("VISIT-PAYMENT-VALID").single()
+        assertEquals(1000L, allocation.principalPaidMinor)
+        assertEquals(
+            "VISIT-PAYMENT-VALID",
+            database.payments().findByOperationId("VISIT-PAYMENT-VALID")?.operationId
+        )
+
+        // A repeated completion must not create a second paid transition or audit event.
+        val duplicateRejected = runCatching {
+            service.markPaid(actor, "VISIT-VALID", "VISIT-PAYMENT-VALID", "Segundo intento")
+        }.isFailure
+        assertTrue(duplicateRejected)
         assertEquals(
             1,
             database.auditLogs().observeRecent(100).first().count {

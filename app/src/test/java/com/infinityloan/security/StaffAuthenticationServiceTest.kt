@@ -4,6 +4,8 @@ import com.infinityloan.data.StaffAccountDao
 import com.infinityloan.data.StaffAccountEntity
 import com.infinityloan.data.StaffAccountSummary
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -22,6 +24,10 @@ class StaffAuthenticationServiceTest {
 
         override suspend fun findById(id: String): StaffAccountEntity? =
             accounts.values.firstOrNull { it.id == id }
+
+        override fun observeById(id: String): Flow<StaffAccountEntity?> = flow {
+            emit(findById(id))
+        }
 
         override suspend fun count(): Int = accounts.size
 

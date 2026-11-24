@@ -526,6 +526,19 @@ private fun AuthenticatedInfinityApp(
                                         message = e.message ?: "No se pudo actualizar la visita."
                                     }
                                 }
+                            },
+                            onMarkPaid = { visitId, operationId, note ->
+                                scope.launch {
+                                    try {
+                                        val changed = withContext(Dispatchers.IO) {
+                                            visitService.markPaid(session, visitId, operationId, note)
+                                        }
+                                        message = if (changed) "Visita cerrada con el pago verificado."
+                                            else "La visita cambió en otra operación. Actualiza la pantalla."
+                                    } catch (e: Exception) {
+                                        message = e.message ?: "No se pudo vincular el pago a la visita."
+                                    }
+                                }
                             }
                         )
                         Screen.COLLECTION_PERFORMANCE -> CollectionVisitPerformanceScreen(
@@ -1094,7 +1107,8 @@ private fun CollectionVisitsScreen(
     canManage: Boolean,
     canAssign: Boolean,
     onSchedule: (String, LocalDate, String) -> Unit,
-    onStatus: (String, CollectionVisitStatus, String) -> Unit
+    onStatus: (String, CollectionVisitStatus, String) -> Unit,
+    onMarkPaid: (String, String, String) -> Unit
 ) {
     var showLoanPicker by remember { mutableStateOf(false) }
     var selectedLoanId by remember { mutableStateOf<String?>(null) }
@@ -1107,6 +1121,7 @@ private fun CollectionVisitsScreen(
         mutableStateOf(collectors.firstOrNull()?.id ?: currentStaffId)
     }
     var visitNotes by remember { mutableStateOf(emptyMap<String, String>()) }
+    var paymentOperationIds by remember { mutableStateOf(emptyMap<String, String>()) }
     val clientById = clients.associateBy { it.id }
     val loanById = loans.associateBy { it.id }
     val collectorById = collectors.associateBy { it.id }
@@ -1272,11 +1287,31 @@ private fun CollectionVisitsScreen(
                             label = { Text("Nota de esta visita") },
                             modifier = Modifier.fillMaxWidth()
                         )
+                        OutlinedTextField(
+                            value = paymentOperationIds[visit.visitId] ?: "",
+                            onValueChange = { paymentOperationIds = paymentOperationIds + (visit.visitId to it.take(120)) },
+                            label = { Text("ID de operación del pago registrado") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(
+                            onClick = {
+                                val operationId = paymentOperationIds[visit.visitId].orEmpty().trim()
+                                if (operationId.isBlank()) {
+                                    visitNotes = visitNotes + (visit.visitId to "Indica el ID del recibo/pago para verificarlo.")
+                                } else {
+                                    onMarkPaid(visit.visitId, operationId, visitNotes[visit.visitId].orEmpty())
+                                    paymentOperationIds = paymentOperationIds - visit.visitId
+                                    visitNotes = visitNotes - visit.visitId
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Vincular pago y cerrar visita") }
                         val nextStatuses = when (visit.status) {
                             "SCHEDULED" -> listOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
-                            "ATTEMPTED" -> listOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE)
-                            "CONTACTED" -> listOf(CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE)
-                            "PROMISE_TO_PAY" -> listOf(CollectionVisitStatus.PAID, CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.UNREACHABLE)
+                            "ATTEMPTED" -> listOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.UNREACHABLE)
+                            "CONTACTED" -> listOf(CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.UNREACHABLE)
+                            "PROMISE_TO_PAY" -> listOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.UNREACHABLE)
                             "UNREACHABLE" -> listOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.CANCELLED)
                             else -> emptyList()
                         }

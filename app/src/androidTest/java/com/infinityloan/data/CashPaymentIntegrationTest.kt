@@ -97,6 +97,51 @@ class CashPaymentIntegrationTest {
     }
 
     @Test
+    fun paymentLinkedToPromiseCannotBeReversed() = runBlocking {
+        val loan = createDueLoan()
+        val payment = PaymentEntity(
+            operationId = "PROMISE-LINKED-PAYMENT",
+            loanId = loan.id,
+            amountMinor = 2500L,
+            reference = "Pago vinculado a promesa",
+            createdAt = 20L
+        )
+        assertTrue(database.payments().insert(payment) > 0L)
+        database.promisesToPay().insert(
+            PromiseToPayEntity(
+                promiseId = "PROMISE-LINKED-001",
+                loanId = loan.id,
+                clientId = loan.clientId,
+                collectorId = "ADMIN-001",
+                promisedAmountMinor = 2500L,
+                currency = loan.currency,
+                promisedDate = LocalDate.now().plusDays(1).toString(),
+                createdAt = 10L
+            )
+        )
+        database.promisePaymentLinks().insert(
+            PromisePaymentLinkEntity(
+                promiseId = "PROMISE-LINKED-001",
+                operationId = payment.operationId,
+                amountMinor = 2500L,
+                linkedByStaffId = "ADMIN-001",
+                createdAt = 30L
+            )
+        )
+
+        val result = database.reversePayment(
+            operationId = payment.operationId,
+            actorStaffId = "ADMIN-001",
+            actorUsername = "admin0",
+            reason = "No debe revertirse evidencia de promesa"
+        )
+
+        assertEquals(PaymentReversalResult.PAYMENT_LINKED_TO_PROMISE, result)
+        assertNull(database.paymentReversals().findByOriginalOperationId(payment.operationId))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+    }
+
+    @Test
     fun cashPaymentPostsLoanAndCashMovementAtomically() = runBlocking {
         val loan = createDueLoan()
         database.openCashSession(

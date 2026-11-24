@@ -32,3 +32,36 @@ class ExecutiveFinancialReportTest {
             ExecutiveFinancialReport.build(emptyList(), emptyList(), emptyList(), emptyList(), YearMonth.of(2026, 11)))
     }
 }
+
+    @Test fun rejectsDuplicatePortfolioCurrencyInsteadOfSilentlyKeepingLast() {
+        val month = YearMonth.of(2026, 11)
+        val duplicate = listOf(
+            PortfolioCurrencySummary("DOP", 1, 1, 100, 0, 0),
+            PortfolioCurrencySummary("DOP", 2, 2, 200, 0, 0)
+        )
+        try {
+            ExecutiveFinancialReport.build(duplicate, emptyList(), emptyList(), emptyList(), month)
+            throw AssertionError("duplicate currency summaries must be rejected")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun rejectsDuplicateMonthlyCurrencyTotals() {
+        val month = YearMonth.of(2026, 11)
+        val duplicate = listOf(
+            MonthlyPaymentTotal(month, "DOP", 100, 1),
+            MonthlyPaymentTotal(month, "DOP", 200, 2)
+        )
+        try {
+            ExecutiveFinancialReport.build(emptyList(), emptyList(), duplicate, emptyList(), month)
+            throw AssertionError("duplicate monthly currency totals must be rejected")
+        } catch (_: IllegalArgumentException) { }
+    }
+
+    @Test fun rejectsUnsupportedCurrencyInExecutiveInputs() {
+        val month = YearMonth.of(2026, 11)
+        try {
+            ExecutiveFinancialReport.build(emptyList(), emptyList(),
+                listOf(MonthlyPaymentTotal(month, "XYZ", 100, 1)), emptyList(), month)
+            throw AssertionError("unsupported currency must be rejected")
+        } catch (_: IllegalArgumentException) { }
+    }

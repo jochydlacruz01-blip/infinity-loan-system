@@ -12,7 +12,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import com.infinityloan.finance.PromiseToPayStatus
 import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)

@@ -25,7 +25,6 @@ on:
       - ".github/workflows/android.yml"
   workflow_dispatch:
 
-# Preserve queued/running validations rather than canceling them after a newer push.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -47,7 +46,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.9"
+          gradle-version: "8.11.1"
 
       - name: Run lint, unit tests and build APK/AAB
         run: gradle lintDebug testDebugUnitTest assembleDebug bundleRelease
@@ -91,11 +90,8 @@ jobs:
 
       - name: Emulator diagnostics on failure
         if: failure()
+        timeout-minutes: 2
         run: |
-          adb devices -l || true
-          adb shell getprop sys.boot_completed || true
-          adb logcat -d -t 3000 || true
-
-      # APK/AAB outputs are intentionally not uploaded as Actions artifacts.
-      # This avoids exhausting GitHub Actions artifact storage quota.
-      # External APK delivery will be configured separately (Codemagic).
+          timeout 15s adb devices -l || true
+          timeout 15s adb shell getprop sys.boot_completed || true
+          timeout 30s adb logcat -d -t 3000 || true

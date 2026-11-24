@@ -1122,6 +1122,7 @@ private fun CollectionVisitsScreen(
     }
     var visitNotes by remember { mutableStateOf(emptyMap<String, String>()) }
     var paymentOperationIds by remember { mutableStateOf(emptyMap<String, String>()) }
+    var paymentMessages by remember { mutableStateOf(emptyMap<String, String>()) }
     val clientById = clients.associateBy { it.id }
     val loanById = loans.associateBy { it.id }
     val collectorById = collectors.associateBy { it.id }
@@ -1133,7 +1134,7 @@ private fun CollectionVisitsScreen(
         "CONTACTED" to "Cliente contactado",
         "PROMISE_TO_PAY" to "Promesa de pago",
         "UNREACHABLE" to "No localizado",
-        "PAID" to "Pago reportado en visita",
+        "PAID" to "Pagada · pago verificado",
         "CANCELLED" to "Visita cancelada"
     )
     val filteredVisits = visits.filter { visit ->
@@ -1289,7 +1290,10 @@ private fun CollectionVisitsScreen(
                         )
                         OutlinedTextField(
                             value = paymentOperationIds[visit.visitId] ?: "",
-                            onValueChange = { paymentOperationIds = paymentOperationIds + (visit.visitId to it.take(120)) },
+                            onValueChange = {
+                                paymentOperationIds = paymentOperationIds + (visit.visitId to it.take(120))
+                                paymentMessages = paymentMessages - visit.visitId
+                            },
                             label = { Text("ID de operación del pago registrado") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
@@ -1298,8 +1302,9 @@ private fun CollectionVisitsScreen(
                             onClick = {
                                 val operationId = paymentOperationIds[visit.visitId].orEmpty().trim()
                                 if (operationId.isBlank()) {
-                                    visitNotes = visitNotes + (visit.visitId to "Indica el ID del recibo/pago para verificarlo.")
+                                    paymentMessages = paymentMessages + (visit.visitId to "Indica el ID del recibo/pago para verificarlo.")
                                 } else {
+                                    paymentMessages = paymentMessages - visit.visitId
                                     onMarkPaid(visit.visitId, operationId, visitNotes[visit.visitId].orEmpty())
                                     paymentOperationIds = paymentOperationIds - visit.visitId
                                     visitNotes = visitNotes - visit.visitId
@@ -1307,6 +1312,9 @@ private fun CollectionVisitsScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Vincular pago y cerrar visita") }
+                        paymentMessages[visit.visitId]?.let { validationMessage ->
+                            Text(validationMessage, color = Gold, fontSize = 11.sp)
+                        }
                         val nextStatuses = when (visit.status) {
                             "SCHEDULED" -> listOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
                             "ATTEMPTED" -> listOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.UNREACHABLE)

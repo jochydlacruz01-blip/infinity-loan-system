@@ -24,13 +24,21 @@ class PaymentDaoTest {
 
     private suspend fun insertLoanWithDueInstallment(loan: LoanEntity) {
         database.loans().insert(loan)
-        val principalDue = loan.balanceMinor
+        // The installment schedule stores original contractual principal;
+        // any principal already repaid must be reflected in its paid ledger.
+        // Using only balanceMinor as principal creates an impossible schedule
+        // whenever the loan has already been amortized.
+        require(loan.balanceMinor in 0L..loan.principalMinor)
+        val alreadyPaidPrincipal = loan.principalMinor - loan.balanceMinor
         database.installments().insertAll(
             listOf(LoanInstallmentEntity(
                 loanId = loan.id, number = 1,
                 dueDate = LocalDate.now().minusDays(1).toString(),
-                principalMinor = principalDue, interestMinor = 0L,
-                totalMinor = principalDue, remainingPrincipalMinor = principalDue
+                principalMinor = loan.principalMinor, interestMinor = 0L,
+                totalMinor = loan.principalMinor,
+                remainingPrincipalMinor = loan.balanceMinor,
+                status = if (alreadyPaidPrincipal == 0L) "PENDING" else "PARTIAL",
+                paidPrincipalMinor = alreadyPaidPrincipal
             ))
         )
     }

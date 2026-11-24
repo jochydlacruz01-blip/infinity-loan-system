@@ -1932,6 +1932,7 @@ private fun PaymentsScreen(
             payment.operationId.contains(query, ignoreCase = true) ||
             payment.loanId.contains(query, ignoreCase = true) ||
             (client?.fullName ?: "").contains(query, ignoreCase = true) ||
+            (client?.documentNumber ?: "").contains(query, ignoreCase = true) ||
             (loan?.currency ?: "").contains(query, ignoreCase = true)
         }
 
@@ -1991,6 +1992,8 @@ private fun PaymentsScreen(
                                 detail = """
                                     CLIENTE
                                     ${client?.fullName ?: "No disponible"}
+                                    DOCUMENTO
+                                    ${client?.documentNumber ?: "No disponible"}
 
                                     IMPORTE
                                     ${money(payment.amountMinor)} ${loan?.currency ?: ""}
@@ -2666,7 +2669,9 @@ private fun PaymentForm(
     val clientById = remember(clients) { clients.associateBy { it.id } }
     val matchingLoans = loans.filter { loan ->
         val name = clientById[loan.clientId]?.fullName.orEmpty()
-        name.contains(search.trim(), ignoreCase = true) || loan.id.contains(search.trim(), ignoreCase = true)
+        name.contains(search.trim(), ignoreCase = true) ||
+            (clientById[loan.clientId]?.documentNumber ?: "").contains(search.trim(), ignoreCase = true) ||
+            loan.id.contains(search.trim(), ignoreCase = true)
     }.sortedBy { clientById[it.clientId]?.fullName.orEmpty() }
     val amountValid = amount.trim().toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
     AlertDialog(
@@ -2684,6 +2689,7 @@ private fun PaymentForm(
                                 RadioButton(selected==loan.id, onClick={selected=loan.id})
                                 Column(Modifier.weight(1f)) {
                                     Text(name, color = Navy, fontWeight = FontWeight.Bold)
+                                    Text("Documento: ${clientById[loan.clientId]?.documentNumber ?: "No disponible"}", color = Navy, fontSize = 11.sp)
                                     Text("${loan.currency} · Saldo ${money(loan.balanceMinor)}", color = Navy, fontSize = 12.sp)
                                     Text("Préstamo ${loan.id.take(8)}", color = Muted, fontSize = 11.sp)
                                 }

@@ -30,6 +30,10 @@ class PromiseToPayService(
             "No tienes permiso para registrar promesas de pago."
         }
         val promise = database.withTransaction {
+            require(authentication.isSessionValid(actor)) { "La sesión ha caducado." }
+            require(authentication.hasPermission(actor, Permission.PROMISE_TO_PAY_CREATE)) {
+                "No tienes permiso para registrar promesas de pago."
+            }
             val loan = database.loans().findById(loanId)
                 ?: throw IllegalArgumentException("El préstamo no existe.")
             require(loan.status == "ACTIVE") { "El préstamo no está activo." }
@@ -74,16 +78,35 @@ class PromiseToPayService(
         require(authentication.hasPermission(actor, Permission.PROMISE_TO_PAY_RESOLVE)) { "No tienes permiso para conciliar promesas de pago." }
         require(amountMinor > 0L) { "El importe vinculado debe ser mayor que cero." }
         return database.withTransaction {
+            require(authentication.isSessionValid(actor)) { "La sesión ha caducado." }
+            require(authentication.hasPermission(actor, Permission.PROMISE_TO_PAY_RESOLVE)) {
+                "No tienes permiso para conciliar promesas de pago."
+            }
             val promise = database.promisesToPay().findById(promiseId) ?: throw IllegalArgumentException("La promesa no existe.")
             require(promise.status == PromiseToPayStatus.OPEN.name) { "Solo se pueden conciliar promesas abiertas." }
+            PromiseToPayWorkflow.validate(
+                PromiseToPayRecord(
+                    promiseId = promise.promiseId,
+                    loanId = promise.loanId,
+                    clientId = promise.clientId,
+                    collectorId = promise.collectorId,
+                    promisedAmountMinor = promise.promisedAmountMinor,
+                    currency = promise.currency,
+                    promisedDate = LocalDate.parse(promise.promisedDate),
+                    status = PromiseToPayStatus.valueOf(promise.status),
+                    note = promise.note
+                )
+            )
             if (actor.profile.role == StaffRole.COLLECTOR || actor.profile.role == StaffRole.CASHIER) {
                 require(promise.collectorId == actor.staffId) { "Solo puedes conciliar las promesas que registraste." }
             }
             val payment = database.payments().findByOperationId(operationId) ?: throw IllegalArgumentException("El pago no existe en el libro contable.")
+            require(payment.amountMinor > 0L) { "El pago tiene un importe inválido." }
             require(payment.loanId == promise.loanId) { "El pago pertenece a otro préstamo." }
             require(payment.createdAt >= promise.createdAt) { "El pago fue registrado antes de crear la promesa." }
             require(database.paymentReversals().findByOriginalOperationId(operationId) == null) { "No se puede vincular un pago reversado." }
             val loan = database.loans().findById(promise.loanId) ?: throw IllegalArgumentException("El préstamo de la promesa no existe.")
+            require(loan.clientId == promise.clientId) { "El cliente de la promesa no coincide con el préstamo." }
             require(loan.currency == promise.currency) { "La moneda de la promesa no coincide con el préstamo." }
             val paymentRemaining = Math.subtractExact(payment.amountMinor, database.promisePaymentLinks().sumForPayment(operationId))
             require(paymentRemaining >= amountMinor) { "El importe supera el saldo disponible de ese pago." }
@@ -117,6 +140,10 @@ class PromiseToPayService(
             "No tienes permiso para cerrar promesas de pago."
         }
         return database.withTransaction {
+            require(authentication.isSessionValid(actor)) { "La sesión ha caducado." }
+            require(authentication.hasPermission(actor, Permission.PROMISE_TO_PAY_RESOLVE)) {
+                "No tienes permiso para cerrar promesas de pago."
+            }
             val existing = database.promisesToPay().findById(promiseId)
                 ?: throw IllegalArgumentException("La promesa no existe.")
             if (actor.profile.role == com.infinityloan.security.StaffRole.COLLECTOR ||

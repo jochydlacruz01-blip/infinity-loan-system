@@ -232,4 +232,58 @@ class CollectionVisitServiceIntegrationTest {
         assertTrue(rejected)
         assertFalse(database.collectionVisits().findById("VISIT-CANCELLED")?.status == "PAID")
     }
+
+    @Test
+    fun disabledStaffSessionCannotCloseVisit() = runBlocking {
+        val loan = createLoan("VISIT-LOAN-DISABLED", "VISIT-DOC-DISABLED")
+        createVisit(loan, "VISIT-DISABLED-STAFF")
+        postPayment(loan, "VISIT-PAYMENT-DISABLED-STAFF")
+        database.staffAccounts().setActive(actor.staffId, false)
+
+        val rejected = runCatching {
+            service.markPaid(actor, "VISIT-DISABLED-STAFF", "VISIT-PAYMENT-DISABLED-STAFF")
+        }.isFailure
+
+        assertTrue(rejected)
+        assertEquals("SCHEDULED", database.collectionVisits().findById("VISIT-DISABLED-STAFF")?.status)
+        assertEquals(
+            0,
+            database.auditLogs().observeRecent(100).first().count {
+                it.action == "COLLECTION_VISIT_MARKED_PAID" && it.targetId == "VISIT-DISABLED-STAFF"
+            }
+        )
+    }
+
+    @Test
+    fun visitClientMismatchCannotBeClosedByValidLoanPayment() = runBlocking {
+        val loan = createLoan("VISIT-LOAN-CLIENT-MISMATCH", "VISIT-DOC-LOAN-OWNER")
+        val unrelatedLoan = createLoan("VISIT-LOAN-OTHER-CLIENT", "VISIT-DOC-OTHER-CLIENT")
+        database.collectionVisits().insert(
+            CollectionVisitEntity(
+                visitId = "VISIT-CLIENT-MISMATCH",
+                loanId = loan.id,
+                clientId = unrelatedLoan.clientId,
+                collectorId = actor.staffId,
+                plannedDate = LocalDate.now().toString()
+            )
+        )
+        postPayment(loan, "VISIT-PAYMENT-CLIENT-MISMATCH")
+
+        val rejected = runCatching {
+            service.markPaid(actor, "VISIT-CLIENT-MISMATCH", "VISIT-PAYMENT-CLIENT-MISMATCH")
+        }.isFailure
+
+        assertTrue(rejected)
+        assertEquals(
+            "SCHEDULED",
+            database.collectionVisits().findById("VISIT-CLIENT-MISMATCH")?.status
+        )
+        assertEquals(
+            0,
+            database.auditLogs().observeRecent(100).first().count {
+                it.action == "COLLECTION_VISIT_MARKED_PAID" && it.targetId == "VISIT-CLIENT-MISMATCH"
+            }
+        )
+    }
+
 }

@@ -118,11 +118,11 @@ class CashPaymentIntegrationTest {
 
         assertEquals(
             PaymentPostResult.POSTED,
-            database.postCashLoanPayment(payment, "CASH-SESSION-001")
+            database.postCashLoanPayment(payment, "CASH-SESSION-001", "CASHIER-001")
         )
         assertEquals(
             PaymentPostResult.DUPLICATE,
-            database.postCashLoanPayment(payment, "CASH-SESSION-001")
+            database.postCashLoanPayment(payment, "CASH-SESSION-001", "CASHIER-001")
         )
         assertEquals(7000L, database.loans().findById(loan.id)?.balanceMinor)
         assertEquals(payment.operationId, database.payments().findByOperationId(payment.operationId)?.operationId)
@@ -154,7 +154,7 @@ class CashPaymentIntegrationTest {
 
         assertEquals(
             PaymentPostResult.INVALID_SCHEDULE,
-            database.postCashLoanPayment(payment, "CASH-SESSION-USD")
+            database.postCashLoanPayment(payment, "CASH-SESSION-USD", "CASHIER-USD")
         )
         assertNull(database.payments().findByOperationId(payment.operationId))
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
@@ -202,7 +202,7 @@ class CashPaymentIntegrationTest {
 
         var rolledBack = false
         try {
-            database.postCashLoanPayment(payment, "CASH-SESSION-ROLLBACK")
+            database.postCashLoanPayment(payment, "CASH-SESSION-ROLLBACK", "CASHIER-ROLLBACK")
         } catch (_: IllegalStateException) {
             rolledBack = true
         }
@@ -374,7 +374,7 @@ class CashPaymentIntegrationTest {
 
         assertEquals(
             PaymentPostResult.POSTED,
-            database.postCashLoanPayment(payment, sessionId)
+            database.postCashLoanPayment(payment, sessionId, "CASHIER-RECONCILIATION")
         )
 
         val allocations = database.paymentAllocations().findForPayment(payment.operationId)
@@ -408,7 +408,7 @@ class CashPaymentIntegrationTest {
         val sessionId = "CASH-SESSION-REVERSAL"
         database.openCashSession(CashSessionEntity(sessionId, "CASHIER-REVERSAL", "DOP", 5000L, 1L))
         val payment = PaymentEntity("CASH-PAYMENT-REVERSAL", loan.id, 3000L, "Pago reversible", 2L)
-        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-RECONCILIATION"))
         assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Registro duplicado", 3L))
         assertEquals(PaymentReversalResult.ALREADY_REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Segundo intento", 4L))
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
@@ -455,7 +455,7 @@ class CashPaymentIntegrationTest {
         val sessionId = "CASH-SESSION-CLOSED-REVERSAL"
         database.openCashSession(CashSessionEntity(sessionId, "CASHIER-CLOSED", "DOP", 0L, 30L))
         val payment = PaymentEntity("CASH-PAYMENT-CLOSED-REVERSAL", loan.id, 1000L, "Cobro para cierre", 31L)
-        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-RECONCILIATION"))
         database.closeCashSession(sessionId, countedMinor = 1000L, closedAt = 32L)
         assertEquals(PaymentReversalResult.ORIGINAL_CASH_SESSION_NOT_OPEN, database.reversePayment(payment.operationId, "ADMIN-004", "admin3", "Intento tras cierre", 33L))
         assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
@@ -578,7 +578,7 @@ class CashPaymentIntegrationTest {
             reference = "Pago para conciliación persistida",
             createdAt = 2L
         )
-        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId))
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-RECONCILIATION"))
 
         val clean = database.reconcilePersistedCashPayments()
         assertEquals(1, clean.checkedPayments)

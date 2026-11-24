@@ -11,6 +11,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -1519,7 +1520,7 @@ class PaymentDaoTest {
 
         assertEquals(
             PaymentPostResult.INVALID_SCHEDULE,
-            database.postCashLoanPayment(payment, session.sessionId)
+            database.postCashLoanPayment(payment, session.sessionId, session.staffId)
         )
         assertEquals(null, database.payments().findByOperationId(payment.operationId))
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)

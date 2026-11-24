@@ -308,10 +308,8 @@ class CollectionVisitServiceIntegrationTest {
             denials = Permission.COLLECTION_VISIT_VIEW.name
         )
 
-        val staleSessionRejected = runCatching {
-            service.observe(actor).first()
-        }.isFailure
-        assertTrue(staleSessionRejected)
+        // Revoked read access removes the data stream without crashing the Compose collector.
+        assertTrue(service.observe(actor).first().isEmpty())
     }
 
 }

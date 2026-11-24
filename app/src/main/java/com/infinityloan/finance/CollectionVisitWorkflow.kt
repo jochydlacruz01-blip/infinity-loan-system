@@ -31,9 +31,9 @@ object CollectionVisitWorkflow {
         require(normalizedNote.length <= 2000) { "La nota excede el límite" }
         val allowed = when (record.status) {
             CollectionVisitStatus.SCHEDULED -> setOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.CANCELLED, CollectionVisitStatus.UNREACHABLE)
-            CollectionVisitStatus.ATTEMPTED -> setOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
-            CollectionVisitStatus.CONTACTED -> setOf(CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
-            CollectionVisitStatus.PROMISE_TO_PAY -> setOf(CollectionVisitStatus.PAID, CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
+            CollectionVisitStatus.ATTEMPTED -> setOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
+            CollectionVisitStatus.CONTACTED -> setOf(CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
+            CollectionVisitStatus.PROMISE_TO_PAY -> setOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED)
             CollectionVisitStatus.UNREACHABLE -> setOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.CANCELLED)
             CollectionVisitStatus.PAID, CollectionVisitStatus.CANCELLED -> emptySet()
         }

@@ -35,9 +35,9 @@ class CollectionVisitWorkflowTest {
     @Test fun transitionMatrixRejectsEveryUnlistedStateChange() {
         val allowed = mapOf(
             CollectionVisitStatus.SCHEDULED to setOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.CANCELLED, CollectionVisitStatus.UNREACHABLE),
-            CollectionVisitStatus.ATTEMPTED to setOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED),
-            CollectionVisitStatus.CONTACTED to setOf(CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.PAID, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED),
-            CollectionVisitStatus.PROMISE_TO_PAY to setOf(CollectionVisitStatus.PAID, CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED),
+            CollectionVisitStatus.ATTEMPTED to setOf(CollectionVisitStatus.CONTACTED, CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED),
+            CollectionVisitStatus.CONTACTED to setOf(CollectionVisitStatus.PROMISE_TO_PAY, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED),
+            CollectionVisitStatus.PROMISE_TO_PAY to setOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.UNREACHABLE, CollectionVisitStatus.CANCELLED),
             CollectionVisitStatus.UNREACHABLE to setOf(CollectionVisitStatus.ATTEMPTED, CollectionVisitStatus.CONTACTED, CollectionVisitStatus.CANCELLED),
             CollectionVisitStatus.PAID to emptySet(),
             CollectionVisitStatus.CANCELLED to emptySet()
@@ -52,6 +52,23 @@ class CollectionVisitWorkflowTest {
                     false
                 }
                 assertEquals("Unexpected transition $current -> $next", shouldAllow, accepted)
+            }
+        }
+    }
+
+    @Test fun paidVisitCannotBeSetWithoutLinkedPaymentEvidence() {
+        for (status in listOf(
+            CollectionVisitStatus.SCHEDULED,
+            CollectionVisitStatus.ATTEMPTED,
+            CollectionVisitStatus.CONTACTED,
+            CollectionVisitStatus.PROMISE_TO_PAY,
+            CollectionVisitStatus.UNREACHABLE
+        )) {
+            try {
+                CollectionVisitWorkflow.transition(visit(status), CollectionVisitStatus.PAID)
+                fail("A visit must not be marked paid without a linked payment")
+            } catch (_: IllegalArgumentException) {
+                // Payment-linked completion must be implemented by the transactional payment flow.
             }
         }
     }

@@ -1224,7 +1224,7 @@ abstract class InfinityDatabase : RoomDatabase() {
             generatedCredit.currency != loan.currency)) {
             return@withTransaction PaymentReversalResult.INVALID_CREDIT_LEDGER
         }
-        if (appliedCredit != null && (appliedCredit.amountMinor >= 0L ||
+        if (appliedCredit != null && (appliedCredit.amountMinor != -payment.amountMinor ||
             appliedCredit.clientId != loan.clientId || appliedCredit.loanId != loan.id ||
             appliedCredit.currency != loan.currency)) {
             return@withTransaction PaymentReversalResult.INVALID_CREDIT_LEDGER

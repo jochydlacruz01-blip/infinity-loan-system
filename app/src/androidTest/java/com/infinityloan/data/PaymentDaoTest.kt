@@ -1585,4 +1585,59 @@ class PaymentDaoTest {
         assertEquals(4000L, reconciliation.expectedCashMinor)
     }
 
+
+    @Test
+    fun reversalRejectsCustomerCreditDebitThatDoesNotMatchPaymentAmount() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente ledger crédito alterado",
+            documentNumber = "TEST-REVERSAL-CREDIT-MISMATCH-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id, principalMinor = 10000L, balanceMinor = 10000L,
+            currency = "DOP", periodicRate = "0", periods = 1, method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        val admin = StaffAccountEntity(
+            id = "REVERSAL-CREDIT-MISMATCH-ADMIN", username = "reversal-credit-mismatch-admin",
+            displayName = "Admin prueba ledger", role = "ADMINISTRATOR",
+            passwordAlgorithm = "PBKDF2_SHA256_V1", passwordIterations = 210000,
+            passwordSaltBase64 = "c2FsdA==", passwordHashBase64 = "aGFzaA=="
+        )
+        database.staffAccounts().insert(admin)
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "REVERSAL-CREDIT-MISMATCH-OPENING",
+                clientId = client.id, loanId = loan.id, currency = "DOP",
+                amountMinor = 2000L, reference = "Crédito inicial"
+            )
+        )
+        val payment = PaymentEntity(
+            operationId = "REVERSAL-CREDIT-MISMATCH-PAYMENT",
+            loanId = loan.id, amountMinor = 1000L, reference = "Pago con crédito"
+        )
+        assertEquals(CreditPaymentResult.POSTED, database.postPaymentWithCustomerCredit(payment))
+
+        // Simulate a damaged ledger: the debit exists, but no longer equals the payment.
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE customer_credit_movements SET amountMinor = -500 WHERE operationId = ?",
+            arrayOf("PAYMENT-CREDIT-" + payment.operationId)
+        )
+
+        assertEquals(
+            PaymentReversalResult.INVALID_CREDIT_LEDGER,
+            database.reversePayment(
+                payment.operationId, admin.id, admin.username,
+                "No debe revertir un débito inconsistente"
+            )
+        )
+        assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(-500L, database.customerCredits().findMovement(
+            "PAYMENT-CREDIT-" + payment.operationId
+        )?.amountMinor)
+        assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
+    }
+
 }

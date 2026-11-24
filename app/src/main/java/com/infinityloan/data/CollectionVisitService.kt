@@ -147,9 +147,17 @@ class CollectionVisitService(
                     "Solo puedes actualizar tus propias visitas."
                 }
             }
+            val loan = database.loans().findById(existing.loanId)
+                ?: throw IllegalArgumentException("El préstamo de la visita ya no existe.")
+            require(loan.clientId == existing.clientId) {
+                "El cliente asociado a la visita no coincide con el préstamo."
+            }
             val payment = database.payments().findByOperationId(paymentOperationId)
                 ?: throw IllegalArgumentException("El pago indicado no existe.")
             require(payment.amountMinor > 0L) { "El pago no tiene un importe válido." }
+            require(payment.loanId == loan.id) {
+                "El pago no corresponde al préstamo de la visita."
+            }
             val reversed = database.paymentReversals()
                 .findByOriginalOperationId(paymentOperationId) != null
             val record = CollectionVisitRecord(
@@ -163,7 +171,7 @@ class CollectionVisitService(
             )
             val changed = CollectionVisitWorkflow.completeWithPayment(
                 record = record,
-                paymentMatchesLoan = payment.loanId == existing.loanId,
+                paymentMatchesLoan = payment.loanId == loan.id && loan.clientId == existing.clientId,
                 paymentIsReversed = reversed,
                 note = note
             )

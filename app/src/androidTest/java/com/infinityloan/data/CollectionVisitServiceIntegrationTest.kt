@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.infinityloan.security.AccessProfile
 import com.infinityloan.security.StaffRole
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.infinityloan.security.AccessProfile
 import com.infinityloan.security.StaffRole
+import com.infinityloan.security.Permission
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 import org.junit.After
@@ -284,6 +285,22 @@ class CollectionVisitServiceIntegrationTest {
                 it.action == "COLLECTION_VISIT_MARKED_PAID" && it.targetId == "VISIT-CLIENT-MISMATCH"
             }
         )
+    }
+
+    @Test
+    fun collectionVisitObservationRejectsStalePermissions() = runBlocking {
+        assertTrue(service.observe(actor).first().isEmpty())
+
+        database.staffAccounts().updatePermissions(
+            actor.staffId,
+            grants = "",
+            denials = Permission.COLLECTION_VISIT_VIEW.name
+        )
+
+        val staleSessionRejected = runCatching {
+            service.observe(actor).first()
+        }.isFailure
+        assertTrue(staleSessionRejected)
     }
 
 }

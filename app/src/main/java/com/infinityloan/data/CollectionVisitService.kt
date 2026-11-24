@@ -5,12 +5,13 @@ import com.infinityloan.finance.CollectionVisitRecord
 import com.infinityloan.finance.CollectionVisitAssignmentPolicy
 import com.infinityloan.finance.CollectionVisitStatus
 import com.infinityloan.finance.CollectionVisitWorkflow
-import com.infinityloan.security.AccessPolicy
 import com.infinityloan.security.Permission
 import com.infinityloan.security.StaffAuthenticationService
 import com.infinityloan.security.StaffRole
 import com.infinityloan.security.StaffSession
 import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * Transactional persistence boundary for field collection visits.
@@ -20,12 +21,21 @@ class CollectionVisitService(
     private val database: InfinityDatabase,
     private val authentication: StaffAuthenticationService
 ) {
-    fun observe(actor: StaffSession) =
-        if (AccessPolicy.allows(actor.profile, Permission.COLLECTION_VISIT_VIEW)) {
-            if (actor.profile.role == StaffRole.COLLECTOR) {
-                database.collectionVisits().observeForCollector(actor.staffId)
-            } else database.collectionVisits().observeAll()
-        } else throw SecurityException("No tienes permiso para consultar visitas.")
+    fun observe(actor: StaffSession): Flow<List<CollectionVisitEntity>> {
+        val source = if (actor.profile.role == StaffRole.COLLECTOR) {
+            database.collectionVisits().observeForCollector(actor.staffId)
+        } else {
+            database.collectionVisits().observeAll()
+        }
+        return source.map { visits ->
+            // Revalidate the persisted account and current permissions on every
+            // emitted snapshot; a stale in-memory role must never authorize reads.
+            if (!authentication.hasPermission(actor, Permission.COLLECTION_VISIT_VIEW)) {
+                throw SecurityException("La sesión ya no está activa o no tienes permiso para consultar visitas.")
+            }
+            visits
+        }
+    }
 
     suspend fun create(
         actor: StaffSession,

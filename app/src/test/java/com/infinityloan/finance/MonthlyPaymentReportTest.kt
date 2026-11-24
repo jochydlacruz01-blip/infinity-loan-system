@@ -1,6 +1,7 @@
 package com.infinityloan.finance
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import com.infinityloan.data.PaymentEntity
 import org.junit.Test
 import java.time.ZoneId
@@ -50,5 +51,17 @@ class MonthlyPaymentReportTest {
         catch (_: IllegalArgumentException) {}
         try { MonthlyPaymentReport.aggregate(listOf(valid.copy(amountMinor=-1))); throw AssertionError("negative") }
         catch (_: IllegalArgumentException) {}
+        try { MonthlyPaymentReport.aggregate(listOf(valid.copy(amountMinor=0))); throw AssertionError("zero") }
+        catch (_: IllegalArgumentException) {}
+    }
+    @Test fun rejectsMonthlyTotalOverflowInsteadOfWrappingNegative() {
+        val entries = listOf(
+            PaymentReportEntry("max-1", Long.MAX_VALUE, "DOP", 1_735_689_600_000L),
+            PaymentReportEntry("max-2", 1L, "DOP", 1_735_689_600_000L)
+        )
+        try {
+            MonthlyPaymentReport.aggregate(entries)
+            throw AssertionError("overflow must be rejected")
+        } catch (_: ArithmeticException) {}
     }
 }

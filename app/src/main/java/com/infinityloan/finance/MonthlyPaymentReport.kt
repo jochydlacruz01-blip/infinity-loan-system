@@ -42,7 +42,7 @@ object MonthlyPaymentReport {
         require(entries.map { it.operationId }.distinct().size == entries.size) { "Operaciones duplicadas" }
         entries.forEach {
             require(it.operationId.isNotBlank()) { "Identificador obligatorio" }
-            require(it.amountMinor >= 0L) { "Importe negativo inválido" }
+            require(it.amountMinor > 0L) { "El importe del pago debe ser positivo" }
             require(it.currency in supportedCurrencies) { "Moneda no soportada" }
         }
         return entries.groupBy { entry ->

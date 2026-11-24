@@ -31,7 +31,6 @@ class ExecutiveFinancialReportTest {
         assertEquals(emptyList<ExecutiveFinancialSummary>(),
             ExecutiveFinancialReport.build(emptyList(), emptyList(), emptyList(), emptyList(), YearMonth.of(2026, 11)))
     }
-}
 
     @Test fun rejectsDuplicatePortfolioCurrencyInsteadOfSilentlyKeepingLast() {
         val month = YearMonth.of(2026, 11)
@@ -65,3 +64,4 @@ class ExecutiveFinancialReportTest {
             throw AssertionError("unsupported currency must be rejected")
         } catch (_: IllegalArgumentException) { }
     }
+}

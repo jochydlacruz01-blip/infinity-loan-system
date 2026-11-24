@@ -2667,11 +2667,13 @@ private fun PaymentForm(
     var reference by remember { mutableStateOf("") }
     val operationId = remember { UUID.randomUUID().toString() }
     val clientById = remember(clients) { clients.associateBy { it.id } }
+    val normalizedSearch = search.trim()
     val matchingLoans = loans.filter { loan ->
-        val name = clientById[loan.clientId]?.fullName.orEmpty()
-        name.contains(search.trim(), ignoreCase = true) ||
-            (clientById[loan.clientId]?.documentNumber ?: "").contains(search.trim(), ignoreCase = true) ||
-            loan.id.contains(search.trim(), ignoreCase = true)
+        val client = clientById[loan.clientId]
+        client?.fullName.orEmpty().contains(normalizedSearch, ignoreCase = true) ||
+            client?.documentNumber.orEmpty().contains(normalizedSearch, ignoreCase = true) ||
+            client?.phone.orEmpty().contains(normalizedSearch, ignoreCase = true) ||
+            loan.id.contains(normalizedSearch, ignoreCase = true)
     }.sortedBy { clientById[it.clientId]?.fullName.orEmpty() }
     val amountValid = amount.trim().toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
     AlertDialog(
@@ -2690,6 +2692,7 @@ private fun PaymentForm(
                                 Column(Modifier.weight(1f)) {
                                     Text(name, color = Navy, fontWeight = FontWeight.Bold)
                                     Text("Documento: ${clientById[loan.clientId]?.documentNumber ?: "No disponible"}", color = Navy, fontSize = 11.sp)
+                                    Text("Teléfono: ${clientById[loan.clientId]?.phone ?: "No disponible"}", color = Navy, fontSize = 11.sp)
                                     Text("${loan.currency} · Saldo ${money(loan.balanceMinor)}", color = Navy, fontSize = 12.sp)
                                     Text("Préstamo ${loan.id.take(8)}", color = Muted, fontSize = 11.sp)
                                 }

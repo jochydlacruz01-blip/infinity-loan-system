@@ -11,6 +11,7 @@ import com.infinityloan.security.StaffRole
 import com.infinityloan.security.StaffSession
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 /**
@@ -22,19 +23,21 @@ class CollectionVisitService(
     private val authentication: StaffAuthenticationService
 ) {
     fun observe(actor: StaffSession): Flow<List<CollectionVisitEntity>> {
-        val source = if (actor.profile.role == StaffRole.COLLECTOR) {
+        val visits = if (actor.profile.role == StaffRole.COLLECTOR) {
             database.collectionVisits().observeForCollector(actor.staffId)
         } else {
             database.collectionVisits().observeAll()
         }
-        return source.map { visits ->
-            // Revalidate the persisted account and current permissions on every
-            // emitted snapshot; a stale in-memory role must never authorize reads.
-            if (!authentication.hasPermission(actor, Permission.COLLECTION_VISIT_VIEW)) {
-                throw SecurityException("La sesión ya no está activa o no tienes permiso para consultar visitas.")
+        // Account changes are observed too, so deactivation or permission revocation
+        // removes protected visit data immediately without crashing the UI.
+        return combine(visits, database.staffAccounts().observeById(actor.staffId)) { rows, _ -> rows }
+            .map { rows ->
+                if (authentication.hasPermission(actor, Permission.COLLECTION_VISIT_VIEW)) {
+                    rows
+                } else {
+                    emptyList()
+                }
             }
-            visits
-        }
     }
 
     suspend fun create(

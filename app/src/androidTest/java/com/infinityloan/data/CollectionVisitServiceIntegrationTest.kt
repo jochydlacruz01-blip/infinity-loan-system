@@ -211,6 +211,17 @@ class CollectionVisitServiceIntegrationTest {
     }
 
     @Test
+    fun deactivatedStaffSessionStopsReceivingCollectionVisits() = runBlocking {
+        val loan = createLoan("VISIT-LOAN-REVOKED", "VISIT-DOC-REVOKED")
+        createVisit(loan, "VISIT-REVOKED-SESSION")
+
+        assertEquals(1, service.observe(actor).first().size)
+        database.staffAccounts().setActive(actor.staffId, false)
+
+        assertTrue(service.observe(actor).first().isEmpty())
+    }
+
+    @Test
     fun cancelledVisitCannotBeCompletedByPayment() = runBlocking {
         val loan = createLoan("VISIT-LOAN-CANCELLED", "VISIT-DOC-CANCELLED")
         createVisit(loan, "VISIT-CANCELLED")

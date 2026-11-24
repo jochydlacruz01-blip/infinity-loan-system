@@ -419,6 +419,9 @@ interface StaffAccountDao {
     @Query("SELECT * FROM staff_accounts WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): StaffAccountEntity?
 
+    @Query("SELECT * FROM staff_accounts WHERE id = :id LIMIT 1")
+    fun observeById(id: String): Flow<StaffAccountEntity?>
+
     @Query("SELECT COUNT(*) FROM staff_accounts")
     suspend fun count(): Int
 

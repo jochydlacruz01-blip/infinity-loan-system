@@ -908,6 +908,33 @@ interface PaymentDao {
         val allInstallments = findInstallments(loan.id)
         if (allInstallments.isEmpty()) return PaymentPostResult.SCHEDULE_NOT_FOUND
 
+        // Refuse to post against a persisted schedule whose principal ledger no
+        // longer reconciles to the loan. This prevents a corrupted installment
+        // snapshot from silently under/overstating the outstanding balance.
+        val schedulePrincipal = try {
+            allInstallments.fold(0L) { total, row ->
+                require(row.principalMinor >= 0L && row.interestMinor >= 0L)
+                require(row.totalMinor == Math.addExact(row.principalMinor, row.interestMinor))
+                require(row.paidPrincipalMinor in 0L..row.principalMinor)
+                require(row.paidInterestMinor in 0L..row.interestMinor)
+                require(row.paidLateFeeMinor >= 0L && row.paidChargesMinor >= 0L)
+                require(row.remainingPrincipalMinor == row.principalMinor - row.paidPrincipalMinor)
+                Math.addExact(total, row.principalMinor)
+            }
+        } catch (_: Exception) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+        val scheduledPrincipalOutstanding = try {
+            allInstallments.fold(0L) { total, row ->
+                Math.addExact(total, row.principalMinor - row.paidPrincipalMinor)
+            }
+        } catch (_: ArithmeticException) {
+            return PaymentPostResult.INVALID_SCHEDULE
+        }
+        if (schedulePrincipal != loan.principalMinor ||
+            scheduledPrincipalOutstanding != loan.balanceMinor
+        ) return PaymentPostResult.INVALID_SCHEDULE
+
         // Apply payments only to installments contractually due today or earlier.
         // Future-dated amounts remain customer credit until their due date.
         val today = LocalDate.now()

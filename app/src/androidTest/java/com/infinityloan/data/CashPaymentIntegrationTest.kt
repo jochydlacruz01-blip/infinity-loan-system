@@ -568,6 +568,29 @@ class CashPaymentIntegrationTest {
 
 
     @Test
+    fun paymentRejectsCorruptedInstallmentPrincipalLedgerWithoutWritingAnything() = runBlocking {
+        val loan = createDueLoan()
+        database.openHelper.writableDatabase.execSQL(
+            "UPDATE loan_installments SET remainingPrincipalMinor = 9999 WHERE loanId = ?",
+            arrayOf(loan.id)
+        )
+
+        val payment = PaymentEntity(
+            operationId = "PAYMENT-CORRUPTED-SCHEDULE",
+            loanId = loan.id,
+            amountMinor = 2500L,
+            reference = "Debe rechazarse por inconsistencia del calendario",
+            createdAt = 1L
+        )
+
+        assertEquals(PaymentPostResult.INVALID_SCHEDULE, database.payments().postPayment(payment))
+        assertNull(database.payments().findByOperationId(payment.operationId))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertTrue(database.paymentAllocations().findForPayment(payment.operationId).isEmpty())
+        assertEquals(0L, database.customerCredits().getBalance(loan.clientId, loan.currency))
+    }
+
+    @Test
     fun persistedCashReconciliationReadsReceiptsAndFindsOrphanMovements() = runBlocking {
         val loan = createDueLoan()
         val sessionId = "CASH-SESSION-PERSISTED-AUDIT"

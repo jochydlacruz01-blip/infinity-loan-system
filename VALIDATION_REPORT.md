@@ -1,48 +1,46 @@
 # Informe de validación — INFINITY LOAN SYSTEM
 
-## Estado de validación
+## Estado de validación (24-11-2026)
+
 - Rama: `main`.
-- Workflow #320 (run `44563482018`, commit `067e5d624f915b6d2d9ebcd791b2c4e595912dcd`) completó con **success** el 19-11-2026.
-- Lint, pruebas unitarias, compilación APK/AAB y pruebas instrumentadas en emulador Android: **exitosas** en esa ejecución.
-- Actions confirmó la carga de los artefactos `infinity-loan-system-debug` y `infinity-loan-system-release-aab-unsigned` (sin expirar al momento de la revisión).
-- Workflow #321 (run `44563835207`) estaba pendiente/encolado al momento de la última consulta; no se declara como exitoso.
-- El AAB de release es **sin firma**; no es una publicación lista para Play Store.
+- Room: esquema versión 15.
+- Workflow #701 (commit `581f6f9ff0dd7161205c29b57e8ba4582916dbad`) terminó con **success**.
+- En #701 fueron exitosos Lint, pruebas unitarias, compilación APK debug, compilación AAB release sin firma y pruebas instrumentadas en emulador Android.
+- Workflow #700 también terminó con **success**, incluyendo pruebas instrumentadas.
+- Workflow #705 valida una iteración posterior de observación protegida de visitas; #706 incorpora el ajuste de prueba para que la revocación vacíe el flujo sin lanzar una excepción. No declarar #705/#706 exitosos hasta consultar su conclusión final.
+- El workflow actual no sube APK/AAB como artefactos. Una compilación exitosa no crea un enlace de descarga.
+- El AAB release es sin firma y no es publicable en Google Play.
 
 ## Funciones implementadas localmente
-- Kotlin/Jetpack Compose Android nativo.
-- Room, esquema versión 9 y migraciones.
-- Amortización francesa, italiana y americana; calendario semanal, quincenal y mensual.
-- Asignación de pagos sobre cuotas vencidas y crédito separado para excedentes.
-- Autenticación local, hash PBKDF2, bloqueo temporal, administración de empleados, permisos individuales y auditoría local.
-- Panel ejecutivo e informes locales por moneda.
-- Caja local con apertura/cierre de sesiones, entradas/salidas, arqueo y registro transaccional de cobros de préstamos.
-- Pruebas de integración Android para pagos, caja, migraciones y persistencia.
+
+- Android nativo con Kotlin y Jetpack Compose.
+- Room con clientes, préstamos, calendarios, pagos, crédito del cliente, caja, cuentas de personal, auditoría, reversos, promesas y agenda de visitas.
+- Amortización francesa, italiana y americana; frecuencias semanal, quincenal y mensual.
+- Asignación de pagos a cuotas vencidas, actualización de capital pendiente y crédito separado para excedentes.
+- Reversos transaccionales con validaciones de permisos, caja, asignaciones y crédito.
+- Caja local con sesiones, movimientos, cierre, conteo físico, diferencias y revisión independiente.
+- Autenticación local, PBKDF2, bloqueo temporal, administración de personal, permisos individuales y auditoría local.
+- Agenda de cobranza con asignación, seguimiento y cierre únicamente con evidencia de pago válido.
+- Informes locales por moneda: cartera, recaudación mensual, antigüedad de cuotas vencidas, prioridad de cobranza y conciliación de caja.
 
 ## Límites y pendientes
-- Los informes actuales no sustituyen conciliación contable ni reportes financieros certificados.
-- La autorización debe seguir siendo revisada en capa de dominio/servicio y, para operaciones compartidas, en servidor.
-- Backend multiempresa, autenticación central, sincronización multi-dispositivo/offline, portal del cliente, pagos digitales y GPS siguen sin implementarse.
-- Mora/cargos contractuales, reversos, refinanciamientos y políticas completas de pagos anticipados requieren reglas aprobadas y pruebas.
+
+- Backend multiempresa, autenticación central y sincronización segura multi-dispositivo/offline aún no implementados.
+- El contrato API es especificación, no servicio desplegado.
+- Portal del cliente, pagos digitales y GPS aún no implementados.
+- Mora/cargos contractuales y reglas completas de pagos anticipados requieren política aprobada e integración financiera.
+- Los informes locales no sustituyen contabilidad general ni conciliación independiente externa.
+- La autorización local no constituye una frontera segura frente a manipulación del dispositivo.
 - No se ha completado auditoría externa, revisión regulatoria ni certificación para operar con dinero real.
-- El AAB de release requiere firma y verificación de distribución antes de publicación.
-
-## Documentación relacionada
-- Diseño operativo: `docs/OPERATIONAL_PHASES_DESIGN.md`.
-- Contrato inicial del backend (diseño, no implementación): `docs/BACKEND_API_CONTRACT.md`.
-- Seguridad y control de acceso: `docs/SECURITY_AND_ACCESS_CONTROL.md`.
-- Conciliación de caja: `docs/CASH_RECONCILIATION.md`.
-
-
-## Validación adicional de cartera y cobros (20-11-2026)
-- Se incorporan pruebas deterministas de clasificación de vencimientos, separación por moneda, límites de días, saldo cero y protección contra overflow.
-- Pruebas de promesas de pago para totales por moneda y exclusión de estados resueltos de la cola abierta.
-- Pruebas de asignación de carga de cobradores para desempates, datos inválidos y orden estable.
-- Estos cambios son cobertura de pruebas; no equivalen a auditoría de producción ni certifican la aplicación.
+- La release requiere firma protegida y verificación de distribución antes de publicar.
 
 ## Checklist de cierre previo a operación real
-- [ ] Ejecutar y verificar lint, pruebas unitarias, instrumentadas y construcción APK en Actions, sin cancelaciones.
-- [ ] Revisión independiente de cálculo contractual de interés, mora, redondeo y asignación de pagos.
-- [ ] Verificar restauración de respaldos, migraciones y manejo de pérdida/robo del dispositivo.
-- [ ] Confirmar segregación de funciones, autorización, autenticación y trazabilidad de reversos.
-- [ ] Integrar y probar backend seguro, sincronización, portal cliente y proveedor de pagos antes de activar esas funciones.
+
+- [ ] Ejecutar y verificar las últimas pruebas unitarias, instrumentadas y compilaciones sin errores ni cancelaciones.
+- [ ] Revisión independiente de interés contractual, mora, redondeo, distribución y reversos.
+- [ ] Probar todas las migraciones desde cada versión histórica soportada.
+- [ ] Verificar autorización y revocación en todos los módulos y rutas de lectura/escritura.
+- [ ] Implementar y probar backend, aislamiento por empresa/sucursal, idempotencia y sincronización.
+- [ ] Probar backup/restore, pérdida/robo de dispositivo y recuperación de incidentes.
+- [ ] Implementar portal y GPS con consentimiento, privacidad y controles de acceso.
 - [ ] Firmar release y validar distribución y políticas de privacidad/regulatorias aplicables.

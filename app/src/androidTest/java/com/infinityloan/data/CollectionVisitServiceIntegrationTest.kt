@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.infinityloan.finance.CollectionVisitStatus
 import com.infinityloan.security.AccessProfile
 import com.infinityloan.security.StaffRole
 import kotlinx.coroutines.runBlocking
@@ -132,10 +131,9 @@ class CollectionVisitServiceIntegrationTest {
         assertEquals("PAID", database.collectionVisits().findById("VISIT-VALID")?.status)
         assertEquals(
             1,
-            database.auditLogs().countByActionAndTarget(
-                "COLLECTION_VISIT_MARKED_PAID",
-                "VISIT-VALID"
-            )
+            database.auditLogs().observeRecent(100).first().count {
+                it.action == "COLLECTION_VISIT_MARKED_PAID" && it.targetId == "VISIT-VALID"
+            }
         )
     }
 
@@ -154,10 +152,9 @@ class CollectionVisitServiceIntegrationTest {
         assertEquals("SCHEDULED", database.collectionVisits().findById("VISIT-WRONG-LOAN")?.status)
         assertEquals(
             0,
-            database.auditLogs().countByActionAndTarget(
-                "COLLECTION_VISIT_MARKED_PAID",
-                "VISIT-WRONG-LOAN"
-            )
+            database.auditLogs().observeRecent(100).first().count {
+                it.action == "COLLECTION_VISIT_MARKED_PAID" && it.targetId == "VISIT-WRONG-LOAN"
+            }
         )
     }
 
@@ -185,10 +182,9 @@ class CollectionVisitServiceIntegrationTest {
         assertEquals("SCHEDULED", database.collectionVisits().findById("VISIT-REVERSED")?.status)
         assertEquals(
             0,
-            database.auditLogs().countByActionAndTarget(
-                "COLLECTION_VISIT_MARKED_PAID",
-                "VISIT-REVERSED"
-            )
+            database.auditLogs().observeRecent(100).first().count {
+                it.action == "COLLECTION_VISIT_MARKED_PAID" && it.targetId == "VISIT-REVERSED"
+            }
         )
     }
 

@@ -37,6 +37,10 @@ class PromiseToPayService(
             val loan = database.loans().findById(loanId)
                 ?: throw IllegalArgumentException("El préstamo no existe.")
             require(loan.status == "ACTIVE") { "El préstamo no está activo." }
+            require(loan.balanceMinor > 0L) { "El préstamo no tiene saldo pendiente." }
+            require(promisedAmountMinor in 1L..loan.balanceMinor) {
+                "El importe prometido debe ser positivo y no superar el saldo pendiente del préstamo."
+            }
             val record = PromiseToPayRecord(
                 loanId = loan.id,
                 clientId = loan.clientId,

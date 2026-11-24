@@ -408,7 +408,7 @@ class CashPaymentIntegrationTest {
         val sessionId = "CASH-SESSION-REVERSAL"
         database.openCashSession(CashSessionEntity(sessionId, "CASHIER-REVERSAL", "DOP", 5000L, 1L))
         val payment = PaymentEntity("CASH-PAYMENT-REVERSAL", loan.id, 3000L, "Pago reversible", 2L)
-        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-RECONCILIATION"))
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-REVERSAL"))
         assertEquals(PaymentReversalResult.REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Registro duplicado", 3L))
         assertEquals(PaymentReversalResult.ALREADY_REVERSED, database.reversePayment(payment.operationId, "ADMIN-001", "admin0", "Segundo intento", 4L))
         assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
@@ -455,7 +455,7 @@ class CashPaymentIntegrationTest {
         val sessionId = "CASH-SESSION-CLOSED-REVERSAL"
         database.openCashSession(CashSessionEntity(sessionId, "CASHIER-CLOSED", "DOP", 0L, 30L))
         val payment = PaymentEntity("CASH-PAYMENT-CLOSED-REVERSAL", loan.id, 1000L, "Cobro para cierre", 31L)
-        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-RECONCILIATION"))
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-CLOSED"))
         database.closeCashSession(sessionId, countedMinor = 1000L, closedAt = 32L)
         assertEquals(PaymentReversalResult.ORIGINAL_CASH_SESSION_NOT_OPEN, database.reversePayment(payment.operationId, "ADMIN-004", "admin3", "Intento tras cierre", 33L))
         assertEquals(9000L, database.loans().findById(loan.id)?.balanceMinor)
@@ -578,7 +578,7 @@ class CashPaymentIntegrationTest {
             reference = "Pago para conciliación persistida",
             createdAt = 2L
         )
-        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-RECONCILIATION"))
+        assertEquals(PaymentPostResult.POSTED, database.postCashLoanPayment(payment, sessionId, "CASHIER-PERSISTED-AUDIT"))
 
         val clean = database.reconcilePersistedCashPayments()
         assertEquals(1, clean.checkedPayments)

@@ -1,25 +1,40 @@
-# INFINITY LOAN SYSTEM — Security and production-readiness review
+# INFINITY LOAN SYSTEM — revisión de seguridad e integridad
 
-Review checkpoint: 2026-11-19. This document describes the currently inspected Android implementation and does not claim that unimplemented controls are active.
+Punto de revisión: 24-11-2026. Este documento refleja el código Android inspeccionado y las validaciones observadas en GitHub Actions. No certifica seguridad de producción.
 
-## Verified safeguards in the inspected source
-- Local staff passwords use a versioned PBKDF2-HMAC-SHA256 hashing scheme with stored salt and iteration metadata; verification uses a constant-time comparison.
-- The staff authentication workflow applies a five-failure / 15-minute lockout, checks active accounts, and validates session profile state against the stored account.
-- Permission policy supports explicit grants and denials, with denials taking precedence.
-- Initial administrator creation requires a password of at least 12 characters and is guarded by a database transaction.
-- Client, loan and payment workflows inspected include transaction-based audit entries in relevant paths.
-- Android manifest disables application backup.
+## Salvaguardas verificadas en el código
 
-## Findings and remaining work
-1. **Authorization boundary:** Permission and session checks are primarily in the UI workflow and local authentication service. They are not yet consistently enforced by a centralized domain/service boundary for every DAO/database mutation. A production backend must enforce authorization independently.
-2. **Audit coverage:** Audit logging exists in inspected workflows, but coverage must be verified across cash operations, employee administration, account permission changes, loan edits, reversals, settings, exports and failures. Logs are local and can be lost or tampered with on a compromised device.
-3. **Late fees:** The late-fee calculator exists and has tests, but payment posting currently assigns zero late-fee and charge due amounts. Contract-specific policy and persistence must be defined and integrated before claiming fee collection is implemented.
-4. **Authentication limitations:** Local lockout is device-local; it is not a shared, server-enforced protection. Secure session lifecycle, device binding, recovery, and backend identity are not implemented in this checkpoint.
-5. **Financial service integrity:** Financial posting needs server-side idempotency, concurrency control, immutable ledger design, reversal workflow and reconciliations before multi-device production use.
-6. **Operational infrastructure:** Shared backend, remote backups, customer portal, digital payment integrations, GPS tracking controls and sync remain separate development phases and are not claimed to be implemented by this Android checkpoint.
+- Las contraseñas locales del personal usan PBKDF2-HMAC-SHA256 versionado, sal aleatoria y comparación de hash en tiempo constante.
+- La creación inicial del administrador exige contraseña de al menos 6 caracteres y se ejecuta de forma transaccional.
+- El flujo de autenticación local aplica bloqueo tras cinco intentos fallidos durante 15 minutos y verifica que la cuenta esté activa.
+- La política RBAC admite concesiones y denegaciones individuales; las denegaciones prevalecen.
+- Los servicios de pagos, reversos, caja y visitas aplican comprobaciones de sesión/permisos en las operaciones integradas.
+- Los pagos se registran en transacciones con asignación de cuotas, saldo de capital y crédito no aplicado; los reversos registran compensaciones y preservan el pago original.
+- Las visitas solo se pueden cerrar como pagadas con evidencia de un pago positivo, no reversado y del mismo préstamo.
+- La observación de visitas vuelve a validar la cuenta y los permisos cuando cambian los registros observados o la cuenta del empleado; una cuenta desactivada o con permiso revocado deja de recibir esos datos.
+- Room está en versión 15. La aplicación deshabilita el respaldo automático de Android.
+- Workflow #701 terminó correctamente con Lint, pruebas unitarias, compilación APK/AAB y pruebas instrumentadas. Workflow #700 también terminó correctamente. La ejecución #706 valida la revisión posterior de la revocación de permisos.
 
-## Validation
-Workflow #315 (commit d84eea332343afe0bfcbbcc6d14946040fdf24d1) previously completed lint, unit tests, Android build and instrumented tests successfully. This is historical validation for that commit, not a validation of any future changes.
+## Hallazgos y trabajo pendiente
 
-## Recommended next phase
-Implement a centralized service layer that validates the current session and permissions before mutations, and couples successful operations with audit entries transactionally. Add focused unit and instrumented tests for account permission updates, session invalidation, cash posting, and payment reversals. Do not enable contractual late-fee collection until policy and persisted settings are explicitly defined.
+1. **Frontera de autorización:** la autorización sigue siendo local al dispositivo. No protege contra manipulación del APK o de la base de datos y no sustituye autorización en un servidor confiable.
+2. **Cobertura de lectura:** aún debe revisarse toda lectura directa de Room para asegurar que las sesiones revocadas no sigan viendo datos de otros módulos.
+3. **Auditoría:** hay auditoría local en flujos principales, pero debe completarse y verificarse la matriz de eventos de cambios de permisos, caja, exportaciones, configuración, fallos y acceso a datos.
+4. **Mora y cargos:** el calculador de mora y sus pruebas no constituyen cobro contractual implementado. Falta política aprobada, persistencia contractual y asignación/reversión integrada.
+5. **Identidad:** no hay identidad central, refresh tokens, recuperación de cuenta ni revocación de sesiones en servidor.
+6. **Integridad multi-dispositivo:** falta backend con idempotencia de servidor, aislamiento por empresa/sucursal, control de concurrencia y libro financiero autoritativo.
+7. **Privacidad:** GPS y portal del cliente no están implementados. Antes de GPS se requiere consentimiento explícito, control visible, captura limitada y retención definida.
+8. **Operación:** faltan backups remotos cifrados, restauración probada, monitoreo, respuesta a incidentes y revisión externa.
+
+## Próximas acciones
+
+- Completar pruebas instrumentadas de revocación y observación protegida.
+- Auditar y encapsular cada ruta de lectura/escritura directa a Room.
+- Implementar backend con autenticación central, autorización por tenant/sucursal, sesiones revocables, idempotencia y sync.
+- Implementar reportes reconciliados y política contractual de mora/cargos.
+- Diseñar portal y GPS con protección de privacidad desde el inicio.
+- Ejecutar revisión externa de seguridad, privacidad y requisitos regulatorios antes de operar con clientes reales.
+
+## Regla de publicación
+
+Un build exitoso no equivale a certificación ni disponibilidad de APK/AAB descargable. El workflow actual compila APK debug y AAB release sin firma, pero no sube esos archivos como artefactos. La publicación requiere firma protegida, controles legales/regulatorios, política de privacidad y pruebas de aceptación.

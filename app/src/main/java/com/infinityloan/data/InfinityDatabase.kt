@@ -597,7 +597,11 @@ interface CustomerCreditDao {
         if (loan.status != "ACTIVE") {
             return CustomerCreditResult.LOAN_NOT_ACTIVE
         }
-        val available = getBalance(clientId, currency)
+        val available = try {
+            getBalance(clientId, currency)
+        } catch (_: ArithmeticException) {
+            return CustomerCreditResult.INVALID_CREDIT_LEDGER
+        }
 
         if (available < amountMinor) {
             return CustomerCreditResult.INSUFFICIENT_CREDIT
@@ -635,6 +639,7 @@ enum class CustomerCreditResult {
     CURRENCY_MISMATCH,
     INSUFFICIENT_CREDIT,
     INVALID_CURRENCY,
+    INVALID_CREDIT_LEDGER,
     SCHEDULE_NOT_FOUND,
     INVALID_SCHEDULE,
     LEGACY_RECONCILIATION_REQUIRED
@@ -1102,6 +1107,7 @@ enum class CreditPaymentResult {
     LOAN_NOT_ACTIVE,
     EXCEEDS_BALANCE,
     INSUFFICIENT_CREDIT,
+    INVALID_CREDIT_LEDGER,
     SCHEDULE_NOT_FOUND,
     INVALID_SCHEDULE,
     LEGACY_RECONCILIATION_REQUIRED
@@ -1139,7 +1145,11 @@ abstract class InfinityDatabase : RoomDatabase() {
                 ?: return@withTransaction CreditPaymentResult.LOAN_NOT_FOUND
             if (loan.status != "ACTIVE") return@withTransaction CreditPaymentResult.LOAN_NOT_ACTIVE
 
-            val available = customerCredits().getBalance(loan.clientId, loan.currency)
+            val available = try {
+                customerCredits().getBalance(loan.clientId, loan.currency)
+            } catch (_: ArithmeticException) {
+                return@withTransaction CreditPaymentResult.INVALID_CREDIT_LEDGER
+            }
             if (available < payment.amountMinor) {
                 return@withTransaction CreditPaymentResult.INSUFFICIENT_CREDIT
             }

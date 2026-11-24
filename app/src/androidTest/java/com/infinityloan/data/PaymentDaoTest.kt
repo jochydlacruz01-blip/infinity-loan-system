@@ -1640,4 +1640,47 @@ class PaymentDaoTest {
         assertEquals(null, database.paymentReversals().findByOriginalOperationId(payment.operationId))
     }
 
+
+    @Test
+    fun creditLedgerOverflowIsRejectedWithoutMutatingPaymentOrBalance() = runBlocking {
+        val client = ClientEntity(
+            fullName = "Cliente crédito desbordado",
+            documentNumber = "TEST-CREDIT-OVERFLOW-001",
+            phone = "0000000000",
+            address = "Prueba"
+        )
+        database.clients().insert(client)
+        val loan = LoanEntity(
+            clientId = client.id, principalMinor = 10000L, balanceMinor = 10000L,
+            currency = "DOP", periodicRate = "0", periods = 1, method = "FRENCH"
+        )
+        insertLoanWithDueInstallment(loan)
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "TEST-CREDIT-OVERFLOW-A",
+                clientId = client.id, loanId = loan.id, currency = "DOP",
+                amountMinor = Long.MAX_VALUE, reference = "Movimiento de prueba"
+            )
+        )
+        database.customerCredits().insert(
+            CustomerCreditMovementEntity(
+                operationId = "TEST-CREDIT-OVERFLOW-B",
+                clientId = client.id, loanId = loan.id, currency = "DOP",
+                amountMinor = 1L, reference = "Movimiento de prueba"
+            )
+        )
+
+        val payment = PaymentEntity(
+            operationId = "TEST-CREDIT-OVERFLOW-PAY",
+            loanId = loan.id, amountMinor = 100L, reference = "Pago con saldo no representable"
+        )
+        assertEquals(
+            CreditPaymentResult.INVALID_CREDIT_LEDGER,
+            database.postPaymentWithCustomerCredit(payment)
+        )
+        assertEquals(null, database.payments().findByOperationId(payment.operationId))
+        assertEquals(10000L, database.loans().findById(loan.id)?.balanceMinor)
+        assertEquals(null, database.customerCredits().findMovement("PAYMENT-CREDIT-" + payment.operationId))
+    }
+
 }
